@@ -52,7 +52,7 @@ function emptyDraft() {
     date: todayISO(),
     heure_arrivee: nowHM(),
     heure_depart: "",
-    forfait_deplacement: false,
+    forfait_deplacement: "",
     statut: "terminee",
     equipements: [],
     descriptif_demande: "",
@@ -97,7 +97,7 @@ function topbar({ title, subtitle, back, onHome }) {
   return `
   <div class="topbar">
     <div class="topbar-row">
-      ${back ? `<button class="back-btn" data-nav="back">${ICONS.back}</button>` : `<div class="brand-mark">${ICONS.droplet}</div>`}
+      ${back ? `<button class="back-btn" data-nav="back">${ICONS.back}</button>` : `<img class="brand-mark" src="assets/logo-climat-elec.png" alt="Climat Elec" />`}
       <div>
         <h1>${esc(title)}</h1>
         ${subtitle ? `<div class="subtitle">${esc(subtitle)}</div>` : ""}
@@ -261,7 +261,7 @@ function stepClientHTML() {
     <div class="field">
       <label>Type de bâtiment</label>
       <select id="f-type-bat">
-        ${["", "Maison individuelle", "Appartement", "Local commercial", "Bâtiment agricole", "Autre"].map((t) => `<option value="${esc(t)}" ${c.type_batiment === t ? "selected" : ""}>${t || "Non précisé"}</option>`).join("")}
+        ${["", "Professionnel", "Maison + de 2 ans", "Maison - de 2 ans"].map((t) => `<option value="${esc(t)}" ${c.type_batiment === t ? "selected" : ""}>${t || "Non précisé"}</option>`).join("")}
       </select>
     </div>
   </div>`;
@@ -327,7 +327,7 @@ function wireClientStep() {
 // ---- Step 2 : Intervention ----
 function stepInterventionHTML() {
   const d = state.draft;
-  const types = ["Dépannage", "Entretien annuel", "Installation", "Mise en service", "Contrôle réglementaire", "Autre"];
+  const types = ["Dépannage", "Entretien", "Diagnostique", "Rendez-vous", "Sur devis"];
   return `
   <div class="card" style="padding:14px;">
     <div class="field">
@@ -336,12 +336,14 @@ function stepInterventionHTML() {
     </div>
     <div class="field"><label>Date</label><input id="f-date" type="date" value="${esc(d.date)}" /></div>
     <div class="row2">
-      <div class="field"><label>Heure d'arrivée</label><input id="f-h-arr" type="time" value="${esc(d.heure_arrivee)}" /></div>
-      <div class="field"><label>Heure de départ</label><input id="f-h-dep" type="time" value="${esc(d.heure_depart)}" /></div>
+      <div class="field"><label>Heure d'arrivée sur site</label><input id="f-h-arr" type="time" value="${esc(d.heure_arrivee)}" /></div>
+      <div class="field"><label>Heure de départ du site</label><input id="f-h-dep" type="time" value="${esc(d.heure_depart)}" /></div>
     </div>
-    <div class="toggle-row">
-      <div><div class="t-label">Forfait déplacement</div><div class="t-hint">Facturé pour ce déplacement</div></div>
-      <button class="switch ${d.forfait_deplacement ? "on" : ""}" id="f-forfait" type="button"></button>
+    <div class="field" style="margin-bottom:0;">
+      <label>Forfait déplacement</label>
+      <select id="f-forfait">
+        ${["", "Z0 (Chazé-sur-Argos)", "Z1 (5 à 10 kms)", "Z2 (11 à 30 kms)", "Z3 (31 à 50 kms)", "Forfait"].map((z) => `<option value="${esc(z)}" ${d.forfait_deplacement === z ? "selected" : ""}>${z || "Non précisé"}</option>`).join("")}
+      </select>
     </div>
   </div>
   <div class="section-label">Statut de l'intervention</div>
@@ -352,7 +354,6 @@ function stepInterventionHTML() {
 }
 
 function wireInterventionStep() {
-  $("#f-forfait").addEventListener("click", (e) => e.currentTarget.classList.toggle("on"));
   $all("#f-statut button").forEach((b) => b.addEventListener("click", () => {
     $all("#f-statut button").forEach((x) => x.classList.remove("active"));
     b.classList.add("active");
@@ -467,7 +468,7 @@ function stepSignHTML() {
   const d = state.draft;
   return `
   <div class="toggle-row">
-    <div><div class="t-label">Le client souhaite un devis</div><div class="t-hint">Une action de suivi sera à prévoir</div></div>
+    <div><div class="t-label">Le client souhaite-t-il un devis</div><div class="t-hint">Une action de suivi sera à prévoir</div></div>
     <button class="switch ${d.devis_souhaite ? "on" : ""}" id="f-devis" type="button"></button>
   </div>
   <div class="card" style="padding:14px;margin-bottom:18px;">
@@ -476,7 +477,13 @@ function stepSignHTML() {
 
   <div class="section-label">Signatures</div>
   <div class="card" style="padding:14px;">
-    <div class="field"><label>Nom du technicien</label><input id="f-tech" type="text" value="${esc(d.technicien_nom)}" placeholder="Votre nom" /></div>
+    <div class="field"><label>Nom du technicien</label>
+      <input id="f-tech" type="text" list="tech-list" value="${esc(d.technicien_nom)}" placeholder="Votre nom" />
+      <datalist id="tech-list">
+        <option value="GARDAIS Jérémy"></option>
+        <option value="CHANTEUX Régis"></option>
+      </datalist>
+    </div>
     <div class="toggle-row" style="margin-top:2px;">
       <div><div class="t-label">Client présent</div></div>
       <button class="switch ${d.client_present ? "on" : ""}" id="f-present" type="button"></button>
@@ -541,7 +548,7 @@ function readStepIntoDraft(step) {
     d.date = $("#f-date").value || todayISO();
     d.heure_arrivee = $("#f-h-arr").value;
     d.heure_depart = $("#f-h-dep").value;
-    d.forfait_deplacement = $("#f-forfait").classList.contains("on");
+    d.forfait_deplacement = $("#f-forfait").value;
     d.statut = $("#f-statut .active")?.dataset.v || "terminee";
   }
   if (step === 3) {
@@ -619,7 +626,7 @@ async function renderDetail(id) {
       <div class="section-label">Intervention</div>
       <div class="card">
         <div class="kv"><div class="k">Horaires</div><div class="v">${esc(itv.heure_arrivee || "-")} → ${esc(itv.heure_depart || "-")}</div></div>
-        <div class="kv"><div class="k">Forfait déplacement</div><div class="v">${itv.forfait_deplacement ? "Oui" : "Non"}</div></div>
+        <div class="kv"><div class="k">Forfait déplacement</div><div class="v">${esc(itv.forfait_deplacement || "-")}</div></div>
       </div>
 
       ${itv.equipements?.length ? `

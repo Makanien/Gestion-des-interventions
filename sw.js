@@ -4,7 +4,7 @@
    100% hors ligne après la première visite (avec réseau).
    Incrémenter CACHE_VERSION à chaque déploiement de nouvelle version.
    ========================================================= */
-const CACHE_VERSION = "climatelec-v1";
+const CACHE_VERSION = "climatelec-v2";
 const ASSETS = [
   "./",
   "./index.html",
@@ -13,6 +13,8 @@ const ASSETS = [
   "./pdf.js",
   "./app.js",
   "./manifest.json",
+  "./logo-data.js",
+  "./assets/logo-climat-elec.png",
   "./vendor/jspdf.umd.min.js",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
