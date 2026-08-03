@@ -51,20 +51,20 @@ async function generateInterventionPDF(itv, client) {
   doc.text(`Réf. ${itv.id.slice(0, 8).toUpperCase()}`, pageW - margin, y + 21, { align: "right" });
   doc.text(fmtDate(itv.date), pageW - margin, y + 31, { align: "right" });
 
-  y += logoH + (window.LOGO_CLIMAT_ELEC_PNG ? 20 : 0);
+  y += logoH + (window.LOGO_CLIMAT_ELEC_PNG ? 12 : 0);
   doc.setDrawColor(...LIGHT);
   doc.setLineWidth(1);
   doc.line(margin, y, pageW - margin, y);
-  y += 18;
+  y += 10;
 
   const sectionTitle = (label) => {
     doc.setFillColor(...LIGHT);
-    doc.rect(margin, y, pageW - margin * 2, 18, "F");
+    doc.rect(margin, y, pageW - margin * 2, 16, "F");
     doc.setFont("helvetica", "bold");
     doc.setFontSize(9.5);
     doc.setTextColor(...NAVY);
-    doc.text(label.toUpperCase(), margin + 8, y + 12.5);
-    y += 18 + 10;
+    doc.text(label.toUpperCase(), margin + 8, y + 11);
+    y += 14 + 10;
   };
 
   const kv = (label, value, x, w) => {
@@ -85,26 +85,26 @@ async function generateInterventionPDF(itv, client) {
   sectionTitle("Client");
   kv("Nom", client?.nom, margin, colW);
   kv("Ville", client ? `${client.code_postal || ""} ${client.ville || ""}`.trim() : "", margin + colW + 20, colW);
-  y += 26;
+  y += 24;
   kv("Adresse", client?.adresse, margin, colW);
   kv("Type de bâtiment", client?.type_batiment, margin + colW + 20, colW);
-  y += 26;
+  y += 24;
   kv("Téléphone", client?.tel, margin, colW);
   kv("Mail", client?.mail, margin + colW + 20, colW);
-  y += 30;
+  y += 20;
 
   // ---- Intervention ----
   sectionTitle("Intervention");
   kv("Type", itv.type_intervention, margin, colW);
   kv("Date", fmtDate(itv.date), margin + colW + 20, colW);
-  y += 26;
+  y += 24;
   kv("Heure d'arrivée", itv.heure_arrivee, margin, colW / 2 - 5);
   kv("Heure de départ", itv.heure_depart, margin + colW / 2 + 15, colW / 2 - 5);
   kv("Temps d'intervention", computeDuration(itv.heure_arrivee, itv.heure_depart), margin + colW + 20, colW);
-  y += 26;
+  y += 24;
   kv("Forfait déplacement", itv.forfait_deplacement, margin, colW);
   kv("Statut", itv.statut === "terminee" ? "Terminée avec succès" : "Nouvelle intervention à prévoir", margin + colW + 20, colW);
-  y += 30;
+  y += 20;
 
   // ---- Équipement ----
   if (itv.equipements && itv.equipements.length) {
@@ -118,7 +118,7 @@ async function generateInterventionPDF(itv, client) {
       doc.setFontSize(8.5);
       doc.setTextColor(...GREY);
       doc.text(`Marque : ${eq.marque || "-"}    Modèle : ${eq.modele || "-"}    N° série : ${eq.numero_serie || "-"}`, margin, y + 12);
-      y += 26;
+      y += 24;
     });
     y += 4;
   }
@@ -145,10 +145,10 @@ async function generateInterventionPDF(itv, client) {
     doc.text("Désignation", margin, y);
     doc.text("Référence", margin + colW * 0.9, y);
     doc.text("Qté", pageW - margin - 20, y, { align: "right" });
-    y += 10;
+    y += 8;
     doc.setDrawColor(...LIGHT);
     doc.line(margin, y, pageW - margin, y);
-    y += 12;
+    y += 10;
     doc.setFont("helvetica", "normal");
     doc.setFontSize(9);
     doc.setTextColor(...NAVY);
@@ -176,7 +176,7 @@ async function generateInterventionPDF(itv, client) {
     doc.text(lines, margin + 5, y);
     y += lines.length * 12;
   }
-  y += 24;
+  y += 20;
 
   // ---- Signatures ----
   if (y > 680) { doc.addPage(); y = 50; }
@@ -198,7 +198,7 @@ async function generateInterventionPDF(itv, client) {
   doc.text(itv.technicien_nom || "-", margin + 8, y + 40);
   doc.text(itv.client_present === false ? "" : (itv.client_signature_nom || "-"), margin + sigColW + 28, y + 40);
 
-  y += 70 + 20;
+  y += 70 + 16;
   doc.setFont("helvetica", "normal");
   doc.setFontSize(7.5);
   doc.setTextColor(...GREY);
