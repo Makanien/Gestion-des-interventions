@@ -725,7 +725,17 @@ window.addEventListener("offline", updateOfflinePill);
 async function init() {
   await DB.init();
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("sw.js").catch((err) => console.warn("SW registration failed", err));
+    navigator.serviceWorker.register("sw.js").then((reg) => {
+      reg.addEventListener("updatefound", () => {
+        const newWorker = reg.installing;
+        if (!newWorker) return;
+        newWorker.addEventListener("statechange", () => {
+          if (newWorker.state === "installed" && navigator.serviceWorker.controller) {
+            window.location.reload();
+          }
+        });
+      });
+    }).catch((err) => console.warn("SW registration failed", err));
   }
   await route();
 }
