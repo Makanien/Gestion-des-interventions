@@ -97,7 +97,7 @@ function topbar({ title, subtitle, back, onHome }) {
   return `
   <div class="topbar">
     <div class="topbar-row">
-      ${back ? `<button class="back-btn" data-nav="back">${ICONS.back}</button>` : `<img class="brand-mark" src="assets/logo-climat-elec.png" alt="Climat Elec" />`}
+      ${back ? `<button class="back-btn" data-nav="back">${ICONS.back}</button>` : `<img class="brand-mark" src="icons/android-chrome-192x192.png" alt="Climat Elec" />`}
       <div>
         <h1>${esc(title)}</h1>
         ${subtitle ? `<div class="subtitle">${esc(subtitle)}</div>` : ""}

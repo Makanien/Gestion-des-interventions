@@ -16,9 +16,14 @@ const ASSETS = [
   "./logo-data.js",
   "./assets/logo-climat-elec.png",
   "./vendor/jspdf.umd.min.js",
-  "./icons/icon-192.png",
-  "./icons/icon-512.png",
+  "./icons/favicon-16x16.png",
+  "./icons/favicon-32x32.png",
+  "./icons/favicon.ico",
+  "./icons/android-chrome-192x192.png",
+  "./icons/android-chrome-512x512.png",
+  "./icons/icon-maskable-192.png",
   "./icons/icon-maskable-512.png",
+  "./icons/apple-touch-icon.png",
 ];
 
 self.addEventListener("install", (event) => {
