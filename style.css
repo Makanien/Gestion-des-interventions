@@ -136,6 +136,7 @@ main{flex:1;padding:14px 14px calc(90px + var(--safe-bottom));}
   box-shadow:var(--ce-shadow);
 }
 .intervention-item + .intervention-item{margin-top:10px;}
+.intervention-item svg{width:18px;height:18px;color:var(--ce-text-muted);flex:none;margin-left:4px;opacity:.6;}
 .status-dot{
   width:34px;height:34px;border-radius:50%;flex:none;margin-top:1px;
   background:var(--ce-gradient);
@@ -272,7 +273,26 @@ main{flex:1;padding:14px 14px calc(90px + var(--safe-bottom));}
 .combo-item:last-child{border-bottom:none;}
 .combo-item .c-name{font-weight:700;font-size:14px;color:var(--ce-navy);}
 .combo-item .c-sub{font-size:12px;color:var(--ce-text-muted);margin-top:1px;}
-.combo-item.new{color:var(--ce-blue);font-weight:600;font-size:13.5px;}
+.combo-item.new{
+  color:var(--ce-blue);
+  font-weight:600;
+  font-size:13.5px;
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:13px 14px;
+  background:linear-gradient(135deg, rgba(47,134,180,0.08), rgba(232,121,42,0.05));
+  border-top:2px dashed var(--ce-border);
+}
+.combo-item.new svg{
+  width:20px;
+  height:20px;
+  flex:none;
+  background:var(--ce-blue);
+  color:#fff;
+  border-radius:50%;
+  padding:3px;
+}
 
 /* Dynamic line groups (équipements / pièces) */
 .line-group{border:1px solid var(--ce-border);border-radius:var(--ce-radius-sm);padding:12px;margin-bottom:10px;background:#fbfcfc;}
