@@ -74,5 +74,7 @@ aussi en `localhost`, c'est une exception acceptée par les navigateurs).
 ## Mise à jour de l'application
 
 Après toute modification des fichiers, incrémenter `CACHE_VERSION` dans `sw.js`
-(ex. `climatelec-v2`) pour que les téléphones déjà installés récupèrent la nouvelle
-version au prochain lancement avec réseau disponible.
+(ex. `climatelec-v5`) pour que les téléphones déjà installés récupèrent la nouvelle
+version au prochain lancement avec réseau disponible. Un mécanisme `updatefound`
+dans `app.js` recharge automatiquement la page dès qu'une nouvelle version du
+service worker est détectée et installée.

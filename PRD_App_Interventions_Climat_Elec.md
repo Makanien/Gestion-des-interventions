@@ -1,8 +1,8 @@
 # PRD — Application de gestion des fiches d'intervention
 ## Climat Elec (Chazé-sur-Argos)
 
-**Version du document :** 1.0
-**Date :** 01/08/2026
+**Version du document :** 1.1
+**Date :** 04/08/2026
 **Auteur :** Rédigé avec Claude, sur la base des échanges avec le porteur de projet
 
 ---
@@ -135,6 +135,7 @@ PieceUtilisee {
 - **PWA** :
   - `manifest.json` (icône, nom, couleurs aux couleurs de Climat Elec, mode standalone).
   - `service worker` pour mise en cache des assets (HTML/CSS/JS/logo) → fonctionnement 100 % hors ligne, y compris au premier lancement après installation.
+  - Mise à jour automatique des clients installés via `updatefound` + `skipWaiting()` + `clients.claim()`, avec incrémentation manuelle de `CACHE_VERSION` dans `sw.js` à chaque déploiement.
   - Installable sur l'écran d'accueil (Android et iOS).
 - **Génération PDF** : librairie JS côté client (ex. jsPDF ou équivalent), pas besoin de serveur.
 
