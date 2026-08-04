@@ -282,7 +282,7 @@ function wireClientStep() {
         <div class="c-sub">${esc([cl.ville, cl.tel].filter(Boolean).join(" · ") || "—")}</div>
       </div>`).join("");
     if (!exact) {
-      html += `<div class="combo-item new" data-client="__new__">${ICONS.plus.replace('width="24" height="24"', 'width="12" height="12"')} Créer « ${esc(input.value.trim())} »</div>`;
+      html += `<div class="combo-item new" data-client="__new__"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg><span>Créer « ${esc(input.value.trim())} »</span></div>`;
     }
     list.innerHTML = html || `<div class="combo-item">Aucun résultat</div>`;
     list.style.display = "block";
