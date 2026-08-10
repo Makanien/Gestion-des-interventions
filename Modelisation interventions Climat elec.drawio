@@ -1,13 +1,13 @@
 <mxfile host="65bd71144e">
     <diagram id="c7488fd3-1785-93aa-aadb-54a6760d102a" name="Page-1">
-        <mxGraphModel dx="542" dy="371" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="827" background="none" math="0" shadow="0">
+        <mxGraphModel dx="501" dy="433" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="827" background="none" math="0" shadow="0">
             <root>
                 <mxCell id="0"/>
                 <mxCell id="1" parent="0"/>
                 <mxCell id="2b4e8129b02d487f-1" value="Modélisation du processus d&#39;intervention : Contact client - Fiche intervention - Facturation" style="swimlane;html=1;childLayout=stackLayout;horizontal=1;startSize=20;horizontalStack=0;rounded=0;shadow=0;labelBackgroundColor=none;strokeWidth=1;fontFamily=Verdana;fontSize=8;align=center;" parent="1" vertex="1">
                     <mxGeometry x="13" y="10" width="1150" height="470" as="geometry"/>
                 </mxCell>
-                <mxCell id="2b4e8129b02d487f-2" value="? (Technicien)" style="swimlane;html=1;startSize=20;horizontal=0;" parent="2b4e8129b02d487f-1" vertex="1">
+                <mxCell id="2b4e8129b02d487f-2" value="Jérémy (Technicien)" style="swimlane;html=1;startSize=20;horizontal=0;" parent="2b4e8129b02d487f-1" vertex="1">
                     <mxGeometry y="20" width="1150" height="150" as="geometry"/>
                 </mxCell>
                 <mxCell id="awRoavt2DRxvWQlBiaSt-42" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" parent="2b4e8129b02d487f-2" source="awRoavt2DRxvWQlBiaSt-38" target="awRoavt2DRxvWQlBiaSt-41" edge="1">
