@@ -1,8 +1,8 @@
 # PRD — Application de gestion des fiches d'intervention
 ## Climat Elec (Chazé-sur-Argos)
 
-**Version du document :** 1.0
-**Date :** 01/08/2026
+**Version du document :** 1.4
+**Date :** 11/08/2026
 **Auteur :** Rédigé avec Claude, sur la base des échanges avec le porteur de projet
 
 ---
@@ -75,7 +75,25 @@ Climat Elec est une entreprise artisanale spécialisée en géothermie, climatis
 8. **Devis souhaité ?** : case à cocher + zone de commentaire libre.
 9. **Signatures** : nom technicien (pré-rempli si un seul technicien) + nom client, avec case "présent/absent" (signature tactile reportée en V2).
 10. **Validation** → génération automatique du PDF reprenant la mise en page actuelle + sauvegarde locale de la fiche.
-11. **Partage** du PDF via le menu de partage natif du téléphone (aucun envoi automatique).
+11. **Modification** : depuis le détail d'une fiche, bouton « Modifier » (icône stylo) → reprise du parcours 2 à 9 pré-rempli, pour corriger ou compléter une fiche existante (CRUD complet) — la fiche est mise à jour en place, sans doublon.
+12. **Partage** du PDF via le menu de partage natif du téléphone (aucun envoi automatique).
+
+### 4.1 Détail des champs texte libre
+
+Les champs texte libre suivants bénéficient d'améliorations ergonomiques :
+
+| Étape | Champ | Comportement |
+|---|---|---|
+| 3 | Descriptif de la demande | Zone de texte sans poignée de redimensionnement, hauteur automatique |
+| 4 | Action réalisée | Zone de texte sans poignée de redimensionnement, hauteur automatique |
+| 5 | Commentaire devis | Zone de texte sans poignée de redimensionnement, hauteur automatique |
+
+**Nettoyage automatique** : à l'enregistrement de chaque étape, les champs texte libre sont automatiquement nettoyés :
+- Suppression des espaces en début et fin de texte
+- Suppression des espaces en fin de chaque ligne
+- Réduction des lignes vides consécutives à une seule ligne vide (les sauts de paragraphe simples sont conservés)
+
+> **Gestion des fiches (CRUD) :** le parcours ci-dessus permet la **C**réation (étapes 1-10), la **L**ecture (liste à l'accueil + détail), la **M**odification (étape 11) et la **S**uppression (bouton corbeille sur le détail) des fiches d'intervention.
 
 ---
 
@@ -135,6 +153,7 @@ PieceUtilisee {
 - **PWA** :
   - `manifest.json` (icône, nom, couleurs aux couleurs de Climat Elec, mode standalone).
   - `service worker` pour mise en cache des assets (HTML/CSS/JS/logo) → fonctionnement 100 % hors ligne, y compris au premier lancement après installation.
+  - Mise à jour automatique des clients installés via `updatefound` + `skipWaiting()` + `clients.claim()`, avec incrémentation manuelle de `CACHE_VERSION` dans `sw.js` à chaque déploiement.
   - Installable sur l'écran d'accueil (Android et iOS).
 - **Génération PDF** : librairie JS côté client (ex. jsPDF ou équivalent), pas besoin de serveur.
 
@@ -183,20 +202,100 @@ PieceUtilisee {
 | 5. Développement V2 | Intégration Supabase, comptes, synchronisation, signature électronique | Plus tard |
 | 6. Historique équipements par client | Ajout à la fiche équipement | V2 |
 
+> Le contenu détaillé des versions V2/V3 ci-dessus reste indicatif : le backlog de user stories du **§10** couvre un périmètre plus large (RDV, validation, devis, facturation) et devra être arbitré pour préciser ce que ces étapes contiennent réellement.
+
 ---
 
-## 10. Points ouverts / à trancher plus tard
+## 10. Backlog de user stories — pistes d'évolution possibles
+
+> **⚠️ Statut : propositions non arbitrées.** Les user stories ci-dessous sont issues de la modélisation complète du processus métier (appel client → RDV → fiche terrain → validation → devis → facturation → envoi), réalisée avec les 3 personnes concernées (Régis, Jérémy, Delphine). **Elles ne constituent pas un engagement de développement** : il s'agit d'un inventaire des évolutions envisageables, à arbitrer et prioriser collectivement pour construire le contenu de la prochaine version. Aucune de ces stories n'est donc à considérer comme actée tant qu'elle n'a pas été explicitement sélectionnée.
+
+Légende de couverture :
+- 🟢 **Déjà couvert** par l'application V1 (prototype PWA existant)
+- ⚪ **Piste d'évolution** (non développée, à arbitrer)
+
+### Épopée 1 — Prise de contact & planification
+*Acteur principal : Régis (Responsable)*
+
+| ID | User story | Statut |
+|---|---|---|
+| US-01 | En tant que responsable, je veux enregistrer les informations d'un client qui appelle, afin de disposer de son contexte avant l'intervention. | ⚪ |
+| US-02 | En tant que responsable, je veux créer un rendez-vous pour le technicien, afin de planifier son passage chez le client. | ⚪ |
+| US-14 | En tant que responsable, je veux que ce rendez-vous soit synchronisé avec Google Agenda, afin de ne pas gérer deux calendriers en parallèle. | ⚪ |
+
+### Épopée 2 — Intervention terrain
+*Acteur principal : Jérémy (Technicien)*
+
+| ID | User story | Statut |
+|---|---|---|
+| US-03 | En tant que technicien, je veux créer une fiche d'intervention chez le client, afin de documenter la demande et l'action réalisée. | 🟢 |
+| US-04 | En tant que technicien, je veux faire signer la fiche par le client à la fin de l'intervention, afin de valider formellement la prestation réalisée. *(V1 : nom saisi au clavier ; signature tactile = US candidate V2, cf. §3)* | 🟢 |
+
+### Épopée 3 — Validation & devis
+*Acteur principal : Régis (Responsable)*
+
+| ID | User story | Statut |
+|---|---|---|
+| US-05 | En tant que responsable, je veux recevoir et valider chaque fiche d'intervention terminée, afin de m'assurer qu'elle est complète et correcte avant de lancer la facturation. | ⚪ |
+| US-06 | En tant que responsable, je veux indiquer si l'intervention nécessite en plus un devis pour des travaux complémentaires, afin de déclencher sa réalisation **sans jamais bloquer la facturation de l'intervention elle-même**. | ⚪ |
+| US-07 | En tant que responsable, je veux réaliser un devis pour les travaux complémentaires identifiés, afin de le transmettre au client indépendamment de la facturation de l'intervention en cours. | ⚪ |
+| US-08 | En tant que responsable, je veux que toute fiche validée parte automatiquement vers la facturation, qu'un devis complémentaire soit généré ou non en parallèle, afin qu'aucune intervention réalisée ne reste facturée en retard à cause d'un devis en attente. | ⚪ |
+
+> *Rappel important issu de la modélisation : facturation de l'intervention et devis complémentaire sont deux actions **parallèles**, pas deux chemins exclusifs — la facturation ne doit jamais être conditionnée à la présence ou non d'un devis.*
+
+### Épopée 4 — Facturation
+*Acteurs : Delphine (Secrétaire) & Régis (Responsable)*
+
+| ID | User story | Statut |
+|---|---|---|
+| US-09 | En tant que secrétaire, je veux créer une facture à partir d'une fiche marquée "à facturer", afin de générer le document à transmettre au client. | ⚪ |
+| US-10 | En tant que responsable, je veux vérifier une facture avant son envoi, afin de m'assurer qu'elle correspond bien à l'intervention réalisée. | ⚪ |
+| US-11 | En tant que responsable, je veux fusionner la facture vérifiée avec la fiche d'intervention correspondante, afin de constituer le dossier final complet à envoyer. | ⚪ |
+
+### Épopée 5 — Envoi & clôture
+*Acteur principal : Delphine (Secrétaire)*
+
+| ID | User story | Statut |
+|---|---|---|
+| US-12 | En tant que secrétaire, je veux envoyer la facture accompagnée de la fiche d'intervention au client, afin de clôturer le dossier. | ⚪ |
+
+### Transverses — Statuts & outils
+*Tous acteurs*
+
+| ID | User story | Statut |
+|---|---|---|
+| US-13 | En tant qu'utilisateur (Régis, Delphine ou Jérémy), je veux voir en un coup d'œil le statut d'un dossier (terminée / à facturer / à vérifier / à envoyer), afin de savoir qui doit agir ensuite sans avoir à demander aux autres. | ⚪ |
+| US-15 | En tant qu'utilisateur, je veux que les documents (fiches, devis, factures) soient classés automatiquement selon leur statut, afin de remplacer le classement manuel actuel par dossiers sur OneDrive. | ⚪ |
+
+### Récapitulatif de couverture
+
+| Épopée | Nb. stories | Couvertes par l'appli V1 |
+|---|---|---|
+| 1. Prise de contact & planification | 3 | 0 / 3 |
+| 2. Intervention terrain | 2 | 2 / 2 |
+| 3. Validation & devis | 4 | 0 / 4 |
+| 4. Facturation | 3 | 0 / 3 |
+| 5. Envoi & clôture | 1 | 0 / 1 |
+| Transverses | 2 | 0 / 2 |
+| **Total** | **15** | **2 / 15** |
+
+**Prochaine étape :** ce backlog doit être revu et arbitré (par exemple par un vote de priorisation ou une session de cadrage dédiée) pour sélectionner une ou plusieurs stories à intégrer au contenu de la prochaine version développée. Le détail complet (schéma du processus, vue visuelle) est disponible dans les documents `Modelisation_interventions_Climat_elec.drawio` et `User_Stories_Climat_Elec.md`.
+
+---
+
+## 11. Points ouverts / à trancher plus tard
 
 - Faut-il prévoir des **photos** (avant/après intervention, plaque signalétique de l'équipement) ? Cela impacterait le choix de stockage (IndexedDB/Storage) dès la V1.
 - Faut-il un **mode "brouillon"** permettant de reprendre une fiche non terminée plus tard (coupure d'intervention) ?
 - Le champ "Type de Bâtiment" de la fiche actuelle : liste fermée (maison/appartement/local commercial...) ou texte libre ?
 - Faut-il conserver un **compteur/numérotation** des fiches d'intervention (référence unique visible sur le PDF) ?
+- **Nouveau (issu du backlog §10) :** parmi les 13 stories non couvertes, lesquelles prioriser pour la prochaine version ? Le périmètre couvre potentiellement plusieurs outils déjà en place (Google Agenda, OneDrive) — faut-il les remplacer ou s'y interfacer ?
 
 ---
 
-## 11. Critères de succès
+## 12. Critères de succès
 
-- Le technicien peut créer et finaliser une fiche complète **sans aucune connexion réseau**, du début à la fin.
+- Le technicien peut créer, consulter, **modifier** et supprimer une fiche d'intervention **sans aucune connexion réseau**, du début à la fin.
 - Le temps de saisie d'une intervention pour un client déjà connu est **réduit d'au moins 50 %** grâce à l'auto-remplissage.
 - Le PDF généré est visuellement fidèle à la fiche papier actuelle.
 - Aucune perte de données lors du passage de la V1 (local) à la V2 (Supabase).
