@@ -13,6 +13,7 @@ const ICONS = {
   chevron: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>`,
   close: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`,
   wrench: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a4 4 0 1 0-5.4 5.4L2 19l3 3 7.3-7.3a4 4 0 0 0 5.4-5.4l-2.8 2.8-2-2 2.8-2.8z"/></svg>`,
+  pencil: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.8 2.8 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="M15 5l4 4"/></svg>`,
   file: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg>`,
   down: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>`,
   droplet: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2s7 7.6 7 12a7 7 0 0 1-14 0c0-4.4 7-12 7-12z"/></svg>`,
@@ -66,6 +67,36 @@ function emptyDraft() {
   };
 }
 
+async function loadDraftFromIntervention(id) {
+  const itv = await DB.getIntervention(id);
+  if (!itv) { state.draft = null; go("#/"); return; }
+  const d = emptyDraft();
+  Object.assign(d, {
+    id: itv.id,
+    client_id: itv.client_id,
+    type_intervention: itv.type_intervention,
+    date: itv.date,
+    heure_arrivee: itv.heure_arrivee,
+    heure_depart: itv.heure_depart,
+    forfait_deplacement: itv.forfait_deplacement,
+    statut: itv.statut || "terminee",
+    equipements: (itv.equipements || []).map((e) => ({ ...e })),
+    descriptif_demande: itv.descriptif_demande,
+    action_realisee: itv.action_realisee,
+    pieces: (itv.pieces || []).map((p) => ({ ...p })),
+    devis_souhaite: itv.devis_souhaite || false,
+    devis_commentaire: itv.devis_commentaire,
+    technicien_nom: itv.technicien_nom || "",
+    client_present: itv.client_present !== false,
+    client_signature_nom: itv.client_signature_nom || "",
+  });
+  const client = itv.client_id ? await DB.getClient(itv.client_id) : itv.client;
+  d.client = { id: client?.id, nom: client?.nom || "", adresse: client?.adresse || "", code_postal: client?.code_postal || "", ville: client?.ville || "", mail: client?.mail || "", tel: client?.tel || "", type_batiment: client?.type_batiment || "" };
+  if (!d.client_id) d.client_id = client?.id || null;
+  state.draft = d;
+  state.step = 1;
+}
+
 // ---------------------------------------------------------
 // Router
 // ---------------------------------------------------------
@@ -81,6 +112,9 @@ async function route() {
     if (!state.draft) state.draft = emptyDraft();
     state.step = parts[1] ? parseInt(parts[1], 10) : 1;
     renderWizard();
+  } else if (parts[0] === "edit" && parts[1]) {
+    await loadDraftFromIntervention(parts[1]);
+    go(`#/new/${state.step || 1}`);
   } else if (parts[0] === "detail" && parts[1]) {
     await renderDetail(parts[1]);
   } else {
@@ -213,7 +247,7 @@ async function renderWizard() {
       <div class="topbar-row">
         <button class="back-btn" data-nav="cancel">${ICONS.close}</button>
         <div>
-          <h1>Nouvelle intervention</h1>
+          <h1>${state.draft?.id ? "Modifier l'intervention" : "Nouvelle intervention"}</h1>
         </div>
       </div>
       ${stepsBarHTML(state.step)}
@@ -571,6 +605,7 @@ function readStepIntoDraft(step) {
 async function finishWizard() {
   if (!readStepIntoDraft(5)) return;
   const d = state.draft;
+  const isEdit = !!d.id;
 
   // Sauvegarde / mise à jour du client
   const savedClient = await DB.saveClient({ ...d.client });
@@ -583,7 +618,7 @@ async function finishWizard() {
   itv.client = { nom: savedClient.nom, ville: savedClient.ville }; // dénormalisation légère pour affichage rapide liste
 
   const saved = await DB.saveIntervention(itv);
-  toast("Fiche enregistrée");
+  toast(isEdit ? "Fiche mise à jour" : "Fiche enregistrée");
   state.draft = null;
   go(`#/detail/${saved.id}`);
 }
@@ -602,7 +637,10 @@ async function renderDetail(id) {
       <div class="topbar-row">
         <button class="back-btn" data-nav="back">${ICONS.back}</button>
         <div><h1>Détail intervention</h1></div>
-        <button class="icon-btn" data-nav="delete" data-id="${itv.id}" title="Supprimer">${ICONS.trash}</button>
+        <div class="topbar-actions">
+          <button class="icon-btn" data-nav="edit" data-id="${itv.id}" title="Modifier">${ICONS.pencil}</button>
+          <button class="icon-btn" data-nav="delete" data-id="${itv.id}" title="Supprimer">${ICONS.trash}</button>
+        </div>
       </div>
     </div>
     <main>
@@ -692,6 +730,10 @@ document.addEventListener("click", async (e) => {
 
   if (action === "new") { state.draft = emptyDraft(); go("#/new/1"); }
   else if (action === "detail") go(`#/detail/${nav.dataset.id}`);
+  else if (action === "edit") {
+    if (state.draft && state.draft.id !== nav.dataset.id) state.draft = null;
+    go(`#/edit/${nav.dataset.id}`);
+  }
   else if (action === "back") { if (window.history.length > 1) window.history.back(); else go("#/"); }
   else if (action === "cancel") { state.draft = null; go("#/"); }
   else if (action === "prev") { if (state.step > 1) { readStepIntoDraft(state.step); go(`#/new/${state.step - 1}`); } }

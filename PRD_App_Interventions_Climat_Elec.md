@@ -1,8 +1,8 @@
 # PRD — Application de gestion des fiches d'intervention
 ## Climat Elec (Chazé-sur-Argos)
 
-**Version du document :** 1.2
-**Date :** 10/08/2026
+**Version du document :** 1.3
+**Date :** 11/08/2026
 **Auteur :** Rédigé avec Claude, sur la base des échanges avec le porteur de projet
 
 ---
@@ -75,7 +75,10 @@ Climat Elec est une entreprise artisanale spécialisée en géothermie, climatis
 8. **Devis souhaité ?** : case à cocher + zone de commentaire libre.
 9. **Signatures** : nom technicien (pré-rempli si un seul technicien) + nom client, avec case "présent/absent" (signature tactile reportée en V2).
 10. **Validation** → génération automatique du PDF reprenant la mise en page actuelle + sauvegarde locale de la fiche.
-11. **Partage** du PDF via le menu de partage natif du téléphone (aucun envoi automatique).
+11. **Modification** : depuis le détail d'une fiche, bouton « Modifier » (icône stylo) → reprise du parcours 2 à 9 pré-rempli, pour corriger ou compléter une fiche existante (CRUD complet) — la fiche est mise à jour en place, sans doublon.
+12. **Partage** du PDF via le menu de partage natif du téléphone (aucun envoi automatique).
+
+> **Gestion des fiches (CRUD) :** le parcours ci-dessus permet la **C**réation (étapes 1-10), la **L**ecture (liste à l'accueil + détail), la **M**odification (étape 11) et la **S**uppression (bouton corbeille sur le détail) des fiches d'intervention.
 
 ---
 
@@ -277,7 +280,7 @@ Légende de couverture :
 
 ## 12. Critères de succès
 
-- Le technicien peut créer et finaliser une fiche complète **sans aucune connexion réseau**, du début à la fin.
+- Le technicien peut créer, consulter, **modifier** et supprimer une fiche d'intervention **sans aucune connexion réseau**, du début à la fin.
 - Le temps de saisie d'une intervention pour un client déjà connu est **réduit d'au moins 50 %** grâce à l'auto-remplissage.
 - Le PDF généré est visuellement fidèle à la fiche papier actuelle.
 - Aucune perte de données lors du passage de la V1 (local) à la V2 (Supabase).

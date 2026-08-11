@@ -84,6 +84,11 @@ h1,h2,h3{margin:0;font-weight:700;letter-spacing:-.01em;}
   border:none;color:#fff;
   display:flex;align-items:center;justify-content:center;
 }
+.topbar-actions{
+  margin-left:auto;
+  display:flex;align-items:center;gap:8px;
+}
+.topbar-actions .icon-btn{margin-left:0;}
 .icon-btn:active{background:rgba(255,255,255,.22);}
 .back-btn{
   width:34px;height:34px;border-radius:9px;border:none;
