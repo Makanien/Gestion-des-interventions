@@ -416,9 +416,7 @@ function stepEquipHTML() {
   <button type="button" class="add-line-btn" id="add-eq">${ICONS.plus} Ajouter un équipement</button>
 
   <div class="section-label">Descriptif de la demande</div>
-  <div class="card" style="padding:14px;">
-    <textarea id="f-descriptif" placeholder="Ce que signale ou demande le client…">${esc(d.descriptif_demande)}</textarea>
-  </div>`;
+    <textarea id="f-descriptif" placeholder="Ce que signale ou demande le client…">${esc(d.descriptif_demande)}</textarea>`;
 }
 
 function wireEquipStep() {
@@ -428,6 +426,17 @@ function wireEquipStep() {
     wireEquipLines();
   });
   wireEquipLines();
+  autoResize("f-descriptif");
+}
+function autoResize(id) {
+  const ta = document.getElementById(id);
+  if (!ta) return;
+  ta.style.height = "auto";
+  ta.style.height = ta.scrollHeight + "px";
+  ta.addEventListener("input", () => {
+    ta.style.height = "auto";
+    ta.style.height = ta.scrollHeight + "px";
+  });
 }
 function wireEquipLines() {
   $all("[data-eq-f]").forEach((inp) => {
@@ -463,9 +472,7 @@ function stepActionHTML() {
   const d = state.draft;
   return `
   <div class="section-label">Action réalisée</div>
-  <div class="card" style="padding:14px;">
     <textarea id="f-action" placeholder="Détail de l'intervention effectuée…">${esc(d.action_realisee)}</textarea>
-  </div>
   <div class="section-label">Pièces utilisées</div>
   <div id="piece-list">${d.pieces.map(pieceLineHTML).join("")}</div>
   <button type="button" class="add-line-btn" id="add-piece">${ICONS.plus} Ajouter une pièce</button>`;
@@ -478,6 +485,7 @@ function wirePiecesStep() {
     wirePieceLines();
   });
   wirePieceLines();
+  autoResize("f-action");
 }
 function wirePieceLines() {
   $all("[data-p-f]").forEach((inp) => {
@@ -551,6 +559,7 @@ function wireSignStep() {
     $("#wrap-client-sig").style.display = e.currentTarget.classList.contains("on") ? "block" : "none";
   });
   if (!state.draft.client_present) $("#wrap-client-sig").style.display = "none";
+  autoResize("f-devis-com");
 }
 
 function wireStep(step) {
@@ -559,6 +568,15 @@ function wireStep(step) {
   if (step === 3) wireEquipStep();
   if (step === 4) wirePiecesStep();
   if (step === 5) wireSignStep();
+}
+
+function cleanText(v) {
+  return v
+    .split("\n")
+    .map(l => l.trimEnd())
+    .filter((l, i, a) => !(l === "" && a[i - 1] === ""))
+    .join("\n")
+    .trim();
 }
 
 function readStepIntoDraft(step) {
@@ -586,14 +604,14 @@ function readStepIntoDraft(step) {
     d.statut = $("#f-statut .active")?.dataset.v || "terminee";
   }
   if (step === 3) {
-    d.descriptif_demande = $("#f-descriptif").value;
+    d.descriptif_demande = cleanText($("#f-descriptif").value);
   }
   if (step === 4) {
-    d.action_realisee = $("#f-action").value;
+    d.action_realisee = cleanText($("#f-action").value);
   }
   if (step === 5) {
     d.devis_souhaite = $("#f-devis").classList.contains("on");
-    d.devis_commentaire = $("#f-devis-com").value;
+    d.devis_commentaire = cleanText($("#f-devis-com").value);
     d.technicien_nom = $("#f-tech").value.trim();
     d.client_present = $("#f-present").classList.contains("on");
     d.client_signature_nom = $("#f-client-sig").value.trim();

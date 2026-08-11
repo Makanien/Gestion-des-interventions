@@ -1,7 +1,7 @@
 # PRD — Application de gestion des fiches d'intervention
 ## Climat Elec (Chazé-sur-Argos)
 
-**Version du document :** 1.3
+**Version du document :** 1.4
 **Date :** 11/08/2026
 **Auteur :** Rédigé avec Claude, sur la base des échanges avec le porteur de projet
 
@@ -77,6 +77,21 @@ Climat Elec est une entreprise artisanale spécialisée en géothermie, climatis
 10. **Validation** → génération automatique du PDF reprenant la mise en page actuelle + sauvegarde locale de la fiche.
 11. **Modification** : depuis le détail d'une fiche, bouton « Modifier » (icône stylo) → reprise du parcours 2 à 9 pré-rempli, pour corriger ou compléter une fiche existante (CRUD complet) — la fiche est mise à jour en place, sans doublon.
 12. **Partage** du PDF via le menu de partage natif du téléphone (aucun envoi automatique).
+
+### 4.1 Détail des champs texte libre
+
+Les champs texte libre suivants bénéficient d'améliorations ergonomiques :
+
+| Étape | Champ | Comportement |
+|---|---|---|
+| 3 | Descriptif de la demande | Zone de texte sans poignée de redimensionnement, hauteur automatique |
+| 4 | Action réalisée | Zone de texte sans poignée de redimensionnement, hauteur automatique |
+| 5 | Commentaire devis | Zone de texte sans poignée de redimensionnement, hauteur automatique |
+
+**Nettoyage automatique** : à l'enregistrement de chaque étape, les champs texte libre sont automatiquement nettoyés :
+- Suppression des espaces en début et fin de texte
+- Suppression des espaces en fin de chaque ligne
+- Réduction des lignes vides consécutives à une seule ligne vide (les sauts de paragraphe simples sont conservés)
 
 > **Gestion des fiches (CRUD) :** le parcours ci-dessus permet la **C**réation (étapes 1-10), la **L**ecture (liste à l'accueil + détail), la **M**odification (étape 11) et la **S**uppression (bouton corbeille sur le détail) des fiches d'intervention.
 

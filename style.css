@@ -234,6 +234,48 @@ main{flex:1;padding:14px 14px calc(90px + var(--safe-bottom));}
   color:var(--ce-text);
 }
 .field textarea{resize:vertical;min-height:88px;line-height:1.45;}
+
+/* ---------- Descriptif de la demande (étape 3) ---------- */
+#f-descriptif{
+  width:100%;
+  padding:12px 14px;
+  border:1px solid var(--ce-border);
+  border-radius:var(--ce-radius-sm);
+  font-size:15.5px;
+  line-height:1.5;
+  background:#fff;
+  color:var(--ce-text);
+  resize:none;
+  overflow:hidden;
+  min-height:100px;
+  transition:border-color .15s;
+}
+#f-descriptif:focus{
+  outline:2px solid var(--ce-blue);outline-offset:-1px;border-color:var(--ce-blue);
+}
+#f-descriptif::placeholder{color:var(--ce-text-muted);opacity:.7;}
+
+#f-action,
+#f-devis-com{
+  width:100%;
+  padding:12px 14px;
+  border:1px solid var(--ce-border);
+  border-radius:var(--ce-radius-sm);
+  font-size:15.5px;
+  line-height:1.5;
+  background:#fff;
+  color:var(--ce-text);
+  resize:none;
+  overflow:hidden;
+  min-height:100px;
+  transition:border-color .15s;
+}
+#f-action:focus,
+#f-devis-com:focus{
+  outline:2px solid var(--ce-blue);outline-offset:-1px;border-color:var(--ce-blue);
+}
+#f-action::placeholder,
+#f-devis-com::placeholder{color:var(--ce-text-muted);opacity:.7;}
 .field input:focus,.field select:focus,.field textarea:focus{
   outline:2px solid var(--ce-blue);outline-offset:-1px;border-color:var(--ce-blue);
 }
