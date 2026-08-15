@@ -18,6 +18,7 @@ const ICONS = {
   down: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>`,
   droplet: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2s7 7.6 7 12a7 7 0 0 1-14 0c0-4.4 7-12 7-12z"/></svg>`,
   user: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`,
+  checkedUser: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/><polyline points="18 3 21.5 6.5 16 12"/></svg>`,
   sync: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 1-9 9 9 9 0 0 1-9-9 9 9 0 0 1 9-9"/><polyline points="20 3 21 12 12 11"/></svg>`,
 };
 
@@ -140,13 +141,15 @@ async function route() {
 // Shell helpers
 // ---------------------------------------------------------
 function topbar({ title, subtitle, back, onHome }) {
-  const accountBtn = state.auth ? `<button class="icon-btn" data-nav="account" title="Compte & synchronisation">${ICONS.user}</button>` : "";
+  const accountBtn = state.auth
+    ? `<button class="icon-btn" data-nav="account" title="Compte & synchronisation">${ICONS.checkedUser}</button>`
+    : `<button class="icon-btn" data-nav="login" title="Se connecter">${ICONS.user}</button>`;
   return `
   <div class="topbar">
     <div class="topbar-row">
       ${back ? `<button class="back-btn" data-nav="back">${ICONS.back}</button>` : `<img class="brand-mark" src="icons/android-chrome-192x192.png" alt="Climat Elec" />`}
       <div>
-        <h1>${esc(title)}</h1>
+        <h1>${esc(displayName())}</h1>
         ${subtitle ? `<div class="subtitle">${esc(subtitle)}</div>` : ""}
       </div>
       ${accountBtn}
@@ -157,11 +160,19 @@ function topbar({ title, subtitle, back, onHome }) {
   </div>`;
 }
 
+function displayName() {
+  if (state.auth) {
+    const name = (state.auth.profile?.full_name || "").trim();
+    const email = state.auth.user?.email || "";
+    return name || email || "Mon compte";
+  }
+  return "Climat Elec";
+}
+
 function setApp(html) {
   $("#app").innerHTML = html;
   updateOfflinePill();
 }
-
 function updateOfflinePill() {
   const pill = $("#offline-pill");
   if (pill) pill.classList.toggle("show", !navigator.onLine);
