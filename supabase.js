@@ -77,7 +77,8 @@ const Supabase = {
   },
   async updateProfile(full_name) {
     const c = initSupabase();
-    const { data: user } = await c.auth.getUser();
+    const { data } = await c.auth.getUser();
+    const user = data?.user;
     if (!user) throw new Error("Non authentifié");
     const { error } = await c.from("profiles").upsert({ id: user.id, full_name, updated_at: new Date().toISOString() });
     if (error) throw error;

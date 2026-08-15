@@ -205,11 +205,29 @@ create policy pieces_update on public.pieces_utilisees for update to authenticat
 drop policy if exists pieces_delete on public.pieces_utilisees;
 create policy pieces_delete on public.pieces_utilisees for delete to authenticated using (true);
 
--- profiles : un technicien lit tous les profils, ne modifie que le sien
+-- profiles : un technicien lit tous les profils, ne modifie/insère que le sien
 drop policy if exists profiles_select on public.profiles;
 create policy profiles_select on public.profiles for select to authenticated using (true);
+drop policy if exists profiles_insert on public.profiles;
+create policy profiles_insert on public.profiles for insert to authenticated with check (auth.uid() = id);
 drop policy if exists profiles_update on public.profiles;
 create policy profiles_update on public.profiles for update to authenticated using (auth.uid() = id);
+
+-- ---------------------------------------------------------
+-- PRIVILÈGES (GRANT)
+-- Sans ces GRANT, les requêtes du frontend échouent en 42501
+-- "permission denied" même si les RLS sont en place (RLS seul
+-- renvoie 0 ligne sans erreur ; le GRANT gouverne l'accès au rôle).
+-- ---------------------------------------------------------
+grant usage on schema public to authenticated;
+
+grant select, insert, update, delete on public.clients          to authenticated;
+grant select, insert, update, delete on public.interventions    to authenticated;
+grant select, insert, update, delete on public.equipements      to authenticated;
+grant select, insert, update, delete on public.pieces_utilisees to authenticated;
+
+grant select on public.profiles to authenticated;
+grant insert, update on public.profiles to authenticated;
 
 -- ---------------------------------------------------------
 -- REALTIME
