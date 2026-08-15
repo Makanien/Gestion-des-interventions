@@ -64,19 +64,26 @@ create index if not exists interventions_date_idx on public.interventions(date);
 -- 3. TABLE equipements (historique réutilisable par client)
 -- ---------------------------------------------------------
 create table if not exists public.equipements (
-  id             uuid primary key default uuid_generate_v4(),
-  client_id      uuid references public.clients(id) on delete cascade,
-  intitule       text not null default '',
-  marque         text not null default '',
-  modele         text not null default '',
-  numero_serie   text not null default '',
-  created_at     timestamptz not null default now(),
-  updated_at     timestamptz not null default now(),
-  deleted_at     timestamptz,
-  created_by     uuid references auth.users(id) on delete set null,
-  updated_by     uuid references auth.users(id) on delete set null
+  id              uuid primary key default uuid_generate_v4(),
+  client_id       uuid references public.clients(id) on delete cascade,
+  intervention_id uuid references public.interventions(id) on delete set null,
+  intitule        text not null default '',
+  marque          text not null default '',
+  modele          text not null default '',
+  numero_serie    text not null default '',
+  created_at      timestamptz not null default now(),
+  updated_at      timestamptz not null default now(),
+  deleted_at      timestamptz,
+  created_by      uuid references auth.users(id) on delete set null,
+  updated_by      uuid references auth.users(id) on delete set null
 );
 create index if not exists equipements_client_id_idx on public.equipements(client_id);
+
+-- Idempotent pour les déploiements existants : la colonne peut manquer
+-- sur une table déjà créée avant l'ajout. Doit précéder la création de
+-- l'index ci-dessous (sinon l'index échoue en 42703 sur un projet existant).
+alter table public.equipements add column if not exists intervention_id uuid references public.interventions(id) on delete set null;
+create index if not exists equipements_intervention_id_idx on public.equipements(intervention_id);
 
 -- ---------------------------------------------------------
 -- 4. TABLE pieces_utilisees
@@ -232,7 +239,21 @@ grant insert, update on public.profiles to authenticated;
 -- ---------------------------------------------------------
 -- REALTIME
 -- ---------------------------------------------------------
-alter publication supabase_realtime add table public.clients;
-alter publication supabase_realtime add table public.interventions;
-alter publication supabase_realtime add table public.equipements;
-alter publication supabase_realtime add table public.pieces_utilisees;
+-- ---------------------------------------------------------
+-- REALTIME
+-- Idempotent : n'ajoute que les tables qui ne sont pas déjà membres
+-- de la publication (évite l'erreur 42710 en cas de relance du script).
+-- ---------------------------------------------------------
+do $$
+declare t text;
+begin
+  foreach t in array array['clients','interventions','equipements','pieces_utilisees']
+  loop
+    if not exists (
+      select 1 from pg_publication_tables
+      where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = t
+    ) then
+      execute format('alter publication supabase_realtime add table public.%I', t);
+    end if;
+  end loop;
+end $$;
