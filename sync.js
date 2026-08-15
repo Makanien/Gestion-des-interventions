@@ -100,6 +100,8 @@ function cleanRow(store, row) {
   delete out._deleted;
   delete out.client; // champ dénormalisé local (affichage)
   delete out.synced_at; // champ local (marque de sync), non présent côté SQL
+  delete out.equipements; // tableaux imbriqués locaux (V1), désormais éclatés
+  delete out.pieces;
   return out;
 }
 

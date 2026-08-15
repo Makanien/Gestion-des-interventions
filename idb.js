@@ -68,9 +68,58 @@ function uuid() {
 }
 
 async function migrateV1toV2() {
-  // L'éclatement des équipements/pièces se fait à la volée dans
-  // saveIntervention lorsque des objets imbriqués sont détectés.
-  // Ici, on s'assure simplement que _meta est initialisé.
+  // Éclate les anciennes interventions V1 qui stockaient encore les
+  // équipements/pièces imbriqués dans l'objet intervention, vers les
+  // boutiques filles équipements / pieces_utilisees.
+  try {
+    const done = await DB.getMeta("migrated_v2_split");
+    if (done === "done") return;
+
+    const interventions = await DB.listRaw("interventions");
+    for (const itv of interventions) {
+      const equipements = itv.equipements || [];
+      const pieces = itv.pieces || [];
+      let changed = false;
+
+      if (Array.isArray(equipements) && equipements.length) {
+        for (const eq of equipements) {
+          const now = new Date().toISOString();
+          await DB.putRaw("equipements", {
+            ...eq,
+            id: eq.id || uuid(),
+            intervention_id: itv.id,
+            created_at: eq.created_at || now,
+            updated_at: eq.updated_at || now,
+          });
+        }
+        delete itv.equipements;
+        changed = true;
+      }
+
+      if (Array.isArray(pieces) && pieces.length) {
+        for (const p of pieces) {
+          const now = new Date().toISOString();
+          await DB.putRaw("pieces_utilisees", {
+            ...p,
+            id: p.id || uuid(),
+            intervention_id: itv.id,
+            created_at: p.created_at || now,
+            updated_at: p.updated_at || now,
+          });
+        }
+        delete itv.pieces;
+        changed = true;
+      }
+
+      if (changed) {
+        await DB.putRaw("interventions", itv);
+      }
+    }
+
+    await DB.setMeta("migrated_v2_split", "done");
+  } catch (e) {
+    console.warn("migrateV1toV2 ignoré", e);
+  }
   try {
     await DB.setMeta("migrated", "v2");
   } catch (e) {
