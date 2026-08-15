@@ -23,6 +23,18 @@ function computeDuration(start, end) {
   return `${h}h${String(m).padStart(2, "0")}`;
 }
 
+// Charge une image (dataURL ou URL) en données utilisables par jsPDF.
+function loadImage(src) {
+  return new Promise((resolve) => {
+    if (!src) return resolve(null);
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => resolve(img);
+    img.onerror = () => resolve(null);
+    img.src = src;
+  });
+}
+
 async function generateInterventionPDF(itv, client) {
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit: "pt", format: "a4" });
@@ -195,8 +207,29 @@ async function generateInterventionPDF(itv, client) {
   doc.setTextColor(...NAVY);
   doc.setFont("times", "italic");
   doc.setFontSize(15);
-  doc.text(itv.technicien_nom || "-", margin + 8, y + 40);
-  doc.text(itv.client_present === false ? "" : (itv.client_signature_nom || "-"), margin + sigColW + 28, y + 40);
+
+  const drawSigImage = async (url, x, y, w, h) => {
+    if (!url) return false;
+    try {
+      const img = await loadImage(url);
+      if (img) { doc.addImage(img, "PNG", x, y, w, h); return true; }
+    } catch (e) { console.warn("Signature non chargée", e); }
+    return false;
+  };
+
+  // Technicien : image tactile si dispo, sinon nom en texte.
+  const techImgDrawn = itv.technicien_signature_url
+    ? await drawSigImage(itv.technicien_signature_url, margin + 8, y + 22, sigColW - 16, 40)
+    : false;
+  if (!techImgDrawn) doc.text(itv.technicien_nom || "-", margin + 8, y + 40);
+
+  // Client : image tactile si dispo, sinon nom en texte.
+  const clientImgDrawn = itv.client_signature_url && itv.client_present !== false
+    ? await drawSigImage(itv.client_signature_url, margin + sigColW + 28, y + 22, sigColW - 16, 40)
+    : false;
+  if (!clientImgDrawn && itv.client_present !== false) {
+    doc.text(itv.client_signature_nom || "-", margin + sigColW + 28, y + 40);
+  }
 
   y += 70 + 16;
   doc.setFont("helvetica", "normal");

@@ -17,6 +17,8 @@ const ICONS = {
   file: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg>`,
   down: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>`,
   droplet: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2s7 7.6 7 12a7 7 0 0 1-14 0c0-4.4 7-12 7-12z"/></svg>`,
+  user: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`,
+  sync: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 1-9 9 9 9 0 0 1-9-9 9 9 0 0 1 9-9"/><polyline points="20 3 21 12 12 11"/></svg>`,
 };
 
 let state = {
@@ -25,6 +27,8 @@ let state = {
   step: 1,
   homeSearch: "",
   clientsCache: [],
+  auth: null,       // { user, profile } | null
+  sync: { running: false, lastPulledAt: null, pending: 0 },
 };
 
 // ---------------------------------------------------------
@@ -64,6 +68,8 @@ function emptyDraft() {
     technicien_nom: localStorage.getItem("ce_technicien_nom") || "",
     client_present: true,
     client_signature_nom: "",
+    client_signature_url: null,      // V2 : image signature client
+    technicien_signature_url: null,  // V2 : image signature technicien
   };
 }
 
@@ -89,6 +95,8 @@ async function loadDraftFromIntervention(id) {
     technicien_nom: itv.technicien_nom || "",
     client_present: itv.client_present !== false,
     client_signature_nom: itv.client_signature_nom || "",
+    client_signature_url: itv.client_signature_url || null,
+    technicien_signature_url: itv.technicien_signature_url || null,
   });
   const client = itv.client_id ? await DB.getClient(itv.client_id) : itv.client;
   d.client = { id: client?.id, nom: client?.nom || "", adresse: client?.adresse || "", code_postal: client?.code_postal || "", ville: client?.ville || "", mail: client?.mail || "", tel: client?.tel || "", type_batiment: client?.type_batiment || "" };
@@ -117,6 +125,10 @@ async function route() {
     go(`#/new/${state.step || 1}`);
   } else if (parts[0] === "detail" && parts[1]) {
     await renderDetail(parts[1]);
+  } else if (parts[0] === "account") {
+    renderAccount();
+  } else if (parts[0] === "login") {
+    renderAuth();
   } else {
     state.draft = null;
     await renderHome();
@@ -128,6 +140,7 @@ async function route() {
 // Shell helpers
 // ---------------------------------------------------------
 function topbar({ title, subtitle, back, onHome }) {
+  const accountBtn = state.auth ? `<button class="icon-btn" data-nav="account" title="Compte & synchronisation">${ICONS.user}</button>` : "";
   return `
   <div class="topbar">
     <div class="topbar-row">
@@ -136,9 +149,11 @@ function topbar({ title, subtitle, back, onHome }) {
         <h1>${esc(title)}</h1>
         ${subtitle ? `<div class="subtitle">${esc(subtitle)}</div>` : ""}
       </div>
+      ${accountBtn}
       ${onHome === false ? "" : `<button class="icon-btn" data-nav="export" title="Exporter mes données">${ICONS.down}</button>`}
     </div>
     <div class="offline-pill" id="offline-pill"><span class="offline-dot"></span>Mode hors ligne — vos données restent sur cet appareil</div>
+    ${state.auth && Sync ? `<div class="offline-pill" id="sync-pill" style="background:#0d2b1a;color:#bfe8cf;"><span class="offline-dot" style="background:var(--ce-success);"></span><span id="sync-pill-text">Synchronisé</span></div>` : ""}
   </div>`;
 }
 
@@ -149,8 +164,21 @@ function setApp(html) {
 
 function updateOfflinePill() {
   const pill = $("#offline-pill");
-  if (!pill) return;
-  pill.classList.toggle("show", !navigator.onLine);
+  if (pill) pill.classList.toggle("show", !navigator.onLine);
+
+  const syncPill = $("#sync-pill");
+  if (syncPill && state.auth) {
+    const txt = $("#sync-pill-text");
+    if (!navigator.onLine) {
+      syncPill.classList.add("show");
+      if (txt) txt.textContent = "Hors ligne — synchronisation en attente";
+    } else if (state.sync.pending > 0) {
+      syncPill.classList.add("show");
+      if (txt) txt.textContent = `${state.sync.pending} changement(s) à synchroniser`;
+    } else {
+      syncPill.classList.remove("show");
+    }
+  }
 }
 
 // ---------------------------------------------------------
@@ -533,7 +561,18 @@ function stepSignHTML() {
     <div class="field" style="margin-bottom:0;" id="wrap-client-sig">
       <label>Nom du client (signature)</label>
       <input id="f-client-sig" type="text" value="${esc(d.client_signature_nom)}" placeholder="${d.client.nom ? esc(d.client.nom) : "Nom du client"}" />
-      <div class="hint">La signature électronique tactile sera disponible dans une prochaine version.</div>
+      <div class="hint">La signature électronique tactile est disponible : appuyez sur le bouton ci-dessous.</div>
+    </div>
+    <button type="button" class="add-line-btn" id="btn-client-sign" style="margin-top:10px;">${ICONS.pencil.replace('width="24" height="24"','width="15" height="15"')} Signer (client)</button>
+    <div class="sig-preview" id="client-sig-preview" style="display:${d.client_signature_url ? "block" : "none"};margin-top:10px;">
+      <img id="client-sig-img" src="${d.client_signature_url ? esc(d.client_signature_url) : ""}" alt="Signature client" />
+    </div>
+    <div class="field" style="margin-top:12px;">
+      <label>Signature technicien (facultative)</label>
+      <button type="button" class="add-line-btn" id="btn-tech-sign" style="margin-top:6px;">${ICONS.pencil.replace('width="24" height="24"','width="15" height="15"')} Signer (technicien)</button>
+      <div class="sig-preview" id="tech-sig-preview" style="display:${d.technicien_signature_url ? "block" : "none"};margin-top:10px;">
+        <img id="tech-sig-img" src="${d.technicien_signature_url ? esc(d.technicien_signature_url) : ""}" alt="Signature technicien" />
+      </div>
     </div>
   </div>
 
@@ -560,6 +599,28 @@ function wireSignStep() {
   });
   if (!state.draft.client_present) $("#wrap-client-sig").style.display = "none";
   autoResize("f-devis-com");
+
+  // Signature tactile client
+  $("#btn-client-sign")?.addEventListener("click", async () => {
+    const blob = await signatureModal({ title: "Signature du client" });
+    if (!blob) return;
+    state.draft._client_sig_blob = blob;
+    state.draft.client_signature_url = await blobToDataURL(blob);
+    const prev = $("#client-sig-preview");
+    prev.style.display = "block";
+    $("#client-sig-img").src = state.draft.client_signature_url;
+  });
+
+  // Signature tactile technicien
+  $("#btn-tech-sign")?.addEventListener("click", async () => {
+    const blob = await signatureModal({ title: "Signature du technicien" });
+    if (!blob) return;
+    state.draft._technicien_sig_blob = blob;
+    state.draft.technicien_signature_url = await blobToDataURL(blob);
+    const prev = $("#tech-sig-preview");
+    prev.style.display = "block";
+    $("#tech-sig-img").src = state.draft.technicien_signature_url;
+  });
 }
 
 function wireStep(step) {
@@ -625,6 +686,20 @@ async function finishWizard() {
   const d = state.draft;
   const isEdit = !!d.id;
 
+  // Upload des signatures tactiles vers Supabase Storage (si configuré).
+  if (Supabase.configured() && state.auth && navigator.onLine) {
+    try {
+      if (d.client_present && d._client_sig_blob) {
+        d.client_signature_url = await Supabase.uploadSignature(`sig-client-${Date.now()}`, d._client_sig_blob);
+      }
+      if (d._technicien_sig_blob) {
+        d.technicien_signature_url = await Supabase.uploadSignature(`sig-tech-${Date.now()}`, d._technicien_sig_blob);
+      }
+    } catch (e) {
+      console.warn("Upload signature échoué (sera synchronisé plus tard)", e);
+    }
+  }
+
   // Sauvegarde / mise à jour du client
   const savedClient = await DB.saveClient({ ...d.client });
   d.client_id = savedClient.id;
@@ -634,6 +709,19 @@ async function finishWizard() {
   const itv = { ...d };
   delete itv.client; // on ne garde que client_id comme référence normalisée
   itv.client = { nom: savedClient.nom, ville: savedClient.ville }; // dénormalisation légère pour affichage rapide liste
+
+  // Historisation des équipements par client (V2) : on ajoute les équipements
+  // qui n'ont pas encore d'historique chez ce client.
+  if (savedClient.id && d.equipements?.length) {
+    const existing = await DB.listEquipementsForClient(savedClient.id);
+    for (const eq of d.equipements) {
+      const hasSerie = eq.numero_serie && eq.numero_serie.trim();
+      const already = existing.some((e) => hasSerie && e.numero_serie === eq.numero_serie);
+      if (!already && hasSerie) {
+        await DB.saveClientEquipment(savedClient.id, eq);
+      }
+    }
+  }
 
   const saved = await DB.saveIntervention(itv);
   toast(isEdit ? "Fiche mise à jour" : "Fiche enregistrée");
@@ -706,7 +794,9 @@ async function renderDetail(id) {
       <div class="section-label">Signatures</div>
       <div class="card">
         <div class="kv"><div class="k">Technicien</div><div class="v">${esc(itv.technicien_nom || "-")}</div></div>
+        ${itv.technicien_signature_url ? `<div class="sig-preview" style="border:none;"><img src="${esc(itv.technicien_signature_url)}" alt="Signature technicien" /></div>` : ""}
         <div class="kv"><div class="k">Client</div><div class="v">${itv.client_present ? esc(itv.client_signature_nom || "-") : "Absent"}</div></div>
+        ${itv.client_signature_url ? `<div class="sig-preview" style="border:none;"><img src="${esc(itv.client_signature_url)}" alt="Signature client" /></div>` : ""}
       </div>
 
       <div style="margin-top:22px;">
@@ -758,6 +848,10 @@ document.addEventListener("click", async (e) => {
   else if (action === "next") { if (readStepIntoDraft(state.step)) go(`#/new/${state.step + 1}`); }
   else if (action === "finish") finishWizard();
   else if (action === "export") exportData();
+  else if (action === "account") go("#/account");
+  else if (action === "login") go("#/login");
+  else if (action === "logout") signOutUser();
+  else if (action === "sync-now") { runSyncNow(); }
   else if (action === "delete") {
     if (confirm("Supprimer définitivement cette fiche d'intervention ?")) {
       await DB.deleteIntervention(nav.dataset.id);
@@ -777,6 +871,138 @@ async function exportData() {
 }
 
 // ---------------------------------------------------------
+// AUTH (V2 — Supabase)
+// ---------------------------------------------------------
+function renderAuth() {
+  const email = localStorage.getItem("ce_auth_email") || "";
+  setApp(`
+    <div class="auth-view">
+      <img class="auth-logo" src="icons/android-chrome-192x192.png" alt="Climat Elec" />
+      <h2 class="auth-title">Connexion</h2>
+      <p class="auth-sub">Accédez à vos fiches d'intervention synchronisées</p>
+      <div class="auth-card">
+        <div class="field"><label>E-mail</label><input id="auth-email" type="email" value="${esc(email)}" placeholder="vous@climat-elec.fr" /></div>
+        <button class="btn btn-accent" id="btn-magic">${ICONS.share} Envoyer un lien de connexion</button>
+        <div class="auth-divider">ou</div>
+        <div class="field"><label>Mot de passe</label><input id="auth-pass" type="password" placeholder="••••••••" /></div>
+        <button class="btn btn-primary" id="btn-password">Se connecter</button>
+        <p class="auth-hint">La connexion se fait par lien magique envoyé à votre e-mail, ou par mot de passe si vous en avez défini un. L'application reste utilisable hors ligne une fois connecté.</p>
+      </div>
+    </div>
+    <div class="toast" id="toast"></div>
+  `);
+
+  $("#btn-magic").addEventListener("click", async () => {
+    const email = $("#auth-email").value.trim();
+    if (!email) { toast("Indiquez votre e-mail", true); return; }
+    localStorage.setItem("ce_auth_email", email);
+    const btn = $("#btn-magic"); btn.disabled = true;
+    try {
+      await Supabase.signInWithMagicLink(email);
+      toast("Lien envoyé — ouvrez le lien sur ce téléphone");
+    } catch (err) {
+      console.error(err);
+      toast("Erreur : " + (err.message || "envoi impossible"), true);
+    } finally { btn.disabled = false; }
+  });
+
+  $("#btn-password").addEventListener("click", async () => {
+    const email = $("#auth-email").value.trim();
+    const password = $("#auth-pass").value;
+    if (!email || !password) { toast("Renseignez e-mail et mot de passe", true); return; }
+    localStorage.setItem("ce_auth_email", email);
+    const btn = $("#btn-password"); btn.disabled = true;
+    try {
+      await Supabase.signInWithPassword(email, password);
+      toast("Connecté");
+      go("#/");
+    } catch (err) {
+      console.error(err);
+      toast("Identifiants invalides", true);
+    } finally { btn.disabled = false; }
+  });
+}
+
+async function signOutUser() {
+  if (!confirm("Se déconnecter ? Vos données déjà enregistrées restent sur cet appareil.")) return;
+  try { if (Supabase.configured()) await Supabase.signOut(); } catch (e) { console.warn(e); }
+  state.auth = null;
+  go("#/login");
+}
+
+// ---------------------------------------------------------
+// COMPTE & SYNCHRONISATION (V2)
+// ---------------------------------------------------------
+async function renderAccount() {
+  const supConfigured = Supabase.configured();
+  const user = state.auth?.user;
+  const profile = state.auth?.profile;
+  const pending = state.sync.pending || 0;
+
+  setApp(`
+    ${topbar({ title: "Compte & synchro", back: true })}
+    <main>
+      ${user ? `
+      <div class="section-label">Mon compte</div>
+      <div class="card">
+        <div class="kv"><div class="k">Nom</div><div class="v">${esc(profile?.full_name || "-")}</div></div>
+        <div class="kv"><div class="k">E-mail</div><div class="v">${esc(user.email || "-")}</div></div>
+      </div>
+      <div class="field" style="margin-top:14px;">
+        <label>Nom affiché</label>
+        <input id="acct-name" type="text" value="${esc(profile?.full_name || "")}" placeholder="Votre nom de technicien" />
+        <button class="btn btn-primary" id="btn-save-name" style="margin-top:10px;">Enregistrer le nom</button>
+      </div>` : `
+      <div class="section-label">Compte</div>
+      <div class="card"><div class="block-text">Non connecté. Connectez-vous pour synchroniser vos fiches entre appareils.</div></div>
+      <button class="btn btn-accent" data-nav="login" style="margin-top:12px;">${ICONS.user} Se connecter</button>`}
+
+      <div class="section-label">Synchronisation</div>
+      <div class="card" style="padding:14px;">
+        ${supConfigured && state.auth
+          ? `<div class="sync-status ${navigator.onLine ? "ok" : "warn"}"><span class="dot"></span>${navigator.onLine ? "En ligne — synchronisation automatique active" : "Hors ligne — les changements seront synchronisés dès le retour du réseau"}</div>
+             <div class="sync-status ${pending === 0 ? "ok" : "warn"}"><span class="dot"></span>${pending === 0 ? "Aucun changement en attente" : `${pending} changement(s) en attente d'envoi`}</div>
+             <button class="btn btn-primary" data-nav="sync-now" style="margin-top:12px;">${ICONS.sync} Synchroniser maintenant</button>`
+          : `<div class="sync-status warn"><span class="dot"></span>${supConfigured ? "Connectez-vous pour activer la synchronisation." : "Supabase non configuré (voir config.js)."}</div>`}
+      </div>
+
+      <div class="section-label">Données locales</div>
+      <div class="card"><div class="block-text">Sauvegardez manuellement l'intégralité de vos données (clients, interventions, équipements, pièces) au format JSON.</div></div>
+      <button class="btn btn-ghost" data-nav="export" style="margin-top:12px;">${ICONS.down} Exporter toutes les données</button>
+
+      ${state.auth ? `<button class="btn btn-ghost" data-nav="logout" style="margin-top:12px;color:var(--ce-danger);">Se déconnecter</button>` : ""}
+    </main>
+    <div class="toast" id="toast"></div>
+  `);
+
+  $("#btn-save-name")?.addEventListener("click", async () => {
+    const name = $("#acct-name").value.trim();
+    try {
+      await Supabase.updateProfile(name);
+      if (state.auth?.profile) state.auth.profile.full_name = name;
+      toast("Nom enregistré");
+    } catch (err) {
+      console.error(err);
+      toast("Erreur d'enregistrement", true);
+    }
+  });
+}
+
+async function runSyncNow() {
+  if (!navigator.onLine) { toast("Hors ligne — synchronisation impossible", true); return; }
+  toast("Synchronisation…");
+  try {
+    await Sync.runSync();
+    toast("Synchronisation terminée");
+    if (window.location.hash === "#/account") await renderAccount();
+    else await renderHome();
+  } catch (err) {
+    console.error(err);
+    toast("Erreur de synchronisation", true);
+  }
+}
+
+// ---------------------------------------------------------
 // Init
 // ---------------------------------------------------------
 window.addEventListener("online", updateOfflinePill);
@@ -784,6 +1010,35 @@ window.addEventListener("offline", updateOfflinePill);
 
 async function init() {
   await DB.init();
+
+  // Supabase : restore session + écoute des changements d'auth.
+  initSupabase();
+  if (Supabase.configured()) {
+    Supabase.onAuthChange(async (_event, session) => {
+      if (session?.user) {
+        const pro = await Supabase.getProfile(session.user.id).catch(() => null);
+        state.auth = { user: session.user, profile: pro };
+        Sync.initRealtime();
+        Sync.runSync().catch((e) => console.warn("Sync échec", e));
+      } else {
+        state.auth = null;
+      }
+      if (window.location.hash === "#/login") await renderHome();
+      else route();
+    });
+
+    // Restaure une session existante au chargement.
+    try {
+      const { data } = await Supabase.getSession();
+      if (data?.session?.user) {
+        const pro = await Supabase.getProfile(data.session.user.id).catch(() => null);
+        state.auth = { user: data.session.user, profile: pro };
+        Sync.initRealtime();
+        Sync.runSync().catch((e) => console.warn("Sync échec", e));
+      }
+    } catch (e) { console.warn("Session restore failed", e); }
+  }
+
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("sw.js").then((reg) => {
       reg.addEventListener("updatefound", () => {
