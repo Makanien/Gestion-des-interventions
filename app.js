@@ -992,6 +992,7 @@ async function runSyncNow() {
   if (!navigator.onLine) { toast("Hors ligne — synchronisation impossible", true); return; }
   toast("Synchronisation…");
   try {
+    await Sync.pushAllLocal();
     await Sync.runSync();
     toast("Synchronisation terminée");
     if (window.location.hash === "#/account") await renderAccount();
@@ -1014,11 +1015,14 @@ async function init() {
   // Supabase : restore session + écoute des changements d'auth.
   initSupabase();
   if (Supabase.configured()) {
-    Supabase.onAuthChange(async (_event, session) => {
+    Supabase.onAuthChange(async (event, session) => {
       if (session?.user) {
         const pro = await Supabase.getProfile(session.user.id).catch(() => null);
         state.auth = { user: session.user, profile: pro };
         Sync.initRealtime();
+        if (event === "SIGNED_IN") {
+          await Sync.pushAllLocal();
+        }
         Sync.runSync().catch((e) => console.warn("Sync échec", e));
       } else {
         state.auth = null;

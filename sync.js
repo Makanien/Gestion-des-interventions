@@ -116,6 +116,21 @@ async function runSync() {
   }
 }
 
+// Première synchronisation : met en file toutes les données locales
+// (y compris celles créées avant la connexion) pour les pousser vers
+// Supabase. S'appelle à la connexion pour rattraper l'historique local.
+const SYNC_STORES = ["clients", "interventions", "equipements", "pieces_utilisees"];
+
+async function pushAllLocal() {
+  if (!Supabase.configured()) return;
+  for (const store of SYNC_STORES) {
+    const rows = await DB.listRaw(store);
+    for (const row of rows) {
+      enqueueSync(store, row.id);
+    }
+  }
+}
+
 // Écouteurs réseau : synchronisation automatique quand la connexion revient.
 window.addEventListener("online", () => {
   runSync().catch((e) => console.warn("Sync échec", e));
@@ -138,4 +153,4 @@ function initRealtime() {
   }
 }
 
-window.Sync = { runSync, pullChanges, pushChanges, enqueueSync, initRealtime, scheduleSync, state: SyncState };
+window.Sync = { runSync, pullChanges, pushChanges, enqueueSync, initRealtime, scheduleSync, pushAllLocal, state: SyncState };
