@@ -89,7 +89,7 @@ async function pushChanges() {
     if (record._deleted) {
       await Supabase.remove(item.store, item.id, record.updated_at);
     } else {
-      await Supabase.upsert(item.store, record.payload);
+      await Supabase.upsert(item.store, cleanRow(item.store, record.payload));
     }
   }
 }
@@ -99,6 +99,7 @@ function cleanRow(store, row) {
   const out = { ...row };
   delete out._deleted;
   delete out.client; // champ dénormalisé local (affichage)
+  delete out.synced_at; // champ local (marque de sync), non présent côté SQL
   return out;
 }
 
