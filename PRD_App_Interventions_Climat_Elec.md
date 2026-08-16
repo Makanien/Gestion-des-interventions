@@ -1,8 +1,8 @@
 # PRD — Application de gestion des fiches d'intervention
 ## Climat Elec (Chazé-sur-Argos)
 
-**Version du document :** 1.4
-**Date :** 11/08/2026
+**Version du document :** 1.5
+**Date :** 16/08/2026
 **Auteur :** Rédigé avec Claude, sur la base des échanges avec le porteur de projet
 
 ---
@@ -37,6 +37,8 @@ Climat Elec est une entreprise artisanale spécialisée en géothermie, climatis
 
 ## 3. Découpage en versions
 
+> **État d'implémentation (16/08/2026) :** La **V1 (MVP)** et la majorité de la **V2** sont désormais **implémentées** sur la branche `synchro-supabase`. Les sections ci-dessous décrivent le découpage cible ; le détail de ce qui est réellement livré figure au **§3.1**.
+
 ### V1 — MVP (cible immédiate)
 - **1 seul technicien**, usage mono-appareil.
 - **100 % hors ligne** : HTML/CSS/JS + `localStorage`, packagé en PWA installable sur l'écran d'accueil du téléphone.
@@ -56,6 +58,38 @@ Climat Elec est une entreprise artisanale spécialisée en géothermie, climatis
 - Envoi automatique du PDF par email au client.
 - Statistiques (nombre d'interventions/mois, types d'équipements les plus fréquents...).
 - Génération de devis simples.
+
+---
+
+## 3.1 Liste des modifications livrées (branche `synchro-supabase`)
+
+Récapitulatif des changements fonctionnels et techniques effectivement développés, correspondant au passage de la V1 (prototype PWA monoposte) vers la V2 (multi-utilisateur synchronisé + signatures électroniques).
+
+### Authentification & compte utilisateur
+- **Connexion par lien magique** (email OTP) ou **email + mot de passe** (écran `#/login`).
+- **Restoration de session** au chargement + écoute des changements d'auth (`onAuthStateChange`).
+- **Bouton de connexion dans la barre de titre** : icône utilisateur (`👤`) quand déconnecté, icône utilisateur **avec coche** (`👤✓`) quand connecté — remplace l'icône unique indifférenciée.
+- **Nom de l'utilisateur connecté affiché dans la barre de titre** à la place de « Climat Elec » : priorité `full_name` (profil), sinon e-mail, sinon « Mon compte » ; « Climat Elec » reste affiché quand personne n'est connecté.
+- **Écran « Compte & synchro »** (`#/account`) : affichage du profil, édition du **nom affiché** (`full_name`), bouton de connexion/déconnexion, état de la synchronisation, export des données locales.
+
+### Synchronisation multi-appareil (Supabase)
+- **Offline-first** : écriture locale en premier (IndexedDB), puis **file de synchronisation** vers Supabase.
+- **`pushAllLocal`** : envoi de l'ensemble des données locales en attente **à la connexion** (sign-in).
+- **Soft-delete** propagé via `deleted_at` au lieu d'une suppression définitive.
+- **Realtime** : publication des tables `clients`, `interventions`, `equipements`, `pieces_utilisees` (idempotente).
+- **Nettoyage des champs locaux** avant upsert (les champs purement locaux ne sont pas envoyés à Supabase).
+- **Schéma BDD Supabase** (`supabase/schema.sql`) : tables `clients`, `interventions`, `equipements`, `pieces_utilisees`, `profiles` ; triggers `updated_at` ; RLS + GRANT pour le rôle `authenticated` ; création automatique du profil à l'inscription (`handle_new_user`).
+- **Migration V1 → V2** : éclatement des `equipements` et `pieces` imbriquées (auparavant stockées dans l'objet intervention) en tables séparées ; ajout de la colonne `intervention_id` sur `equipements`.
+
+### Signatures électroniques (V2)
+- **Signature tactile** client et technicien (modale de dessin) générant une image.
+- **Upload des signatures vers Supabase Storage** (bucket `signatures`) + URL publique stockée sur la fiche.
+- Fallback local (dataURL) si hors ligne ou si le storage n'est pas configuré.
+
+### Divers / technique
+- **PWA** : mécanisme de mise à jour du service worker (`updatefound`).
+- **Bandeau temporaire** de navigation vers les maquettes (à retirer après validation client).
+- Toutes les icônes et styles associés sont dans `style.css` (`--ce-*` design tokens).
 
 ---
 
@@ -195,12 +229,12 @@ PieceUtilisee {
 
 | Étape | Contenu | Statut |
 |---|---|---|
-| 1. Cadrage | Ce PRD | En cours |
-| 2. Maquette / prototype V1 | Écrans principaux (liste, fiche client, fiche intervention, export PDF) | À faire |
-| 3. Développement V1 | PWA complète, testée hors ligne sur téléphone réel | À faire |
+| 1. Cadrage | Ce PRD | Terminé |
+| 2. Maquette / prototype V1 | Écrans principaux (liste, fiche client, fiche intervention, export PDF) | Terminé |
+| 3. Développement V1 | PWA complète, testée hors ligne sur téléphone réel | Terminé |
 | 4. Mise en usage réel | Tests terrain par le technicien, ajustements | À faire |
-| 5. Développement V2 | Intégration Supabase, comptes, synchronisation, signature électronique | Plus tard |
-| 6. Historique équipements par client | Ajout à la fiche équipement | V2 |
+| 5. Développement V2 | Intégration Supabase, comptes, synchronisation, signature électronique | Terminé (branche `synchro-supabase`, à merger) |
+| 6. Historique équipements par client | Ajout à la fiche équipement | Terminé |
 
 > Le contenu détaillé des versions V2/V3 ci-dessus reste indicatif : le backlog de user stories du **§10** couvre un périmètre plus large (RDV, validation, devis, facturation) et devra être arbitré pour préciser ce que ces étapes contiennent réellement.
 
