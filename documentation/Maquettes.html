@@ -182,6 +182,8 @@ main.content{padding:14px 14px 34px;}
           <span class="dot"></span><span>Nouvelle intervention (maj)</span>
         </button><button class="nav-btn" data-screen="duplication" onclick="showScreen('duplication')">
           <span class="dot"></span><span>Dupliquer une fiche</span>
+        </button><button class="nav-btn" data-screen="pieces_autocomplete" onclick="showScreen('pieces_autocomplete')">
+          <span class="dot"></span><span>Pièces — autocomplétion <small>US-23 · en suspens</small></span>
         </button></div><div class="nav-group"><div class="nav-group-label">Entretiens dédiés (nouveau 16/08)</div><button class="nav-btn" data-screen="entretien_air_eau" onclick="showScreen('entretien_air_eau')">
           <span class="dot"></span><span>Entretien Air/Eau - Sol/Eau</span>
         </button><button class="nav-btn" data-screen="entretien_air_air" onclick="showScreen('entretien_air_air')">
@@ -843,6 +845,58 @@ const SCREENS = {
     <button class="btn btn-primary">✎ Modifier</button>
     <button class="btn btn-accent">⧉ Dupliquer</button>
     <button class="btn btn-ghost">🗑 Supprimer</button>
+  </main>`
+  },
+  "pieces_autocomplete": {
+    title: "Pièces utilisées — autocomplétion",
+    sub: "US-23 — en suspens, à confirmer par le client (PRD §3.2.9). Dans la fiche (intervention ou entretien), la désignation propose les pièces déjà enregistrées ; sélectionner une suggestion remplit aussi automatiquement la référence.",
+    epic: 'Base de données pièces',
+    us: 'US-23 · en suspens',
+    developed: false,
+    html: `<div class="topbar"><div class="topbar-row">
+      <button style="background:rgba(255,255,255,.1);border:none;color:#fff;width:26px;height:26px;border-radius:7px;">‹</button>
+      <div><h2>Entretien Air/Eau</h2></div>
+    </div></div>
+  <div style="padding:14px 14px 0;">
+    <div style="font-size:10px;font-family:var(--mono);color:#c85f16;text-transform:uppercase;">Pièces utilisées</div>
+    <h2 style="font-size:17px;color:var(--navy);margin:2px 0 4px;">Désignation, référence, quantité</h2>
+  </div>
+  <main class="content" style="padding-top:6px;">
+    <div class="note" style="background:rgba(200,95,22,.08);border-color:rgba(200,95,22,.25);color:#8a3d0d;">⚠️ Point en suspens (US-23) — base de pièces à confirmer avec le client avant développement. Ce parcours illustre le comportement envisagé.</div>
+
+    <div class="field" style="position:relative;">
+      <label>Désignation *</label>
+      <input placeholder="Rechercher une pièce…" value="vanne 3 v"/>
+      <div class="card" style="position:absolute;left:0;right:0;top:64px;z-index:5;padding:0;overflow:hidden;box-shadow:0 8px 24px rgba(20,30,40,.18);">
+        <div class="list-item" style="cursor:pointer;background:rgba(47,134,180,.08);">
+          <span class="li-dot" style="background:#2f86b4">🔧</span>
+          <span class="li-body"><span class="li-name">Vanne 3 voies motorisée</span><span class="li-sub">Réf. VTM-320 · déjà utilisée 4×</span></span>
+        </div>
+        <div class="list-item" style="cursor:pointer;">
+          <span class="li-dot" style="background:#8a94a0">🔧</span>
+          <span class="li-body"><span class="li-name">Vanne 3 voies zone Ecs</span><span class="li-sub">Réf. VTZ-110 · déjà utilisée 1×</span></span>
+        </div>
+        <div class="list-item" style="cursor:pointer;">
+          <span class="li-dot" style="background:#8a94a0">➕</span>
+          <span class="li-body"><span class="li-name">Créer "vanne 3 v…"</span><span class="li-sub">Nouvelle pièce, pas encore en base</span></span>
+        </div>
+      </div>
+    </div>
+
+    <div class="note blue" style="margin-top:64px;">Sélection de "Vanne 3 voies motorisée" → la référence se remplit automatiquement.</div>
+
+    <div class="row2">
+      <div class="field"><label>Référence</label><input value="VTM-320" style="background:rgba(47,134,180,.06);"/></div>
+      <div class="field"><label>Quantité</label><input value="1"/></div>
+    </div>
+
+    <div class="section-label">Ligne suivante</div>
+    <div class="field"><label>Désignation</label><input placeholder="Rechercher une pièce…"/></div>
+    <div class="row2">
+      <div class="field"><label>Référence</label><input placeholder="Se remplit automatiquement si trouvée"/></div>
+      <div class="field"><label>Quantité</label><input placeholder="1"/></div>
+    </div>
+    <button class="btn btn-ghost">＋ Ajouter une ligne</button>
   </main>`
   },
   "entretien_air_eau": {
