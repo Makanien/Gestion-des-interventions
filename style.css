@@ -424,6 +424,51 @@ main{flex:1;padding:14px 14px calc(90px + var(--safe-bottom));}
 /* scrollbars minimal */
 ::-webkit-scrollbar{width:0;height:0;}
 
+/* ---------- Auth (V2) ---------- */
+.auth-view{
+  display:flex;flex-direction:column;
+  min-height:100vh;
+  padding:calc(40px + var(--safe-top)) 20px calc(30px + var(--safe-bottom));
+  background:linear-gradient(180deg, var(--ce-navy) 0%, var(--ce-navy-2) 100%);
+}
+.auth-view .auth-logo{margin:0 auto 8px;height:54px;background:#fff;border-radius:12px;padding:6px 10px;}
+.auth-view .auth-title{color:#fff;text-align:center;font-size:22px;margin-bottom:4px;}
+.auth-view .auth-sub{color:#b9cbd6;text-align:center;font-size:13.5px;margin-bottom:28px;}
+.auth-card{background:#fff;border-radius:var(--ce-radius);padding:22px;box-shadow:0 12px 40px rgba(0,0,0,.3);}
+.auth-card .field{margin-bottom:14px;}
+.auth-hint{font-size:12.5px;color:var(--ce-text-muted);margin:10px 0 0;line-height:1.5;}
+.auth-divider{text-align:center;color:var(--ce-text-muted);font-size:12px;margin:16px 0;}
+.auth-link{background:none;border:none;color:var(--ce-blue);font-weight:600;font-size:13.5px;}
+
+/* ---------- Sync / account panel ---------- */
+.sync-status{display:flex;align-items:center;gap:8px;font-size:13px;padding:10px 14px;border-radius:var(--ce-radius-sm);margin-bottom:6px;}
+.sync-status.ok{background:var(--ce-success-bg);color:var(--ce-success);}
+.sync-status.warn{background:var(--ce-pending-bg);color:var(--ce-pending);}
+.sync-status .dot{width:8px;height:8px;border-radius:50%;background:currentColor;flex:none;}
+
+/* ---------- Signature tactile (V2) ---------- */
+.sig-overlay{
+  position:fixed;inset:0;z-index:100;background:rgba(22,48,63,.55);
+  display:flex;align-items:center;justify-content:center;padding:16px;
+}
+.sig-modal{background:#fff;border-radius:var(--ce-radius);width:100%;max-width:420px;padding:16px;box-shadow:0 20px 60px rgba(0,0,0,.35);}
+.sig-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
+.sig-head h3{font-size:16px;color:var(--ce-navy);}
+.sig-head .icon-btn{margin-left:0;background:#eef2f4;color:var(--ce-navy);}
+.sig-canvas-wrap{position:relative;}
+#sig-canvas{width:100%;height:180px;border:1px solid var(--ce-border);border-radius:var(--ce-radius-sm);background:#fff;touch-action:none;}
+.sig-hint{text-align:center;font-size:11.5px;color:var(--ce-text-muted);margin:6px 0 12px;}
+.sig-actions{display:flex;gap:10px;}
+.sig-actions .btn{flex:1;}
+.sig-preview{border:1px solid var(--ce-border);border-radius:var(--ce-radius-sm);overflow:hidden;background:#fff;}
+.sig-preview img{width:100%;max-height:120px;object-fit:contain;display:block;}
+.sig-placeholder{padding:12px;text-align:center;font-size:13px;color:var(--ce-text-muted);}
+
+/* ---------- Équipements historique ---------- */
+.eq-history-item{display:flex;justify-content:space-between;align-items:center;gap:10px;}
+.eq-history-item .eh-name{font-size:14px;font-weight:600;color:var(--ce-navy);}
+.eq-history-item .eh-sub{font-size:12px;color:var(--ce-text-muted);margin-top:2px;}
+
 @media (prefers-reduced-motion: reduce){
   *{transition:none !important;animation:none !important;}
 }

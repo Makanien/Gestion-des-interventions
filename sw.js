@@ -4,18 +4,23 @@
    100% hors ligne après la première visite (avec réseau).
    Incrémenter CACHE_VERSION à chaque déploiement de nouvelle version.
    ========================================================= */
-const CACHE_VERSION = "climatelec-v4";
+const CACHE_VERSION = "climatelec-v8";
 const ASSETS = [
   "./",
   "./index.html",
   "./style.css",
+  "./config.js",
   "./idb.js",
+  "./supabase.js",
+  "./sync.js",
+  "./signature.js",
   "./pdf.js",
   "./app.js",
   "./manifest.json",
   "./logo-data.js",
   "./assets/logo-climat-elec.png",
   "./vendor/jspdf.umd.min.js",
+  "./vendor/supabase-js.min.js",
   "./icons/favicon-16x16.png",
   "./icons/favicon-32x32.png",
   "./icons/favicon.ico",

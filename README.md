@@ -1,7 +1,9 @@
-# Climat Elec — Fiches d'intervention (V1)
+# Climat Elec — Fiches d'intervention (V2)
 
-Application web installable sur smartphone (PWA), fonctionnant **100 % hors ligne**.
-Toutes les données (clients, interventions) sont stockées **localement sur l'appareil** via IndexedDB.
+Application web installable sur smartphone (PWA), fonctionnant **offline-first**.
+Les données sont stockées **localement** (IndexedDB) et **synchronisées vers
+Supabase** dès que la connexion est disponible (multi-utilisateur, comptes par
+technicien).
 
 ## Contenu du dossier
 
@@ -9,12 +11,18 @@ Toutes les données (clients, interventions) sont stockées **localement sur l'a
 index.html         page principale
 style.css           styles / charte graphique
 app.js              logique de l'application (écrans, formulaires)
-idb.js              couche de stockage IndexedDB
-pdf.js               génération du PDF de fiche d'intervention
-sw.js                service worker (mise en cache offline)
-manifest.json        configuration PWA (icône, nom, couleurs)
-icons/                icônes de l'application
-vendor/jspdf.umd.min.js   librairie PDF embarquée (aucune dépendance internet)
+idb.js              couche de stockage IndexedDB (locale, offline)
+supabase.js         client Supabase (Auth, CRUD, Storage)
+sync.js             synchronisation bidirectionnelle (pull/push)
+signature.js        signature électronique tactile
+pdf.js              génération du PDF de fiche d'intervention
+config.js           URL + clé anon du projet Supabase (à renseigner)
+sw.js               service worker (mise en cache offline)
+manifest.json       configuration PWA (icône, nom, couleurs)
+icons/              icônes de l'application
+vendor/jspdf.umd.min.js   librairie PDF embarquée (offline)
+vendor/supabase-js.min.js SDK Supabase embarqué (offline)
+supabase/           schémas SQL + guide de déploiement backend
 ```
 
 ## ⚠️ Important : une PWA a besoin d'être servie en HTTPS (ou en local)
@@ -40,6 +48,12 @@ Une fois le lien HTTPS obtenu, ouvre-le sur le smartphone du technicien avec Chr
 L'icône Climat Elec apparaît alors sur l'écran d'accueil, et l'application s'ouvre en
 plein écran comme une application native, **même sans connexion** après la première ouverture.
 
+## ⚙️ Configuration Supabase (V2)
+
+1. Renseigner `config.js` avec l'URL du projet et la clé anon/publishable.
+2. Exécuter `supabase/schema.sql` puis `supabase/storage.sql` dans le SQL Editor.
+3. Voir `supabase/DEPLOYMENT.md` pour le détail complet (Auth, migration, signatures).
+
 ### Tester en local sur ordinateur (avant déploiement)
 
 Depuis ce dossier, avec Python déjà installé :
@@ -57,24 +71,20 @@ aussi en `localhost`, c'est une exception acceptée par les navigateurs).
   guidé en 5 étapes (Client → Intervention → Équipement/Demande → Action/Pièces → Devis/Signature).
 - **Client existant** : commencer à taper le nom dans l'étape 1, une liste de
   suggestions apparaît automatiquement (auto-remplissage de la fiche).
+- **Signature électronique** (V2) : signature tactile au doigt pour le client et le technicien.
+- **Historique équipements** (V2) : les équipements saisis sont réutilisables lors des visites suivantes.
+- **Synchronisation** (V2) : connexion par compte, données partagées entre appareils,
+  synchronisation automatique offline-first (dès le retour du réseau).
 - **PDF** : depuis le détail d'une fiche, bouton « Générer et partager le PDF ». Sur
   mobile, le menu de partage natif s'ouvre (email, WhatsApp, AirDrop…). Sur ordinateur,
   le PDF est téléchargé directement.
-- **Sauvegarde manuelle** : icône ⬇ en haut à droite de l'écran d'accueil, exporte
-  toutes les données (clients + interventions) en un fichier `.json`, à conserver en cas
-  de changement de téléphone (la V1 n'a pas de synchronisation automatique — prévue en V2).
-
-## Limites connues de cette V1 (volontaires, voir le PRD)
-
-- 1 seul technicien / 1 seul appareil, données non synchronisées entre appareils.
-- Pas de signature électronique tactile (nom saisi au clavier) — prévue en V2.
-- Pas d'historique des équipements par client — prévu en V2.
-- Envoi du PDF au client : manuel (pas d'email automatique).
+- **Sauvegarde manuelle** : icône ⬇ (ou écran « Compte & synchro »), exporte
+  toutes les données en un fichier `.json`.
 
 ## Mise à jour de l'application
 
 Après toute modification des fichiers, incrémenter `CACHE_VERSION` dans `sw.js`
-(ex. `climatelec-v5`) pour que les téléphones déjà installés récupèrent la nouvelle
+(ex. `climatelec-v6`) pour que les téléphones déjà installés récupèrent la nouvelle
 version au prochain lancement avec réseau disponible. Un mécanisme `updatefound`
 dans `app.js` recharge automatiquement la page dès qu'une nouvelle version du
 service worker est détectée et installée.
