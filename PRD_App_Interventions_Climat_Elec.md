@@ -1,8 +1,8 @@
 # PRD — Application de gestion des fiches d'intervention
 ## Climat Elec (Chazé-sur-Argos)
 
-**Version du document :** 1.6
-**Date :** 16/08/2026
+**Version du document :** 1.7
+**Date :** 18/08/2026
 **Auteur :** Rédigé avec Claude, sur la base des échanges avec le porteur de projet
 
 ---
@@ -38,7 +38,7 @@ Climat Elec est une entreprise artisanale spécialisée en géothermie, climatis
 
 ## 3. Découpage en versions
 
-> **État d'implémentation (16/08/2026) :** La **V1 (MVP)** et la majorité de la **V2** sont désormais **implémentées** sur la branche `synchro-supabase`. Les sections ci-dessous décrivent le découpage cible ; le détail de ce qui est réellement livré figure au **§3.1**.
+> **État d'implémentation (18/08/2026) :** La **V1 (MVP)** et la **V2** sont désormais **implémentées et mergées** (branche `synchro-supabase` fusionnée dans `dev`). Les sections ci-dessous décrivent le découpage cible ; le détail de ce qui est réellement livré figure au **§3.1**.
 
 ### V1 — MVP (cible immédiate)
 - **1 seul technicien**, usage mono-appareil.
@@ -62,7 +62,7 @@ Climat Elec est une entreprise artisanale spécialisée en géothermie, climatis
 
 ---
 
-## 3.1 Liste des modifications livrées (branche `synchro-supabase`)
+## 3.1 Liste des modifications livrées (V2 — branche `synchro-supabase`, mergée)
 
 Récapitulatif des changements fonctionnels et techniques effectivement développés, correspondant au passage de la V1 (prototype PWA monoposte) vers la V2 (multi-utilisateur synchronisé + signatures électroniques).
 
@@ -98,10 +98,10 @@ Récapitulatif des changements fonctionnels et techniques effectivement dévelop
 
 > **⚠️ Statut : décrit mais non arbitré.** Comme pour le backlog du §10, les éléments ci-dessous documentent fidèlement les demandes du client (échange du 16/08/2026, fichier Excel `Application.xlsx` + fiches papier d'entretien fournies). **Cela ne constitue pas encore le contenu de la prochaine version** : la sélection et la priorisation restent à faire.
 
-### 3.2.1 Compte utilisateur Delphine
+### 3.2.1 Compte utilisateur Delphine — US-16
 Delphine (secrétaire) aura un **compte utilisateur à part entière**, au même titre que Régis et Jérémy. Elle gère la partie administrative et la facturation, et doit pouvoir **valider la génération des factures**. Côté visualisation (planning, accueil), elle a les mêmes droits que Régis : vue sur toute l'équipe.
 
-### 3.2.2 Écran d'accueil = Planning
+### 3.2.2 Écran d'accueil = Planning — US-17
 L'écran d'accueil de l'application devient le **planning journalier**, avec une ligne par intervenant/type :
 - **Jérémy** : ne voit que **son propre planning**, triable par type d'intervention (Dépannage, Entretien).
 - **Régis et Delphine** : voient le planning de **toute l'équipe**, triable par intervenant ou par type d'intervention (Dépannage, Entretien, Rdv devis).
@@ -111,13 +111,13 @@ L'écran d'accueil de l'application devient le **planning journalier**, avec une
 - **Régis et Delphine** : voient toutes les lignes ; tri par intervenant ou par type (Dépannage, Entretien, Garantie).
 - Dans les deux cas, si possible, les tâches déjà réalisées sont masquées par défaut mais restent accessibles via le tri/filtre (ne pas les supprimer de la liste, juste les sortir de la vue par défaut).
 
-### 3.2.3 Synchronisation Google Agenda (bidirectionnelle)
+### 3.2.3 Synchronisation Google Agenda (bidirectionnelle) — US-14
 Demande confirmée par le client, **incluse dans le PRD mais pas prévue pour la prochaine itération immédiate** (correspond à l'US-14 du backlog §10) :
 - Un rendez-vous créé dans l'application doit apparaître dans Google Agenda.
 - Un événement créé dans Google Agenda (formation, congé…) doit apparaître dans le planning de l'application.
 - Le mapping des champs, la gestion des conflits d'édition et le sens de la source de vérité restent à définir lors du cadrage détaillé de cette fonctionnalité.
 
-### 3.2.4 Bouton "+" — point d'entrée unique de création
+### 3.2.4 Bouton "+" — point d'entrée unique de création — US-18
 Un bouton d'action flottant propose la création de :
 1. Nouvel appel
 2. Nouvelle intervention
@@ -125,7 +125,7 @@ Un bouton d'action flottant propose la création de :
 4. Nouvel entretien Air/Air
 5. Nouvel entretien Chaudière bois
 
-### 3.2.5 Écran "Nouvel appel"
+### 3.2.5 Écran "Nouvel appel" — US-01
 Nouvel écran (n'existe pas en V1), utilisé par Régis/Delphine pour enregistrer le contexte d'un appel client avant de créer le rendez-vous ou l'intervention (US-01 du backlog) :
 
 | Champ | Détail | Obligatoire |
@@ -147,13 +147,13 @@ Trois actions possibles en sortie d'écran :
 
 > Ce nouvel écran répond en même temps à l'un des points ouverts du §11 (V1.5) : le champ "Type de bâtiment" est désormais une **liste fermée à 3 valeurs** (Professionnel / - de 2 ans / + de 2 ans), et non un texte libre.
 
-### 3.2.6 Évolutions du formulaire "Nouvelle intervention"
-- **Liste "Type d'intervention" modifiée** : retrait de "Entretien" et "Rendez-vous" (qui ont désormais leurs propres flux dédiés, cf. §3.2.4 et §3.2.7) ; ajout de "Garantie". Liste cible : Dépannage, Garantie, Diagnostic.
-- **Statut de l'intervention** ("Intervention terminée avec succès" / "Nouvelle intervention à prévoir") affiché en résumé dès l'étape 5/5, avant validation finale.
-- **Ajout d'une étape "Photos"** avec légende par photo, insérée avant l'étape 5/5. Ceci répond au point ouvert du §11 (V1.5) sur la prise de photos ; impacte le choix de stockage (cf. §6.1, IndexedDB déjà anticipé pour cet usage).
-- Le bug remonté initialement ("le bouton retour efface les données déjà saisies") a été vérifié : il ne semble plus présent dans la version en développement actuelle (branche `synchro-supabase`). Aucune action requise pour l'instant ; à re-tester lors des essais terrain (étape 4 de la roadmap, §9).
+### 3.2.6 Évolutions du formulaire "Nouvelle intervention" — US-21 · US-22
+- **Liste "Type d'intervention" modifiée** (US-22) : retrait de "Entretien" et "Rendez-vous" (qui ont désormais leurs propres flux dédiés, cf. §3.2.4 et §3.2.7) ; ajout de "Garantie". Liste cible : Dépannage, Garantie, Diagnostic.
+- **Statut de l'intervention** (US-22) ("Intervention terminée avec succès" / "Nouvelle intervention à prévoir") affiché en résumé dès l'étape 5/5, avant validation finale.
+- **Ajout d'une étape "Photos"** (US-21) avec légende par photo, insérée avant l'étape 5/5. Ceci répond au point ouvert du §11 (V1.5) sur la prise de photos ; impacte le choix de stockage (cf. §6.1, IndexedDB déjà anticipé pour cet usage).
+- Le bug remonté initialement ("le bouton retour efface les données déjà saisies") a été vérifié : il ne semble plus présent dans la version actuelle (V2). Aucune action requise pour l'instant ; à re-tester lors des essais terrain (étape 4 de la roadmap, §9).
 
-### 3.2.7 Fiches d'entretien dédiées par type d'équipement
+### 3.2.7 Fiches d'entretien dédiées par type d'équipement — US-19
 Trois nouveaux flux de création (accessibles depuis le bouton "+"), chacun démarrant par un écran d'identification client identique à "Nouvelle intervention" (nom, adresse, CP, ville, tél, mail, type de bâtiment obligatoires), suivi d'un champ "Type d'entretien" spécifique, puis d'une **fiche d'entretien dédiée** dont le contenu (mesures) diffère de la fiche d'intervention générique. Contenu détaillé fourni par le client via les fiches papier existantes :
 
 **a) Entretien Air/Eau - Sol/Eau (PAC géothermie / aérothermie)**
@@ -181,16 +181,16 @@ Trois nouveaux flux de création (accessibles depuis le bouton "+"), chacun dém
 
 > **Point technique :** ces 3 fiches partagent une structure commune (client / intervention / équipement / mesures / remarque / pièces / devis / signatures) mais un bloc "Mesures" propre à chaque type d'équipement. Le modèle de données (§5) devra prévoir une table `Mesure` typée par entretien plutôt que des colonnes fixes, pour rester extensible.
 
-### 3.2.8 Duplication d'une fiche
+### 3.2.8 Duplication d'une fiche — US-20
 Demande client : pouvoir **dupliquer une intervention et/ou un entretien** existant (utile pour les entretiens annuels récurrents chez un même client). À intégrer au CRUD existant (§4.1) : un bouton "Dupliquer" en plus de "Modifier" et "Supprimer" sur le détail d'une fiche, qui pré-remplit un nouveau formulaire à partir de la fiche source (client + équipement repris, date/mesures à ressaisir).
 
-### 3.2.9 Base de données pièces — en suspens
+### 3.2.9 Base de données pièces — en suspens — US-23
 Demande d'une base de données pièces pour l'auto-complétion de la désignation (en plus de la base clients déjà prévue en V1). **Ce point reste à confirmer par le client** avant tout développement : périmètre exact (désignation seule, ou aussi référence/prix), source de la donnée (saisie manuelle progressive vs import initial), et si la disponibilité par technicien est un besoin ou pas.
 
-### 3.2.10 Découvertes annexes — non demandées, à trancher
+### 3.2.10 Découvertes annexes — non demandées, à trancher — US-24 · US-25
 En examinant les fiches papier fournies, deux documents supplémentaires sont apparus, qui ne faisaient pas partie de la demande initiale et ne sont donc **pas intégrés au périmètre** sans validation explicite :
-- **Contrat d'entretien annuel** (choix du nombre de passages, tarification par zone/km, conditions générales) — document commercial distinct de la fiche d'entretien elle-même.
-- **CERFA n°15497 (fluides frigorigènes)** — déclaration réglementaire obligatoire pour les interventions sur PAC (contrôle d'étanchéité, quantités de fluide manipulées, déchets ADR/RID), prévue par le code de l'environnement (art. R.543-79 et R.543-82).
+- **Contrat d'entretien annuel** (US-24) (choix du nombre de passages, tarification par zone/km, conditions générales) — document commercial distinct de la fiche d'entretien elle-même.
+- **CERFA n°15497 (fluides frigorigènes)** (US-25) — déclaration réglementaire obligatoire pour les interventions sur PAC (contrôle d'étanchéité, quantités de fluide manipulées, déchets ADR/RID), prévue par le code de l'environnement (art. R.543-79 et R.543-82).
 
 Ces deux points sont ajoutés au §11 (points ouverts) pour arbitrage ultérieur.
 
@@ -210,7 +210,7 @@ Ces deux points sont ajoutés au §11 (points ouverts) pour arbitrage ultérieur
 6. **Action réalisée** (texte libre).
 7. **Pièces utilisées** : lignes dynamiques (désignation, référence, quantité) — ajout/suppression de lignes à la volée.
 8. **Devis souhaité ?** : case à cocher + zone de commentaire libre.
-9. **Signatures** : nom technicien (pré-rempli si un seul technicien) + nom client, avec case "présent/absent" (signature tactile reportée en V2).
+9. **Signatures** : nom technicien (pré-rempli si un seul technicien) + nom client, avec case "présent/absent" (signature tactile disponible en V2).
 10. **Validation** → génération automatique du PDF reprenant la mise en page actuelle + sauvegarde locale de la fiche.
 11. **Modification** : depuis le détail d'une fiche, bouton « Modifier » (icône stylo) → reprise du parcours 2 à 9 pré-rempli, pour corriger ou compléter une fiche existante (CRUD complet) — la fiche est mise à jour en place, sans doublon.
 12. **Partage** du PDF via le menu de partage natif du téléphone (aucun envoi automatique).
@@ -336,7 +336,7 @@ PieceUtilisee {
 | 2. Maquette / prototype V1 | Écrans principaux (liste, fiche client, fiche intervention, export PDF) | Terminé |
 | 3. Développement V1 | PWA complète, testée hors ligne sur téléphone réel | Terminé |
 | 4. Mise en usage réel | Tests terrain par le technicien, ajustements | À faire |
-| 5. Développement V2 | Intégration Supabase, comptes, synchronisation, signature électronique | Terminé (branche `synchro-supabase`, à merger) |
+| 5. Développement V2 | Intégration Supabase, comptes, synchronisation, signature électronique | Terminé (mergé dans `dev`) |
 | 6. Historique équipements par client | Ajout à la fiche équipement | Terminé |
 
 > Le contenu détaillé des versions V2/V3 ci-dessus reste indicatif : le backlog de user stories du **§10** couvre un périmètre plus large (RDV, validation, devis, facturation) et devra être arbitré pour préciser ce que ces étapes contiennent réellement.
@@ -347,7 +347,7 @@ PieceUtilisee {
 
 > **⚠️ Statut : propositions non arbitrées.** Les user stories ci-dessous sont issues de la modélisation complète du processus métier (appel client → RDV → fiche terrain → validation → devis → facturation → envoi), réalisée avec les 3 personnes concernées (Régis, Jérémy, Delphine). **Elles ne constituent pas un engagement de développement** : il s'agit d'un inventaire des évolutions envisageables, à arbitrer et prioriser collectivement pour construire le contenu de la prochaine version. Aucune de ces stories n'est donc à considérer comme actée tant qu'elle n'a pas été explicitement sélectionnée.
 >
-> **Mise à jour 16/08/2026 :** les user stories US-01, US-02 et US-14 (épopée 1) sont désormais détaillées avec des maquettes et des champs précis au §3.2 (écrans "Nouvel appel", "Planning", sync Google Agenda). Cela reste au même statut non arbitré — le détail est disponible, la décision d'intégration ne l'est pas.
+> **Mise à jour 16/08/2026 :** les user stories US-01, US-02 et US-14 (épopée 1) sont désormais détaillées avec des maquettes et des champs précis au §3.2 (écrans "Nouvel appel", "Planning", sync Google Agenda). Les nouvelles demandes client du 16/08 y sont référencées sous les identifiants **US-16 → US-25**. Cela reste au même statut non arbitré — le détail est disponible, la décision d'intégration ne l'est pas.
 
 Légende de couverture :
 - 🟢 **Déjà couvert** par l'application V1 (prototype PWA existant)
@@ -418,7 +418,7 @@ Légende de couverture :
 | Transverses | 2 | 0 / 2 |
 | **Total** | **15** | **2 / 15** |
 
-**Prochaine étape :** ce backlog doit être revu et arbitré (par exemple par un vote de priorisation ou une session de cadrage dédiée) pour sélectionner une ou plusieurs stories à intégrer au contenu de la prochaine version développée. Le détail complet (schéma du processus, vue visuelle) est disponible dans les documents `Modelisation_interventions_Climat_elec.drawio` et `User_Stories_Climat_Elec.md`.
+**Prochaine étape :** ce backlog doit être revu et arbitré (par exemple par un vote de priorisation ou une session de cadrage dédiée) pour sélectionner une ou plusieurs stories à intégrer au contenu de la prochaine version développée. Le détail complet (schéma du processus, vue visuelle) est disponible dans le document `Modelisation_interventions_Climat_elec.drawio` ; les nouvelles demandes du 16/08 sont détaillées au §3.2 (US-16 → US-25).
 
 ---
 
