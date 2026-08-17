@@ -162,14 +162,32 @@ main.content{padding:14px 14px 34px;}
     <div class="nav-warn">⚠️ Propositions non arbitrées — à sélectionner pour la prochaine version. Aucun de ces écrans n'est encore développé (sauf mention contraire).</div>
     <div class="nav-group"><div class="nav-group-label">Transverses</div><button class="nav-btn" data-screen="dashboard" onclick="showScreen('dashboard')">
           <span class="dot"></span><span>Tableau de bord <small>US-13 · US-15</small></span>
-        </button></div><div class="nav-group"><div class="nav-group-label">Épopée 1 — Contact & planification</div><button class="nav-btn" data-screen="appel" onclick="showScreen('appel')">
+        </button></div><div class="nav-group"><div class="nav-group-label">Épopée 1 — Contact & planification</div><button class="nav-btn" data-screen="bouton_plus" onclick="showScreen('bouton_plus')">
+          <span class="dot"></span><span>Bouton "+" <span class="mini-badge" style="background:rgba(106,95,193,.25);color:#c9c2f5;">16/08</span></span>
+        </button><button class="nav-btn" data-screen="appel" onclick="showScreen('appel')">
           <span class="dot"></span><span>Nouvel appel client <small>US-01</small></span>
-        </button><button class="nav-btn" data-screen="rdv" onclick="showScreen('rdv')">
-          <span class="dot"></span><span>Planning RDV <small>US-02 · US-14</small></span>
+        </button><button class="nav-btn" data-screen="planning_equipe" onclick="showScreen('planning_equipe')">
+          <span class="dot"></span><span>Planning — équipe (Régis/Delphine) <small>US-02 · US-14</small></span>
+        </button><button class="nav-btn" data-screen="planning_jeremy" onclick="showScreen('planning_jeremy')">
+          <span class="dot"></span><span>Planning — Jérémy <small>US-02 · US-14</small></span>
         </button></div><div class="nav-group"><div class="nav-group-label">Épopée 2 — Intervention terrain · déjà développée</div><button class="nav-btn developed" data-screen="accueil" onclick="showScreen('accueil')">
           <span class="dot"></span><span>Accueil (liste) <span class="mini-badge dev">V1</span><small>US-03 · US-04</small></span>
         </button><button class="nav-btn developed" data-screen="fiche_terrain" onclick="showScreen('fiche_terrain')">
           <span class="dot"></span><span>Nouvelle fiche terrain <span class="mini-badge dev">V1</span><small>US-03 · US-04</small></span>
+        </button></div><div class="nav-group"><div class="nav-group-label">Accueil par rôle (nouveau 16/08)</div><button class="nav-btn" data-screen="accueil_taches_equipe" onclick="showScreen('accueil_taches_equipe')">
+          <span class="dot"></span><span>Accueil tâches — équipe</span>
+        </button><button class="nav-btn" data-screen="accueil_taches_jeremy" onclick="showScreen('accueil_taches_jeremy')">
+          <span class="dot"></span><span>Accueil tâches — Jérémy</span>
+        </button><button class="nav-btn" data-screen="nouvelle_intervention_maj" onclick="showScreen('nouvelle_intervention_maj')">
+          <span class="dot"></span><span>Nouvelle intervention (maj)</span>
+        </button><button class="nav-btn" data-screen="duplication" onclick="showScreen('duplication')">
+          <span class="dot"></span><span>Dupliquer une fiche</span>
+        </button></div><div class="nav-group"><div class="nav-group-label">Entretiens dédiés (nouveau 16/08)</div><button class="nav-btn" data-screen="entretien_air_eau" onclick="showScreen('entretien_air_eau')">
+          <span class="dot"></span><span>Entretien Air/Eau - Sol/Eau</span>
+        </button><button class="nav-btn" data-screen="entretien_air_air" onclick="showScreen('entretien_air_air')">
+          <span class="dot"></span><span>Entretien Air/Air</span>
+        </button><button class="nav-btn" data-screen="entretien_chaudiere_bois" onclick="showScreen('entretien_chaudiere_bois')">
+          <span class="dot"></span><span>Entretien Chaudière bois</span>
         </button></div><div class="nav-group"><div class="nav-group-label">Épopée 3 — Validation & devis</div><button class="nav-btn" data-screen="fiches_valider" onclick="showScreen('fiches_valider')">
           <span class="dot"></span><span>Fiches à valider <small>US-05</small></span>
         </button><button class="nav-btn" data-screen="validation" onclick="showScreen('validation')">
@@ -349,51 +367,98 @@ const SCREENS = {
     </div>
   </main>`
   },
+  "bouton_plus": {
+    title: 'Bouton "+" — création',
+    sub: "Point d'entrée unique pour toute création : appel, intervention, ou l'un des 3 entretiens dédiés. Accessible depuis l'accueil / le planning.",
+    epic: 'Épopée 1 — Contact & planification',
+    us: '16/08',
+    developed: false,
+    html: `<div class="topbar"><div class="topbar-row">
+      <img class="logo" data-logo src="" alt="Climat Elec"/>
+      <div><h2>Créer</h2><div class="sub">Que voulez-vous créer ?</div></div>
+      <div class="spacer"></div>
+      <div class="avatar">RC</div>
+    </div></div>
+  <main class="content">
+    <div class="list-item" style="cursor:pointer;">
+      <span class="li-dot" style="background:#6a5fc1">📞</span>
+      <span class="li-body"><span class="li-name">Nouvel appel</span><span class="li-sub">Enregistrer un contact client entrant</span></span>
+    </div>
+    <div class="list-item" style="cursor:pointer;">
+      <span class="li-dot" style="background:#2f86b4">🔧</span>
+      <span class="li-body"><span class="li-name">Nouvelle intervention</span><span class="li-sub">Dépannage, Garantie, Diagnostic</span></span>
+    </div>
+    <div class="list-item" style="cursor:pointer;">
+      <span class="li-dot" style="background:#2f9e5b">💧</span>
+      <span class="li-body"><span class="li-name">Nouvel entretien Air/Eau - Sol/Eau</span><span class="li-sub">PAC géothermie / aérothermie</span></span>
+    </div>
+    <div class="list-item" style="cursor:pointer;">
+      <span class="li-dot" style="background:#2f9e5b">🌬️</span>
+      <span class="li-body"><span class="li-name">Nouvel entretien Air/Air</span><span class="li-sub">Mono-split ou multi-split</span></span>
+    </div>
+    <div class="list-item" style="cursor:pointer;">
+      <span class="li-dot" style="background:#c85f16">🔥</span>
+      <span class="li-body"><span class="li-name">Nouvel entretien Chaudière bois</span><span class="li-sub">Granulés, bûches, déchiqueté</span></span>
+    </div>
+  </main>`
+  },
   "appel": {
     title: 'Nouvel appel client',
-    sub: "Régis prend l'appel et enregistre le contexte du client avant de créer le rendez-vous — remplace le post-it / carnet papier actuel.",
+    sub: "Régis ou Delphine prennent l'appel et enregistrent le contexte du client avant de créer le rendez-vous ou l'intervention — remplace le post-it / carnet papier actuel.",
     epic: 'Épopée 1 — Prise de contact',
     us: 'US-01',
     developed: false,
     html: `<div class="topbar"><div class="topbar-row">
       <img class="logo" data-logo src="" alt="Climat Elec"/>
-      <div><h2>Nouvel appel</h2><div class="sub">Prise d'information</div></div>
+      <div><h2>Nouvel appel</h2><div class="sub">Tous les champs sont obligatoires</div></div>
       <div class="spacer"></div>
       <div class="avatar">RC</div>
     </div></div>
   <main class="content">
     <div class="card" style="padding:14px;">
-      <div class="field"><label>Nom du client</label><input placeholder="Rechercher ou saisir un nouveau nom" value="Da Silva"/></div>
+      <div class="field"><label>Nom du client *</label><input placeholder="Rechercher ou saisir un nouveau nom" value="Da Silva"/></div>
+      <div class="field"><label>Adresse *</label><input value="4 rue des Ormeaux"/></div>
       <div class="row2">
-        <div class="field"><label>Téléphone</label><input value="06 45 12 78 90"/></div>
-        <div class="field"><label>Ville</label><input value="Chazé-sur-Argos"/></div>
+        <div class="field"><label>Code postal *</label><input value="49500"/></div>
+        <div class="field"><label>Ville *</label><input value="Chazé-sur-Argos"/></div>
       </div>
-      <div class="field"><label>Motif de l'appel</label>
+      <div class="row2">
+        <div class="field"><label>Téléphone *</label><input value="06 45 12 78 90"/></div>
+        <div class="field"><label>Mail *</label><input value="dasilva@mail.fr"/></div>
+      </div>
+      <div class="field"><label>Motif de l'appel *</label>
         <textarea>Chaudière qui ne chauffe plus depuis ce matin, client inquiet car il fait froid.</textarea>
       </div>
-      <div class="field"><label>Urgence</label>
-        <select><option>Normale</option><option selected>Urgente — sous 48h</option><option>Planifiable</option></select>
+      <div class="field"><label>Type de bâtiment *</label>
+        <select><option>Professionnel</option><option selected>- de 2 ans</option><option>+ de 2 ans</option></select>
+      </div>
+      <div class="field"><label>Type d'intervention *</label>
+        <select><option>Devis</option><option selected>Dépannage</option><option>Garantie</option><option>Entretien</option><option>Diagnostic</option></select>
       </div>
     </div>
-    <div class="note blue">Cette fiche sert de base à la création du rendez-vous à l'étape suivante.</div>
+    <div class="note blue">"Créer l'intervention" saute directement dans le parcours "Nouvelle intervention", champs déjà repris.</div>
     <button class="btn btn-accent">Créer le rendez-vous →</button>
+    <button class="btn btn-primary">Créer l'intervention →</button>
     <button class="btn btn-ghost">Enregistrer sans planifier</button>
   </main>`
   },
-  "rdv": {
-    title: 'Planning des rendez-vous',
-    sub: "Liste des interventions planifiées pour l'équipe. Reste synchronisé avec Google Agenda pour ne pas gérer deux outils.",
+  "planning_equipe": {
+    title: 'Planning — équipe (Régis/Delphine)',
+    sub: "Régis et Delphine voient le planning de toute l'équipe, triable par intervenant ou par type d'intervention. Reste synchronisé avec Google Agenda (différé, cf. PRD §3.2.3).",
     epic: 'Épopée 1 — Prise de contact',
     us: 'US-02 · US-14',
     developed: false,
     html: `<div class="topbar"><div class="topbar-row">
       <img class="logo" data-logo src="" alt="Climat Elec"/>
-      <div><h2>Planning</h2><div class="sub">Semaine du 10 août</div></div>
+      <div><h2>Planning</h2><div class="sub">Semaine du 10 août — toute l'équipe</div></div>
       <div class="spacer"></div>
       <div class="avatar">RC</div>
     </div></div>
   <main class="content">
-    <div class="note blue">🔄 Synchronisé avec Google Agenda — dernière synchro il y a 2 min.</div>
+    <div class="li-tags" style="margin-bottom:12px;">
+      <span class="tag blue">Trier : Intervenant</span><span class="tag">Type</span>
+    </div>
+    <div class="note blue">🔄 Sync Google Agenda — différé, non prévu dans l'immédiat.</div>
 
     <div class="section-label">Aujourd'hui — lundi 10</div>
     <div class="list-item">
@@ -412,6 +477,14 @@ const SCREENS = {
         <span class="li-tags"><span class="tag blue">Jérémy</span></span>
       </span>
     </div>
+    <div class="list-item">
+      <span class="li-dot" style="background:#6a5fc1">11h</span>
+      <span class="li-body">
+        <span class="li-top"><span class="li-name">Sophie Leroux</span><span class="li-meta">11:00–11:30</span></span>
+        <span class="li-sub">Candé — Rdv devis chauffe-eau</span>
+        <span class="li-tags"><span class="tag violet">Régis</span></span>
+      </span>
+    </div>
 
     <div class="section-label">Demain — mardi 11</div>
     <div class="list-item">
@@ -423,7 +496,44 @@ const SCREENS = {
       </span>
     </div>
   </main>
-  <button class="fab"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>`
+  <button class="fab" onclick="showScreen('bouton_plus')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>`
+  },
+  "planning_jeremy": {
+    title: 'Planning — Jérémy',
+    sub: "Jérémy ne voit que son propre planning, triable uniquement par type d'intervention (Dépannage, Entretien) — pas de tri par intervenant, il n'y en a qu'un.",
+    epic: 'Épopée 1 — Prise de contact',
+    us: 'US-02 · US-14',
+    developed: false,
+    html: `<div class="topbar"><div class="topbar-row">
+      <img class="logo" data-logo src="" alt="Climat Elec"/>
+      <div><h2>Mon planning</h2><div class="sub">Semaine du 10 août</div></div>
+      <div class="spacer"></div>
+      <div class="avatar">JG</div>
+    </div></div>
+  <main class="content">
+    <div class="li-tags" style="margin-bottom:12px;">
+      <span class="tag blue">Trier : Type</span>
+    </div>
+    <div class="section-label">Aujourd'hui — lundi 10</div>
+    <div class="list-item">
+      <span class="li-dot" style="background:#2f86b4">09h</span>
+      <span class="li-body">
+        <span class="li-top"><span class="li-name">Julien Da Silva</span><span class="li-meta">09:00–10:00</span></span>
+        <span class="li-sub">Chazé-sur-Argos — Dépannage chaudière</span>
+        <span class="li-tags"><span class="tag orange">Urgent</span></span>
+      </span>
+    </div>
+    <div class="list-item">
+      <span class="li-dot" style="background:#2f86b4">14h</span>
+      <span class="li-body">
+        <span class="li-top"><span class="li-name">Marie Petit</span><span class="li-meta">14:00–15:30</span></span>
+        <span class="li-sub">Bécon-les-Granits — Entretien PAC</span>
+      </span>
+    </div>
+    <div class="section-label">Demain — mardi 11</div>
+    <div class="empty">Rien de planifié pour l'instant.</div>
+  </main>
+  <button class="fab" onclick="showScreen('bouton_plus')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>`
   },
   "fiches_valider": {
     title: 'Fiches à valider',
@@ -594,6 +704,250 @@ const SCREENS = {
     </div>
     <button class="btn btn-accent" style="margin-top:14px;">Envoyer au client</button>
     <button class="btn btn-ghost">Télécharger le PDF</button>
+  </main>`
+  },
+  "accueil_taches_equipe": {
+    title: 'Accueil (liste des tâches) — équipe',
+    sub: "Régis et Delphine voient toutes les lignes de l'équipe, triables par intervenant ou par type. Les tâches terminées sont masquées par défaut mais restent accessibles via le tri.",
+    epic: 'Épopée 2 — Intervention terrain',
+    us: '16/08',
+    developed: false,
+    html: `<div class="topbar"><div class="topbar-row">
+      <img class="logo" data-logo src="" alt="Climat Elec"/>
+      <div><h2>Accueil</h2><div class="sub">Toute l'équipe</div></div>
+      <div class="spacer"></div>
+      <div class="avatar">RC</div>
+    </div></div>
+  <main class="content">
+    <div class="li-tags" style="margin-bottom:12px;">
+      <span class="tag blue">Dépannage</span><span class="tag">Entretien</span><span class="tag">Garantie</span>
+      <span class="tag" style="margin-left:auto;">Trier : Intervenant ▾</span>
+    </div>
+    <div class="list-item">
+      <span class="li-dot" style="background:#c85f16">JD</span>
+      <span class="li-body">
+        <span class="li-top"><span class="li-name">Julien Da Silva</span><span class="li-meta">Aujourd'hui 09h</span></span>
+        <span class="li-sub">Dépannage chaudière</span>
+        <span class="li-tags"><span class="tag blue">Jérémy</span><span class="tag orange">Urgent</span></span>
+      </span>
+    </div>
+    <div class="list-item">
+      <span class="li-dot" style="background:#2f86b4">MP</span>
+      <span class="li-body">
+        <span class="li-top"><span class="li-name">Marie Petit</span><span class="li-meta">Aujourd'hui 14h</span></span>
+        <span class="li-sub">Entretien PAC</span>
+        <span class="li-tags"><span class="tag blue">Jérémy</span></span>
+      </span>
+    </div>
+    <div class="list-item">
+      <span class="li-dot" style="background:#6a5fc1">TR</span>
+      <span class="li-body">
+        <span class="li-top"><span class="li-name">Thomas Roy</span><span class="li-meta">Demain 10h</span></span>
+        <span class="li-sub">Installation — sous garantie</span>
+        <span class="li-tags"><span class="tag violet">Régis</span></span>
+      </span>
+    </div>
+    <div class="note">Tâches terminées masquées — utiliser le tri "Terminées" pour les retrouver.</div>
+  </main>
+  <button class="fab" onclick="showScreen('bouton_plus')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>`
+  },
+  "accueil_taches_jeremy": {
+    title: 'Accueil (liste des tâches) — Jérémy',
+    sub: "Jérémy ne voit que ses propres lignes, triables par type (Dépannage, Entretien, Garantie). Mêmes règles de masquage des tâches terminées.",
+    epic: 'Épopée 2 — Intervention terrain',
+    us: '16/08',
+    developed: false,
+    html: `<div class="topbar"><div class="topbar-row">
+      <img class="logo" data-logo src="" alt="Climat Elec"/>
+      <div><h2>Accueil</h2><div class="sub">Mes tâches</div></div>
+      <div class="spacer"></div>
+      <div class="avatar">JG</div>
+    </div></div>
+  <main class="content">
+    <div class="li-tags" style="margin-bottom:12px;">
+      <span class="tag blue">Dépannage</span><span class="tag">Entretien</span><span class="tag">Garantie</span>
+    </div>
+    <div class="list-item">
+      <span class="li-dot" style="background:#c85f16">JD</span>
+      <span class="li-body">
+        <span class="li-top"><span class="li-name">Julien Da Silva</span><span class="li-meta">Aujourd'hui 09h</span></span>
+        <span class="li-sub">Dépannage chaudière</span>
+        <span class="li-tags"><span class="tag orange">Urgent</span></span>
+      </span>
+    </div>
+    <div class="list-item">
+      <span class="li-dot" style="background:#2f86b4">MP</span>
+      <span class="li-body">
+        <span class="li-top"><span class="li-name">Marie Petit</span><span class="li-meta">Aujourd'hui 14h</span></span>
+        <span class="li-sub">Entretien PAC</span>
+      </span>
+    </div>
+    <div class="note">Tâches terminées masquées — utiliser le tri "Terminées" pour les retrouver.</div>
+  </main>
+  <button class="fab" onclick="showScreen('bouton_plus')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>`
+  },
+  "nouvelle_intervention_maj": {
+    title: "Nouvelle intervention — mises à jour",
+    sub: "Type d'intervention resserré (Entretien et Rendez-vous retirés, Garantie ajouté), statut affiché dès l'étape 5/5, et nouvelle étape Photos avant la fin.",
+    epic: 'Épopée 2 — Intervention terrain',
+    us: '16/08',
+    developed: false,
+    html: `<div class="topbar"><div class="topbar-row">
+      <button style="background:rgba(255,255,255,.1);border:none;color:#fff;width:26px;height:26px;border-radius:7px;">‹</button>
+      <div><h2>Nouvelle intervention</h2></div>
+    </div>
+    <div style="display:flex;gap:4px;padding:10px 16px 0;">
+      <span style="flex:1;height:3px;border-radius:100px;background:#3a5468;"></span>
+      <span style="flex:1;height:3px;border-radius:100px;background:#3a5468;"></span>
+      <span style="flex:1;height:3px;border-radius:100px;background:#3a5468;"></span>
+      <span style="flex:1;height:3px;border-radius:100px;background:linear-gradient(135deg,#2f86b4,#e8792a);"></span>
+      <span style="flex:1;height:3px;border-radius:100px;background:#3a5468;"></span>
+    </div></div>
+  <div style="padding:14px 14px 0;">
+    <div style="font-size:10px;font-family:var(--mono);color:#c85f16;text-transform:uppercase;">Étape 4 / 5 — nouveau</div>
+    <h2 style="font-size:17px;color:var(--navy);margin:2px 0 12px;">Photos</h2>
+  </div>
+  <main class="content" style="padding-top:0;">
+    <div class="row2" style="margin-bottom:12px;">
+      <div class="card" style="padding:0;aspect-ratio:1;display:flex;align-items:center;justify-content:center;color:#9aa7ad;font-size:24px;">📷</div>
+      <div class="card" style="padding:0;aspect-ratio:1;display:flex;align-items:center;justify-content:center;color:#9aa7ad;font-size:24px;">＋</div>
+    </div>
+    <div class="field"><label>Légende de la photo</label><input placeholder="Ex : fuite constatée sous le ballon"/></div>
+    <div class="note">Champ "Type d'intervention" mis à jour : Dépannage, Garantie, Diagnostic (Entretien et Rendez-vous retirés — ils ont leurs propres flux).</div>
+    <div class="section-label">Statut de l'intervention <span class="count-pill">visible dès l'étape 5/5</span></div>
+    <div class="toggle-row">
+      <div class="t-label">Intervention terminée avec succès</div>
+      <div class="switch on"></div>
+    </div>
+    <button class="btn btn-primary">Continuer →</button>
+  </main>`
+  },
+  "duplication": {
+    title: "Dupliquer une fiche",
+    sub: "Depuis le détail d'une fiche (intervention ou entretien), un bouton Dupliquer pré-remplit un nouveau formulaire à partir du client et de l'équipement — utile pour les entretiens annuels récurrents.",
+    epic: 'Épopée 2 — Intervention terrain',
+    us: '16/08',
+    developed: false,
+    html: `<div class="topbar"><div class="topbar-row">
+      <img class="logo" data-logo src="" alt="Climat Elec"/>
+      <div><h2>Marie Petit</h2><div class="sub">Entretien PAC · 24/07/2025</div></div>
+      <div class="spacer"></div>
+      <div class="avatar">JG</div>
+    </div></div>
+  <main class="content">
+    <div class="card">
+      <div class="kv"><div class="k">Équipement</div><div class="v">PAC Air/Eau Daikin</div></div>
+      <div class="kv"><div class="k">Dernière visite</div><div class="v">24/07/2025 — Jérémy</div></div>
+    </div>
+    <div class="note blue">La duplication reprend le client et l'équipement ; les mesures et la date sont à ressaisir.</div>
+    <button class="btn btn-primary">✎ Modifier</button>
+    <button class="btn btn-accent">⧉ Dupliquer</button>
+    <button class="btn btn-ghost">🗑 Supprimer</button>
+  </main>`
+  },
+  "entretien_air_eau": {
+    title: "Nouvel entretien Air/Eau - Sol/Eau",
+    sub: "Fiche dédiée aux PAC géothermie et aérothermie — mesures propres à l'équipement (fluide frigorigène, températures eau, filtres…), distinctes de la fiche d'intervention générique.",
+    epic: 'Entretiens dédiés',
+    us: '16/08',
+    developed: false,
+    html: `<div class="topbar"><div class="topbar-row">
+      <img class="logo" data-logo src="" alt="Climat Elec"/>
+      <div><h2>Entretien Air/Eau - Sol/Eau</h2><div class="sub">Identification client</div></div>
+      <div class="spacer"></div>
+      <div class="avatar">JG</div>
+    </div></div>
+  <main class="content">
+    <div class="card" style="padding:14px;">
+      <div class="field"><label>Nom du client *</label><input value="Petit"/></div>
+      <div class="field"><label>Adresse *</label><input value="8 impasse des Tilleuls"/></div>
+      <div class="row2">
+        <div class="field"><label>Code postal *</label><input value="49500"/></div>
+        <div class="field"><label>Ville *</label><input value="Bécon-les-Granits"/></div>
+      </div>
+      <div class="row2">
+        <div class="field"><label>Téléphone *</label><input value="06 12 34 56 78"/></div>
+        <div class="field"><label>Mail *</label><input value="petit@mail.fr"/></div>
+      </div>
+      <div class="field"><label>Type de bâtiment *</label>
+        <select><option>Professionnel</option><option selected>- de 2 ans</option><option>+ de 2 ans</option></select>
+      </div>
+      <div class="field"><label>Type d'entretien *</label>
+        <select><option selected>Air/Eau (aérothermie)</option><option>Sol/Eau (géothermie)</option></select>
+      </div>
+    </div>
+    <div class="note blue">Étape suivante : fiche d'entretien Air/Eau - Sol/Eau (équipement, mesures groupe extérieur et circuit eau, pièces, devis, signatures).</div>
+    <button class="btn btn-primary">Continuer vers la fiche d'entretien →</button>
+  </main>`
+  },
+  "entretien_air_air": {
+    title: "Nouvel entretien Air/Air",
+    sub: "Fiche dédiée aux PAC air/air mono ou multi-split — jusqu'à 4 unités intérieures, mesures de température d'échange par unité.",
+    epic: 'Entretiens dédiés',
+    us: '16/08',
+    developed: false,
+    html: `<div class="topbar"><div class="topbar-row">
+      <img class="logo" data-logo src="" alt="Climat Elec"/>
+      <div><h2>Entretien Air/Air</h2><div class="sub">Identification client</div></div>
+      <div class="spacer"></div>
+      <div class="avatar">JG</div>
+    </div></div>
+  <main class="content">
+    <div class="card" style="padding:14px;">
+      <div class="field"><label>Nom du client *</label><input value="Roy"/></div>
+      <div class="field"><label>Adresse *</label><input value="12 rue de la Mairie"/></div>
+      <div class="row2">
+        <div class="field"><label>Code postal *</label><input value="49440"/></div>
+        <div class="field"><label>Ville *</label><input value="Candé"/></div>
+      </div>
+      <div class="row2">
+        <div class="field"><label>Téléphone *</label><input value="06 98 76 54 32"/></div>
+        <div class="field"><label>Mail *</label><input value="roy@mail.fr"/></div>
+      </div>
+      <div class="field"><label>Type de bâtiment *</label>
+        <select><option selected>Professionnel</option><option>- de 2 ans</option><option>+ de 2 ans</option></select>
+      </div>
+      <div class="field"><label>Type d'entretien *</label>
+        <select><option selected>Air/Air</option></select>
+      </div>
+    </div>
+    <div class="note blue">Étape suivante : fiche d'entretien Air/Air (jusqu'à 4 unités intérieures, T° d'échange par unité, pièces, devis, signatures).</div>
+    <button class="btn btn-primary">Continuer vers la fiche d'entretien →</button>
+  </main>`
+  },
+  "entretien_chaudiere_bois": {
+    title: "Nouvel entretien Chaudière bois",
+    sub: "Fiche dédiée chaudière granulés/bûches/déchiqueté — champ supplémentaire « Prochaine intervention prévue » en plus du statut habituel.",
+    epic: 'Entretiens dédiés',
+    us: '16/08',
+    developed: false,
+    html: `<div class="topbar"><div class="topbar-row">
+      <img class="logo" data-logo src="" alt="Climat Elec"/>
+      <div><h2>Entretien Chaudière bois</h2><div class="sub">Identification client</div></div>
+      <div class="spacer"></div>
+      <div class="avatar">JG</div>
+    </div></div>
+  <main class="content">
+    <div class="card" style="padding:14px;">
+      <div class="field"><label>Nom du client *</label><input value="Blanchard"/></div>
+      <div class="field"><label>Adresse *</label><input value="2 chemin du Moulin"/></div>
+      <div class="row2">
+        <div class="field"><label>Code postal *</label><input value="49500"/></div>
+        <div class="field"><label>Ville *</label><input value="Chazé-sur-Argos"/></div>
+      </div>
+      <div class="row2">
+        <div class="field"><label>Téléphone *</label><input value="06 11 22 33 44"/></div>
+        <div class="field"><label>Mail *</label><input value="blanchard@mail.fr"/></div>
+      </div>
+      <div class="field"><label>Type de bâtiment *</label>
+        <select><option>Professionnel</option><option>- de 2 ans</option><option selected>+ de 2 ans</option></select>
+      </div>
+      <div class="field"><label>Type d'entretien *</label>
+        <select><option selected>Granulés</option><option>Bûches</option><option>Déchiqueté</option></select>
+      </div>
+    </div>
+    <div class="note blue">Étape suivante : fiche d'entretien Chaudière bois (combustion, silo, chambre de combustion, pièces, devis, signatures + « Prochaine intervention prévue »).</div>
+    <button class="btn btn-primary">Continuer vers la fiche d'entretien →</button>
   </main>`
   },
 };
