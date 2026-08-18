@@ -30,9 +30,11 @@ Climat Elec est une entreprise artisanale spécialisée en géothermie, climatis
 | Profil | Description | Besoin principal |
 |---|---|---|
 | Technicien terrain (Jérémy) | Utilise l'appli sur son téléphone pendant l'intervention, souvent sans réseau | Saisie rapide, fiable, hors ligne ; ne voit que son propre planning et ses propres tâches |
-| Gérant (Régis) | Intervient aussi sur le terrain, mais a aussi besoin d'une vue globale | Vue sur l'ensemble des interventions et du planning de toute l'équipe, avec filtres |
+| Responsable (Régis) | Intervient aussi sur le terrain, mais a aussi besoin d'une vue globale | Vue sur l'ensemble des interventions et du planning de toute l'équipe, avec filtres |
 | **(Nouveau) Secrétaire (Delphine)** | Gère la partie administrative et la facturation | Compte utilisateur à part entière ; valide la génération des factures ; vue équipe comme Régis |
 | Client final | Reçoit la fiche | Reçoit un PDF clair et professionnel (envoi manuel par le technicien) |
+
+> **Terminologie des rôles (Supabase / RLS) :** les trois comptes internes correspondent à l'enum `profiles.role` — `responsable` (Régis), `technicien` (Jérémy), `secretaire` (Delphine). Le **responsable** et la **secrétaire** voient toute l'équipe (`is_manager()`), le **technicien** ne voit que ses propres interventions et son planning. Voir `supabase/migrations/001_roles_rls.sql`.
 
 ---
 
