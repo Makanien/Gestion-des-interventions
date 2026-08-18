@@ -292,7 +292,7 @@ PieceUtilisee {
 - **PWA** :
   - `manifest.json` (icône, nom, couleurs aux couleurs de Climat Elec, mode standalone).
   - `service worker` pour mise en cache des assets (HTML/CSS/JS/logo) → fonctionnement 100 % hors ligne, y compris au premier lancement après installation.
-  - Mise à jour automatique des clients installés via `updatefound` + `skipWaiting()` + `clients.claim()`, avec incrémentation manuelle de `CACHE_VERSION` dans `sw.js` à chaque déploiement.
+   - Mise à jour automatique des clients installés via `updatefound` + `skipWaiting()` + `clients.claim()`, avec incrémentation manuelle de `CACHE_VERSION` dans `sw.js` à chaque déploiement. L'enregistrement est fait avec `updateViaCache: "none"` (jamais de `sw.js` servi depuis le cache HTTP) et une vérification forcée `reg.update()` est déclenchée au chargement, au retour de focus et à la remise au premier plan (`visibilitychange`) pour ne pas attendre la vérification périodique du navigateur (~24 h).
   - Installable sur l'écran d'accueil (Android et iOS).
 - **Génération PDF** : librairie JS côté client (ex. jsPDF ou équivalent), pas besoin de serveur.
 

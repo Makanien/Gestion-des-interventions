@@ -1044,7 +1044,7 @@ async function init() {
   }
 
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("sw.js").then((reg) => {
+    navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).then((reg) => {
       reg.addEventListener("updatefound", () => {
         const newWorker = reg.installing;
         if (!newWorker) return;
@@ -1053,6 +1053,12 @@ async function init() {
             window.location.reload();
           }
         });
+      });
+      const checkForUpdates = () => reg.update().catch(() => {});
+      checkForUpdates();
+      window.addEventListener("focus", checkForUpdates);
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible") checkForUpdates();
       });
     }).catch((err) => console.warn("SW registration failed", err));
   }
