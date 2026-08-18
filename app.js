@@ -1031,27 +1031,16 @@ async function init() {
         const pro = await Supabase.getProfile(session.user.id).catch(() => null);
         state.auth = { user: session.user, profile: pro };
         Sync.initRealtime();
-        if (event === "SIGNED_IN") {
+        if (event === "SIGNED_IN" || event === "INITIAL_SESSION") {
           await Sync.pushAllLocal();
         }
-        Sync.runSync().catch((e) => console.warn("Sync échec", e));
+        await Sync.runSync().catch((e) => console.warn("Sync échec", e));
       } else {
         state.auth = null;
       }
       if (window.location.hash === "#/login") await renderHome();
-      else route();
+      else await route();
     });
-
-    // Restaure une session existante au chargement.
-    try {
-      const { data } = await Supabase.getSession();
-      if (data?.session?.user) {
-        const pro = await Supabase.getProfile(data.session.user.id).catch(() => null);
-        state.auth = { user: data.session.user, profile: pro };
-        Sync.initRealtime();
-        Sync.runSync().catch((e) => console.warn("Sync échec", e));
-      }
-    } catch (e) { console.warn("Session restore failed", e); }
   }
 
   if ("serviceWorker" in navigator) {
