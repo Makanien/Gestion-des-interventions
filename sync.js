@@ -12,6 +12,7 @@ const SyncState = {
   running: false,
   lastPulledAt: null, // ISO
   queue: [],          // [{store, id}]
+  realtimeStarted: false,
 };
 
 const SELF_CLIENT_FIELDS = ["created_at", "updated_at"];
@@ -147,8 +148,10 @@ window.addEventListener("online", () => {
 
 // Realtime (optionnel) : re-pull à chaque changement distant.
 function initRealtime() {
+  if (SyncState.realtimeStarted) return;
   const c = initSupabase();
   if (!c) return;
+  SyncState.realtimeStarted = true;
   try {
     ["clients", "interventions", "equipements", "pieces_utilisees"].forEach((store) => {
       c.channel(`realtime-${store}`).on(
@@ -158,6 +161,7 @@ function initRealtime() {
       ).subscribe();
     });
   } catch (e) {
+    SyncState.realtimeStarted = false;
     console.warn("Realtime indisponible", e);
   }
 }

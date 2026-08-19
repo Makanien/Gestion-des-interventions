@@ -144,10 +144,12 @@ const DB = {
   },
 
   // ---------- Helpers génériques ----------
-  async putRaw(store, row) {
+  async putRaw(store, row, key) {
     const db = this._db;
     return new Promise((resolve, reject) => {
-      const req = tx(db, store, "readwrite").put(row);
+      const req = key === undefined
+        ? tx(db, store, "readwrite").put(row)
+        : tx(db, store, "readwrite").put(row, key);
       req.onsuccess = () => resolve(row);
       req.onerror = () => reject(req.error);
     });
@@ -559,7 +561,7 @@ const DB = {
 
   // ---------- Auth local (mode hors ligne) ----------
   async setMeta(key, value) {
-    await this.putRaw("_meta", { key, value });
+    await this.putRaw("_meta", { key, value }, key);
   },
   async getMeta(key) {
     const r = await this.getRaw("_meta", key);
