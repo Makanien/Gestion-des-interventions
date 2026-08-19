@@ -621,16 +621,17 @@ const SCREENS = {
   <main class="content">
     <div class="card" style="padding:14px;">
       <div class="field"><label>Objet du devis</label><input value="Remplacement complet du ballon tampon"/></div>
+      <div class="field"><label>Devis nécessaire</label>
+        <div class="toggle-row" style="margin-bottom:0;"><div><div class="t-label">Devis à réaliser (logiciel externe)</div><div class="t-hint">L'appli ne chiffre pas le devis, elle importe le PDF produit</div></div><div class="switch on"></div></div>
+      </div>
     </div>
-    <div class="section-label">Lignes du devis</div>
-    <div class="card">
-      <div class="line-item"><span class="d">Ballon tampon 300L</span><span class="m">890,00 €</span></div>
-      <div class="line-item"><span class="d">Main d'œuvre (4h)</span><span class="m">240,00 €</span></div>
-      <div class="line-item"><span class="d">Déplacement zone Z1</span><span class="m">35,00 €</span></div>
-      <div class="total-row"><span>Total TTC</span><span>1 165,00 €</span></div>
+    <div class="note blue">Le devis est réalisé dans votre <strong>logiciel externe</strong> habituel, puis le PDF est importé ici et attaché au dossier — sans jamais bloquer la facturation de l'intervention.</div>
+    <div class="section-label">PDF du devis</div>
+    <div class="card" style="padding:24px;text-align:center;color:#9aa7ad;font-size:11px;">
+      📄 Aucun PDF importé pour l'instant
     </div>
-    <button class="btn btn-ghost btn-sm" style="margin-top:10px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Ajouter une ligne</button>
-    <button class="btn btn-accent" style="margin-top:14px;">Envoyer le devis au client</button>
+    <button class="btn btn-accent" style="margin-top:14px;">Importer le PDF du devis</button>
+    <button class="btn btn-ghost">Scanner avec la caméra</button>
   </main>`
   },
   "facturation": {
@@ -647,16 +648,13 @@ const SCREENS = {
     </div></div>
   <main class="content">
     <div class="note blue">Fiche liée : Installation chaudière bois — 08/08/2026 — validée par Régis.</div>
-    <div class="section-label">Lignes de facturation</div>
-    <div class="card">
-      <div class="line-item"><span class="d">Main d'œuvre (2h30)</span><span class="m">150,00 €</span></div>
-      <div class="line-item"><span class="d">Forfait déplacement — Z2</span><span class="m">25,00 €</span></div>
-      <div class="line-item"><span class="d">1 × Filtre à air (FA-2201)</span><span class="m">18,00 €</span></div>
-      <div class="line-item"><span class="d">2 × Joint torique (JT-0087)</span><span class="m">9,00 €</span></div>
-      <div class="total-row"><span>Total TTC</span><span>202,00 €</span></div>
+    <div class="note">La facture est produite dans votre <strong>logiciel externe</strong> habituel, puis le PDF est importé ici et attaché à la fiche.</div>
+    <div class="section-label">PDF de la facture</div>
+    <div class="card" style="padding:24px;text-align:center;color:#9aa7ad;font-size:11px;">
+      📄 Aucun PDF importé pour l'instant
     </div>
-    <button class="btn btn-ghost btn-sm" style="margin-top:10px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Ajouter une ligne</button>
-    <button class="btn btn-accent" style="margin-top:14px;">Générer la facture</button>
+    <button class="btn btn-accent" style="margin-top:14px;">Importer le PDF de la facture</button>
+    <button class="btn btn-ghost">Scanner avec la caméra</button>
   </main>`
   },
   "verification": {
