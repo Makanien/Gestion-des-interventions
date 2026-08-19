@@ -1,8 +1,8 @@
 # PRD — Application de gestion des fiches d'intervention
 ## Climat Elec (Chazé-sur-Argos)
 
-**Version du document :** 1.7
-**Date :** 18/08/2026
+**Version du document :** 1.10
+**Date :** 19/08/2026
 **Auteur :** Rédigé avec Claude, sur la base des échanges avec le porteur de projet
 
 ---
@@ -18,10 +18,11 @@ Climat Elec est une entreprise artisanale spécialisée en géothermie, climatis
 - Préparer, sans repartir de zéro, une **évolution vers un usage à 2 techniciens avec données synchronisées**.
 - **(Nouveau — 16/08/2026)** Couvrir la **prise de contact et la planification** (appel client, création de rendez-vous, planning par technicien) avec synchronisation Google Agenda — objectif confirmé par le client, mais dont le contenu précis et la date d'intégration restent à définir (voir §3.2). Ceci lève le non-objectif "Planning / prise de rendez-vous" de la version précédente du PRD.
 
-### Non-objectifs (explicitement hors périmètre pour l'instant)
-- Facturation / devis chiffrés (le champ "le client souhaite-t-il un devis" reste une simple case à cocher, sans génération de devis).
-- Envoi automatique d'email au client (prévu manuel dans un premier temps).
-- Gestion de stock de pièces détachées.
+### Non-objectifs (explicitement hors périmètre)
+- Génération de devis / factures : réalisée par un **logiciel externe**. L'application ne fait qu'**importer le PDF** produit et l'attacher au dossier (cf. §3.3). La case « devis souhaité » reste une simple indication.
+- Envoi automatique d'email au client : reporté — l'envoi reste manuel via le partage natif du téléphone.
+- Synchronisation Google Agenda : reportée — fonctionnement à clarifier (cf. §11).
+- Gestion de stock de pièces détachées : seule une base « désignation » de pièces est prévue (cf. §3.3).
 
 ---
 
@@ -40,7 +41,7 @@ Climat Elec est une entreprise artisanale spécialisée en géothermie, climatis
 
 ## 3. Découpage en versions
 
-> **État d'implémentation (18/08/2026) :** La **V1 (MVP)** et la **V2** sont désormais **implémentées et mergées** (branche `synchro-supabase` fusionnée dans `dev`). Les sections ci-dessous décrivent le découpage cible ; le détail de ce qui est réellement livré figure au **§3.1**.
+> **État d'implémentation (19/08/2026) :** La **V1 (MVP)** et la **V2** sont **implémentées et mergées** (branche `synchro-supabase` fusionnée dans `dev`). La **V3** est désormais **spécifiée et arbitrée** (cf. **§3.3**) ; son développement n'est pas commencé. Le détail de ce qui est réellement livré figure au **§3.1** (V2) et au **§3.3** (V3).
 
 ### V1 — MVP (cible immédiate)
 - **1 seul technicien**, usage mono-appareil.
@@ -57,10 +58,12 @@ Climat Elec est une entreprise artisanale spécialisée en géothermie, climatis
 - Ajout de la **signature électronique** tactile (client + technicien) sur la fiche.
 - Historique des équipements par client (équipement déjà installé, réutilisable à chaque nouvelle visite).
 
-### V3 et au-delà (pistes, non détaillées ici)
-- Envoi automatique du PDF par email au client.
-- Statistiques (nombre d'interventions/mois, types d'équipements les plus fréquents...).
-- Génération de devis simples.
+### V3 — Définition (arbitrée)
+Le contenu de la V3, arbitré le 19/08/2026, est détaillé au **§3.3**. En résumé : prise de contact & planification (sans Google Agenda), fiches d'entretien dédiées + CERFA + contrat d'entretien, workflow validation/facturation avec **import PDF** (le devis/facture reste produit par un logiciel externe), statistiques, mode brouillon et numérotation des documents.
+
+### Au-delà de V3 (reporté, non planifié)
+- Synchronisation Google Agenda (US-14) — fonctionnement à clarifier (cf. §11).
+- Envoi automatique du PDF par email au client — envoi manuel conservé pour l'instant.
 
 ---
 
@@ -98,7 +101,7 @@ Récapitulatif des changements fonctionnels et techniques effectivement dévelop
 
 ## 3.2 Nouvelles demandes client — Planning, appel, entretiens dédiés (16/08/2026)
 
-> **⚠️ Statut : décrit mais non arbitré.** Comme pour le backlog du §10, les éléments ci-dessous documentent fidèlement les demandes du client (échange du 16/08/2026, fichier Excel `Application.xlsx` + fiches papier d'entretien fournies). **Cela ne constitue pas encore le contenu de la prochaine version** : la sélection et la priorisation restent à faire.
+> **Statut : arbitrées le 19/08/2026 → intégrées en V3.** Les éléments ci-dessous documentent les demandes du client (échange du 16/08/2026, fichier Excel `Application.xlsx` + fiches papier d'entretien fournies). Elles sont désormais **intégrées à la V3** (cf. **§3.3**), **à l'exception** de la synchronisation Google Agenda (§3.2.3) qui est **reportée** (fonctionnement à clarifier, cf. §11) et de l'envoi automatique d'email qui reste manuel.
 
 ### 3.2.1 Compte utilisateur Delphine — US-16
 Delphine (secrétaire) aura un **compte utilisateur à part entière**, au même titre que Régis et Jérémy. Elle gère la partie administrative et la facturation, et doit pouvoir **valider la génération des factures**. Côté visualisation (planning, accueil), elle a les mêmes droits que Régis : vue sur toute l'équipe.
@@ -114,7 +117,7 @@ L'écran d'accueil de l'application devient le **planning journalier**, avec une
 - Dans les deux cas, si possible, les tâches déjà réalisées sont masquées par défaut mais restent accessibles via le tri/filtre (ne pas les supprimer de la liste, juste les sortir de la vue par défaut).
 
 ### 3.2.3 Synchronisation Google Agenda (bidirectionnelle) — US-14
-Demande confirmée par le client, **incluse dans le PRD mais pas prévue pour la prochaine itération immédiate** (correspond à l'US-14 du backlog §10) :
+Demande confirmée par le client mais **reportée hors V3** (le fonctionnement souhaité — calendrier unique vs par technicien, source de vérité, conflits — reste à clarifier, cf. §11). Correspond à l'US-14 du backlog §10 :
 - Un rendez-vous créé dans l'application doit apparaître dans Google Agenda.
 - Un événement créé dans Google Agenda (formation, congé…) doit apparaître dans le planning de l'application.
 - Le mapping des champs, la gestion des conflits d'édition et le sens de la source de vérité restent à définir lors du cadrage détaillé de cette fonctionnalité.
@@ -186,15 +189,70 @@ Trois nouveaux flux de création (accessibles depuis le bouton "+"), chacun dém
 ### 3.2.8 Duplication d'une fiche — US-20
 Demande client : pouvoir **dupliquer une intervention et/ou un entretien** existant (utile pour les entretiens annuels récurrents chez un même client). À intégrer au CRUD existant (§4.1) : un bouton "Dupliquer" en plus de "Modifier" et "Supprimer" sur le détail d'une fiche, qui pré-remplit un nouveau formulaire à partir de la fiche source (client + équipement repris, date/mesures à ressaisir).
 
-### 3.2.9 Base de données pièces — en suspens — US-23
-Demande d'une base de données pièces pour l'auto-complétion de la désignation (en plus de la base clients déjà prévue en V1). **Ce point reste à confirmer par le client** avant tout développement : périmètre exact (désignation seule, ou aussi référence/prix), source de la donnée (saisie manuelle progressive vs import initial), et si la disponibilité par technicien est un besoin ou pas.
+### 3.2.9 Base de données pièces — arbitrée — US-23
+Demande d'une base de données pièces pour l'auto-complétion de la désignation (en plus de la base clients déjà prévue en V1). **Arbitré (19/08/2026) :** base **« désignation seule »**, alimentée par **saisie manuelle** pour l'instant. La référence, le prix, la disponibilité par technicien et un éventuel import initial restent **possibles ultérieurement** (porte non fermée, cf. §11).
 
-### 3.2.10 Découvertes annexes — non demandées, à trancher — US-24 · US-25
-En examinant les fiches papier fournies, deux documents supplémentaires sont apparus, qui ne faisaient pas partie de la demande initiale et ne sont donc **pas intégrés au périmètre** sans validation explicite :
-- **Contrat d'entretien annuel** (US-24) (choix du nombre de passages, tarification par zone/km, conditions générales) — document commercial distinct de la fiche d'entretien elle-même.
-- **CERFA n°15497 (fluides frigorigènes)** (US-25) — déclaration réglementaire obligatoire pour les interventions sur PAC (contrôle d'étanchéité, quantités de fluide manipulées, déchets ADR/RID), prévue par le code de l'environnement (art. R.543-79 et R.543-82).
+### 3.2.10 Découvertes annexes — arbitrées — US-24 · US-25
+En examinant les fiches papier fournies, deux documents supplémentaires sont apparus, qui ne faisaient pas partie de la demande initiale. **Arbitrés (19/08/2026) → intégrés en V3 :**
+- **Contrat d'entretien annuel** (US-24) (choix du nombre de passages, tarification par zone/km, conditions générales, signatures) — **digitalisé** en V3 (PDF généré).
+- **CERFA n°15497 (fluides frigorigènes)** (US-25) — déclaration réglementaire obligatoire pour les interventions sur PAC (contrôle d'étanchéité, quantités de fluide manipulées, déchets ADR/RID), prévue par le code de l'environnement (art. R.543-79 et R.543-82). **Intégré** aux fiches d'entretien PAC (Air/Eau-Sol/Eau et Air/Air), avec un formulaire tenant sur **une seule page** (document officiel).
 
-Ces deux points sont ajoutés au §11 (points ouverts) pour arbitrage ultérieur.
+---
+
+## 3.3 V3 — Définition (arbitrée le 19/08/2026)
+
+> **Statut : arbitré.** Les décisions ci-dessous ont été prises le 19/08/2026 avec le porteur de projet. Elles intègrent en V3 : toutes les user stories du backlog §10 (épopées 1 à 5 + transverses), les nouvelles demandes §3.2 (US-16 → US-25) et les pistes V3, **à l'exception** des éléments explicitement reportés (§3.3.6).
+
+### 3.3.1 Prise de contact & planification (épopée 1)
+- **Écran « Nouvel appel »** (US-01, §3.2.5) : enregistrement du contexte d'un appel client, avec 3 actions de sortie (créer le RDV / créer l'intervention avec pré-remplissage / enregistrer sans planifier).
+- **Planning = écran d'accueil** (US-17, §3.2.2) : planning journalier par intervenant, triable par type (Dépannage, Entretien, Rdv devis) ; Jérémy ne voit que son planning, Régis/Delphine voient toute l'équipe.
+- **Compte Delphine** (US-16) : compte à part entière, mêmes droits de vue que Régis, valide la facturation.
+- **Bouton « + »** (US-18) : point d'entrée unique (appel, intervention, 3 types d'entretien).
+- **Sans synchronisation Google Agenda** (US-14 reporté, cf. §11).
+
+### 3.3.2 Intervention terrain (évolutions)
+- Fiches d'entretien dédiées (US-19, §3.2.7) : Air/Eau-Sol/Eau, Air/Air, Chaudière bois.
+- Duplication d'une fiche (US-20, §3.2.8).
+- Étape « Photos avec légende » (US-21, §3.2.6).
+- Liste type d'intervention modifiée (US-22) : Dépannage, Garantie, Diagnostic.
+- Base de données pièces (US-23, §3.2.9) : **désignation seule**, saisie manuelle ; import ultérieur possible.
+- **CERFA n°15497** (US-25, §3.2.10) : intégré aux fiches PAC Air/Eau-Sol/Eau et Air/Air, formulaire sur **une seule page** (document officiel).
+- **Contrat d'entretien annuel** (US-24, §3.2.10) : digitalisé (nombre de passages, tarification par zone/km, conditions générales, signatures, PDF).
+- **Mode brouillon** : reprendre une fiche non terminée plus tard — fiche générique + les 3 fiches d'entretien.
+- **Numérotation** : référence unique séquentielle sur tous les documents (fiches, dossier).
+
+### 3.3.3 Validation & facturation (épopées 3-4-5) — sans génération de documents
+> **Décision clé :** le devis et la facture sont réalisés par un **logiciel externe**. L'application ne fait qu'**importer le PDF** produit (sélecteur de fichiers ou scan caméra) et l'**attacher au dossier**. Elle ne génère ni devis, ni facture chiffrée.
+- **Validation des fiches** (US-05) : Régis valide chaque fiche terminée.
+- **Devis** (US-06/US-07) : indication « devis nécessaire » + import du PDF de devis, **sans jamais bloquer la facturation**.
+- **Facturation** (US-09/US-10/US-11) : marquage « à facturer » → import du PDF de facture → vérification → fusion avec la fiche pour constituer le dossier final.
+- **Envoi & clôture** (US-12) : **envoi manuel** (partage natif du téléphone) — l'envoi automatique par email est reporté.
+- **Statuts** (US-13) : workflow complet ci-dessous.
+- **Classement automatique par statut** (US-15) : remplace le classement manuel OneDrive (tri/filtres par statut dans l'appli).
+
+### 3.3.4 Workflow de statuts d'un dossier (US-13)
+```
+Brouillon → À valider → Validée → À facturer → Facture importée → Facture à vérifier → Facture vérifiée → À envoyer → Clôturée
+                          └──────────────────── (Devis PDF attaché en parallèle, sans blocage) ────────────────────┘
+```
+- **Brouillon** : fiche non terminée, reprise plus tard.
+- **À valider** : fiche terminée, en attente de validation par Régis.
+- **Validée** : fiche complète et correcte.
+- **À facturer** : validée, prête pour la facturation (logiciel externe).
+- **Facture importée** : le PDF de facture produit par le logiciel externe a été attaché au dossier.
+- **Facture à vérifier** : en attente de vérification de la facture par Régis (US-10).
+- **Facture vérifiée** : facture vérifiée et fusionnée avec la fiche (US-11) — dossier final prêt à envoyer.
+- **À envoyer** : dossier complet (fiche + facture), en attente d'envoi au client (US-12).
+- **Clôturée** : envoyée manuellement au client.
+- Le **devis** est un document attaché en parallèle (statut « devis nécessaire » tant qu'il n'est pas importé), sans bloquer la facturation.
+
+### 3.3.5 Statistiques
+- **Tableau de bord simple** : nombre d'interventions/mois, répartition par type, par technicien, par client.
+
+### 3.3.6 Reporté hors V3 (à recadrer)
+- **Synchronisation Google Agenda** (US-14) : le fonctionnement souhaité n'est pas clair ; reportée (cf. §11).
+- **Envoi automatique d'email** : envoi manuel conservé.
+- **Génération de devis/factures** : faite par un logiciel externe (import PDF uniquement) — pas de chiffrage dans l'appli.
 
 ---
 
@@ -282,6 +340,85 @@ PieceUtilisee {
 
 > Le champ `synced_at` est prévu dès la V1 (même s'il reste toujours `null`) pour ne pas avoir à modifier le schéma lors du passage à Supabase.
 
+### 5.2 Modèle de données V3 (Supabase) — extensions
+
+La V3 s'appuie sur le schéma Supabase existant (§3.1) et ajoute les tables/colonnes suivantes :
+
+```
+Appel {
+  id: uuid
+  nom, adresse, code_postal, ville, tel, mail
+  motif: text
+  type_batiment: "professionnel" | "moins_2_ans" | "plus_2_ans"
+  type_intervention: "devis" | "depannage" | "garantie" | "entretien" | "diagnostic"
+  action_sortie: "rdv" | "intervention" | "sans_suite"
+  client_id: uuid, rendezvous_id: uuid, intervention_id: uuid (liens créés en sortie d'écran)
+  created_at, updated_at
+}
+
+RendezVous {
+  id: uuid
+  technicien_id: uuid (référence profiles)
+  date, heure_debut, heure_fin
+  type: "depannage" | "entretien" | "rdv_devis"
+  client_id, appel_id (optionnels)
+  statut
+  created_at, updated_at
+}
+
+Intervention (extensions V3) {
+  + numero: string (référence unique séquentielle)
+  + statut: "brouillon" | "a_valider" | "validee" | "a_facturer" | "facture_importee" | "facture_a_verifier" | "facture_verifiee" | "a_envoyer" | "cloturee"
+  + type_intervention (restreint): "depannage" | "garantie" | "diagnostic"
+  + type_entretien (fiches dédiées): "air_eau" | "sol_eau" | "air_air" | "granules" | "buches" | "pellets"
+  + prochaine_intervention_prevue: bool (fiche chaudière bois)
+}
+
+Mesure {
+  id: uuid
+  fiche_id: uuid
+  type_entretien: string
+  code, libelle, valeur, unite
+}
+
+Photo {
+  id: uuid
+  intervention_id: uuid
+  url (Supabase Storage), legende
+}
+
+Piece {  // base pièces : désignation seule pour l'instant
+  id: uuid
+  designation: string
+  // reference, prix, disponibilite_par_technicien : réservés pour un import ultérieur (porte non fermée)
+  created_at, updated_at
+}
+
+Document {
+  id: uuid
+  intervention_id: uuid (dossier)
+  type: "devis" | "facture" | "contrat_entretien"
+  fichier_url (PDF, Supabase Storage)
+  numero_externe (numéro du document source)
+  created_at, updated_at
+}
+
+ContratEntretien {
+  id: uuid
+  client_id: uuid
+  nb_passages, tarification_zone_km, conditions_generales
+  signe_client, signe_technicien
+  pdf_url
+  created_at, updated_at
+}
+```
+
+> **Numérotation :** un compteur par type de document (fiche d'intervention/entretien, dossier) génère les références uniques (ex. `FIC-2026-001`). Le format exact reste à valider (§11).
+>
+> **CERFA n°15497 :** le formulaire est intégré aux fiches d'entretien PAC avec ses champs réglementaires (contrôle d'étanchéité, quantités de fluide, déchets ADR/RID), sur une seule page ; les données sont stockées dans le bloc `Mesure` / des colonnes dédiées.
+>
+> **Mode brouillon :** le statut `brouillon` (§3.3.4) permet de sauvegarder une fiche non terminée et de la reprendre ; appliqué à la fiche générique et aux 3 fiches d'entretien.
+
 ---
 
 ## 6. Architecture technique
@@ -340,29 +477,31 @@ PieceUtilisee {
 | 4. Mise en usage réel | Tests terrain par le technicien, ajustements | À faire |
 | 5. Développement V2 | Intégration Supabase, comptes, synchronisation, signature électronique | Terminé (mergé dans `dev`) |
 | 6. Historique équipements par client | Ajout à la fiche équipement | Terminé |
+| 7. Spécification V3 | Cadrage des fonctionnalités V3 (ce PRD, §3.3) | Terminé (19/08/2026) |
+| 8. Développement V3 | Planning/appel, fiches entretien + CERFA + contrat, workflow validation/facturation (import PDF), statistiques, brouillon, numérotation | À faire |
+| 9. Recadrage Google Agenda | Clarifier le fonctionnement de la synchronisation (reportée hors V3) | À faire |
 
-> Le contenu détaillé des versions V2/V3 ci-dessus reste indicatif : le backlog de user stories du **§10** couvre un périmètre plus large (RDV, validation, devis, facturation) et devra être arbitré pour préciser ce que ces étapes contiennent réellement.
+> Le contenu de la V3 est **arbitré** (cf. §3.3) ; les seuls points reportés sont la synchronisation Google Agenda (US-14) et l'envoi automatique d'email.
 
 ---
 
 ## 10. Backlog de user stories — pistes d'évolution possibles
 
-> **⚠️ Statut : propositions non arbitrées.** Les user stories ci-dessous sont issues de la modélisation complète du processus métier (appel client → RDV → fiche terrain → validation → devis → facturation → envoi), réalisée avec les 3 personnes concernées (Régis, Jérémy, Delphine). **Elles ne constituent pas un engagement de développement** : il s'agit d'un inventaire des évolutions envisageables, à arbitrer et prioriser collectivement pour construire le contenu de la prochaine version. Aucune de ces stories n'est donc à considérer comme actée tant qu'elle n'a pas été explicitement sélectionnée.
->
-> **Mise à jour 16/08/2026 :** les user stories US-01, US-02 et US-14 (épopée 1) sont désormais détaillées avec des maquettes et des champs précis au §3.2 (écrans "Nouvel appel", "Planning", sync Google Agenda). Les nouvelles demandes client du 16/08 y sont référencées sous les identifiants **US-16 → US-25**. Cela reste au même statut non arbitré — le détail est disponible, la décision d'intégration ne l'est pas.
+> **Statut : arbitrées le 19/08/2026.** Les user stories ci-dessous sont issues de la modélisation complète du processus métier (appel client → RDV → fiche terrain → validation → devis → facturation → envoi), réalisée avec les 3 personnes concernées (Régis, Jérémy, Delphine). Elles ont été **arbitrées et intégrées à la V3** (cf. §3.3), à l'exception de l'US-14 (Google Agenda, reportée). Les stories US-01, US-02 et US-14 (épopée 1) sont détaillées au §3.2 ; les nouvelles demandes US-16 → US-25 y sont aussi détaillées et intégrées en V3.
 
 Légende de couverture :
-- 🟢 **Déjà couvert** par l'application V1 (prototype PWA existant)
-- ⚪ **Piste d'évolution** (non développée, à arbitrer)
+- 🟢 **Déjà couvert** par l'application (V1/V2)
+- 🔵 **Intégré en V3** (arbitré le 19/08/2026, cf. §3.3)
+- ⚪ **Reporté / à recadrer** (hors V3 pour l'instant)
 
 ### Épopée 1 — Prise de contact & planification
 *Acteur principal : Régis (Responsable)*
 
 | ID | User story | Statut |
 |---|---|---|
-| US-01 | En tant que responsable, je veux enregistrer les informations d'un client qui appelle, afin de disposer de son contexte avant l'intervention. | ⚪ |
-| US-02 | En tant que responsable, je veux créer un rendez-vous pour le technicien, afin de planifier son passage chez le client. | ⚪ |
-| US-14 | En tant que responsable, je veux que ce rendez-vous soit synchronisé avec Google Agenda, afin de ne pas gérer deux calendriers en parallèle. | ⚪ |
+| US-01 | En tant que responsable, je veux enregistrer les informations d'un client qui appelle, afin de disposer de son contexte avant l'intervention. | 🔵 V3 |
+| US-02 | En tant que responsable, je veux créer un rendez-vous pour le technicien, afin de planifier son passage chez le client. | 🔵 V3 |
+| US-14 | En tant que responsable, je veux que ce rendez-vous soit synchronisé avec Google Agenda, afin de ne pas gérer deux calendriers en parallèle. | ⚪ Reportée |
 
 ### Épopée 2 — Intervention terrain
 *Acteur principal : Jérémy (Technicien)*
@@ -377,10 +516,10 @@ Légende de couverture :
 
 | ID | User story | Statut |
 |---|---|---|
-| US-05 | En tant que responsable, je veux recevoir et valider chaque fiche d'intervention terminée, afin de m'assurer qu'elle est complète et correcte avant de lancer la facturation. | ⚪ |
-| US-06 | En tant que responsable, je veux indiquer si l'intervention nécessite en plus un devis pour des travaux complémentaires, afin de déclencher sa réalisation **sans jamais bloquer la facturation de l'intervention elle-même**. | ⚪ |
-| US-07 | En tant que responsable, je veux réaliser un devis pour les travaux complémentaires identifiés, afin de le transmettre au client indépendamment de la facturation de l'intervention en cours. | ⚪ |
-| US-08 | En tant que responsable, je veux que toute fiche validée parte automatiquement vers la facturation, qu'un devis complémentaire soit généré ou non en parallèle, afin qu'aucune intervention réalisée ne reste facturée en retard à cause d'un devis en attente. | ⚪ |
+| US-05 | En tant que responsable, je veux recevoir et valider chaque fiche d'intervention terminée, afin de m'assurer qu'elle est complète et correcte avant de lancer la facturation. | 🔵 V3 |
+| US-06 | En tant que responsable, je veux indiquer si l'intervention nécessite en plus un devis pour des travaux complémentaires, afin de déclencher sa réalisation **sans jamais bloquer la facturation de l'intervention elle-même**. | 🔵 V3 |
+| US-07 | En tant que responsable, je veux réaliser un devis pour les travaux complémentaires identifiés, afin de le transmettre au client indépendamment de la facturation de l'intervention en cours. *(V3 : devis produit par un logiciel externe, PDF importé et attaché au dossier.)* | 🔵 V3 |
+| US-08 | En tant que responsable, je veux que toute fiche validée parte automatiquement vers la facturation, qu'un devis complémentaire soit généré ou non en parallèle, afin qu'aucune intervention réalisée ne reste facturée en retard à cause d'un devis en attente. | 🔵 V3 |
 
 > *Rappel important issu de la modélisation : facturation de l'intervention et devis complémentaire sont deux actions **parallèles**, pas deux chemins exclusifs — la facturation ne doit jamais être conditionnée à la présence ou non d'un devis.*
 
@@ -389,52 +528,52 @@ Légende de couverture :
 
 | ID | User story | Statut |
 |---|---|---|
-| US-09 | En tant que secrétaire, je veux créer une facture à partir d'une fiche marquée "à facturer", afin de générer le document à transmettre au client. | ⚪ |
-| US-10 | En tant que responsable, je veux vérifier une facture avant son envoi, afin de m'assurer qu'elle correspond bien à l'intervention réalisée. | ⚪ |
-| US-11 | En tant que responsable, je veux fusionner la facture vérifiée avec la fiche d'intervention correspondante, afin de constituer le dossier final complet à envoyer. | ⚪ |
+| US-09 | En tant que secrétaire, je veux créer une facture à partir d'une fiche marquée "à facturer", afin de générer le document à transmettre au client. *(V3 : facture produite par un logiciel externe, PDF importé et attaché au dossier.)* | 🔵 V3 |
+| US-10 | En tant que responsable, je veux vérifier une facture avant son envoi, afin de m'assurer qu'elle correspond bien à l'intervention réalisée. | 🔵 V3 |
+| US-11 | En tant que responsable, je veux fusionner la facture vérifiée avec la fiche d'intervention correspondante, afin de constituer le dossier final complet à envoyer. | 🔵 V3 |
 
 ### Épopée 5 — Envoi & clôture
 *Acteur principal : Delphine (Secrétaire)*
 
 | ID | User story | Statut |
 |---|---|---|
-| US-12 | En tant que secrétaire, je veux envoyer la facture accompagnée de la fiche d'intervention au client, afin de clôturer le dossier. | ⚪ |
+| US-12 | En tant que secrétaire, je veux envoyer la facture accompagnée de la fiche d'intervention au client, afin de clôturer le dossier. *(V3 : envoi manuel via le partage natif du téléphone.)* | 🔵 V3 |
 
 ### Transverses — Statuts & outils
 *Tous acteurs*
 
 | ID | User story | Statut |
 |---|---|---|
-| US-13 | En tant qu'utilisateur (Régis, Delphine ou Jérémy), je veux voir en un coup d'œil le statut d'un dossier (terminée / à facturer / à vérifier / à envoyer), afin de savoir qui doit agir ensuite sans avoir à demander aux autres. | ⚪ |
-| US-15 | En tant qu'utilisateur, je veux que les documents (fiches, devis, factures) soient classés automatiquement selon leur statut, afin de remplacer le classement manuel actuel par dossiers sur OneDrive. | ⚪ |
+| US-13 | En tant qu'utilisateur (Régis, Delphine ou Jérémy), je veux voir en un coup d'œil le statut d'un dossier (terminée / à facturer / à vérifier / à envoyer), afin de savoir qui doit agir ensuite sans avoir à demander aux autres. | 🔵 V3 |
+| US-15 | En tant qu'utilisateur, je veux que les documents (fiches, devis, factures) soient classés automatiquement selon leur statut, afin de remplacer le classement manuel actuel par dossiers sur OneDrive. | 🔵 V3 |
 
 ### Récapitulatif de couverture
 
-| Épopée | Nb. stories | Couvertes par l'appli V1 |
+| Épopée | Nb. stories | Statut |
 |---|---|---|
-| 1. Prise de contact & planification | 3 | 0 / 3 |
-| 2. Intervention terrain | 2 | 2 / 2 |
-| 3. Validation & devis | 4 | 0 / 4 |
-| 4. Facturation | 3 | 0 / 3 |
-| 5. Envoi & clôture | 1 | 0 / 1 |
-| Transverses | 2 | 0 / 2 |
-| **Total** | **15** | **2 / 15** |
+| 1. Prise de contact & planification | 3 | 2 en V3 · 1 reportée (US-14) |
+| 2. Intervention terrain | 2 | 2 / 2 couvertes (V1/V2) |
+| 3. Validation & devis | 4 | 4 en V3 |
+| 4. Facturation | 3 | 3 en V3 (import PDF) |
+| 5. Envoi & clôture | 1 | 1 en V3 (envoi manuel) |
+| Transverses | 2 | 2 en V3 |
+| **Total** | **15** | **12 en V3 · 2 couvertes · 1 reportée** |
 
-**Prochaine étape :** ce backlog doit être revu et arbitré (par exemple par un vote de priorisation ou une session de cadrage dédiée) pour sélectionner une ou plusieurs stories à intégrer au contenu de la prochaine version développée. Le détail complet (schéma du processus, vue visuelle) est disponible dans le document `Modelisation_interventions_Climat_elec.drawio` ; les nouvelles demandes du 16/08 sont détaillées au §3.2 (US-16 → US-25).
+**Prochaine étape :** ce backlog est désormais **arbitré** (cf. §3.3). Le détail complet (schéma du processus, vue visuelle) est disponible dans le document `Modelisation_interventions_Climat_elec.drawio` ; les nouvelles demandes du 16/08 sont détaillées au §3.2 (US-16 → US-25).
 
 ---
 
 ## 11. Points ouverts / à trancher plus tard
 
-- ~~Faut-il prévoir des **photos** (avant/après intervention, plaque signalétique de l'équipement) ?~~ **Tranché (§3.2.6) :** une étape "Photos avec légende" est ajoutée au parcours "Nouvelle intervention", avant l'étape 5/5. Impact sur le choix de stockage à confirmer (IndexedDB déjà anticipé pour cet usage, cf. §6.1).
-- Faut-il un **mode "brouillon"** permettant de reprendre une fiche non terminée plus tard (coupure d'intervention) ?
-- ~~Le champ "Type de Bâtiment" de la fiche actuelle : liste fermée ou texte libre ?~~ **Tranché (§3.2.5) :** liste fermée à 3 valeurs — Professionnel / - de 2 ans / + de 2 ans.
-- Faut-il conserver un **compteur/numérotation** des fiches d'intervention (référence unique visible sur le PDF) ?
-- **(issu du backlog §10) :** parmi les stories non couvertes, lesquelles prioriser pour la prochaine version ? Le périmètre couvre potentiellement plusieurs outils déjà en place (Google Agenda, OneDrive) — faut-il les remplacer ou s'y interfacer ?
-- **Nouveau (16/08/2026) — Base de données pièces (§3.2.9) :** à confirmer par le client — périmètre exact (désignation seule ou aussi référence/prix), source des données, disponibilité par technicien.
-- **Nouveau (16/08/2026) — Contrat d'entretien annuel (§3.2.10) :** découvert dans les documents fournis, non demandé explicitement. Faut-il le digitaliser (choix du nombre de passages, tarification, signature) ou reste-t-il un document papier/externe à l'application ?
-- **Nouveau (16/08/2026) — CERFA fluides frigorigènes n°15497 (§3.2.10) :** obligation réglementaire pour les PAC, découverte dans les documents fournis. Faut-il l'intégrer à la fiche d'entretien Air/Eau-Sol/Eau et Air/Air, ou rester sur un document papier séparé pour l'instant ?
-- **Nouveau (16/08/2026) — Mode "brouillon" pour les fiches d'entretien dédiées :** les 3 nouvelles fiches (§3.2.7) suivent-elles les mêmes règles CRUD que la fiche d'intervention générique (modification, duplication §3.2.8, suppression) ?
+Les points ci-dessous ont été tranchés le 19/08/2026 et intégrés en V3 (cf. §3.3) : photos avec légende, type de bâtiment (liste fermée), mode brouillon (toutes les fiches), numérotation des documents, base pièces (désignation seule), contrat d'entretien annuel (digitalisé), CERFA n°15497 (intégré, une seule page).
+
+Points restant ouverts (hors V3) :
+- **Synchronisation Google Agenda (US-14)** — **reportée hors V3** : le fonctionnement souhaité n'est pas clair. À clarifier ultérieurement : calendrier unique vs par technicien, source de vérité (appli vs Google), mapping des champs, gestion des conflits d'édition.
+- **Envoi automatique d'email au client** — reporté : envoi manuel conservé (partage natif).
+- **Génération de devis/factures dans l'application** — non retenue : réalisée par un logiciel externe, l'appli importe le PDF. À reconsidérer éventuellement plus tard.
+- **Extension de la base pièces** — désignation seule pour l'instant ; référence/prix, disponibilité par technicien et import initial restent possibles ultérieurement (porte non fermée).
+- **Format exact de la numérotation** — à valider (proposition : préfixe type + année + séquence, ex. `FIC-2026-001`).
+- **Faut-il interfacer ou remplacer les outils existants (Google Agenda, OneDrive) ?** — OneDrive remplacé par le classement par statut dans l'appli (§3.3) ; Google Agenda en suspens (ci-dessus).
 
 ---
 
@@ -444,3 +583,6 @@ Légende de couverture :
 - Le temps de saisie d'une intervention pour un client déjà connu est **réduit d'au moins 50 %** grâce à l'auto-remplissage.
 - Le PDF généré est visuellement fidèle à la fiche papier actuelle.
 - Aucune perte de données lors du passage de la V1 (local) à la V2 (Supabase).
+- (V3) Les 3 fiches d'entretien dédiées couvrent les types d'équipement avec leur bloc de mesures spécifique, et le CERFA n°15497 tient sur une seule page.
+- (V3) Un dossier est suivi de bout en bout (brouillon → clôturée) avec import PDF du devis/facture produit par le logiciel externe.
+- (V3) Le classement automatique par statut remplace le classement manuel OneDrive.
