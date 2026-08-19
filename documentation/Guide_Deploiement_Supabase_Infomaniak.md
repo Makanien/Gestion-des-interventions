@@ -161,7 +161,7 @@ docker compose logs -f
 
 ### Étape 10 — Connecter l'application Climat Elec
 - Dans la config de l'app (variables d'environnement / config Supabase client), remplacer l'URL et les clés par celles du VPS auto-hébergé (`API_EXTERNAL_URL`, `ANON_KEY`).
-- Appliquer le schéma `supabase/schema.sql` du projet sur la base Postgres du VPS (via Studio ou `psql`).
+- Appliquer le schéma du projet sur la base Postgres du VPS (via Studio ou `psql`), **dans cet ordre** : `supabase/schema.sql` → `supabase/storage.sql` → `supabase/migrations/001_roles_rls.sql` → `supabase/migrations/002_v3.sql` (tables V3 : appels, rendez-vous, mesures, photos, pièces, documents, contrats).
 - Tester la connexion, l'auth (lien magique), et un cycle complet de synchro offline → online.
 
 ### Étape 11 — Mettre en place les sauvegardes automatiques

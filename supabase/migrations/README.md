@@ -1,13 +1,17 @@
-# Procédure de migration — Rôles & RLS (`001_roles_rls.sql`)
+# Procédure de migration — Rôles & RLS (`001_roles_rls.sql`) + V3 (`002_v3.sql`)
 
-Ce document décrit, pas à pas, la mise en place des **rôles utilisateurs** et du
+Ce document décrit, pas à pas, la mise en place des **rôles utilisateurs**, du
 durcissement des **RLS** (Row Level Security) décrits dans le PRD §2 et §3.2
-(US-16 · US-17), en complément de `supabase/DEPLOYMENT.md`.
+(US-16 · US-17), et des **nouvelles tables V3** (PRD §3.3), en complément de
+`supabase/DEPLOYMENT.md`.
 
 > **Objectif :** passer du modèle actuel « tout utilisateur authentifié voit
 > tout » (`using (true)`) à un modèle par rôle :
 > - `responsable` (Régis) et `secretaire` (Delphine) → voient toute l'équipe ;
 > - `technicien` (Jérémy) → ne voit que ses propres interventions et son planning.
+
+> **Ordre global d'exécution :** `schema.sql` → `storage.sql` →
+> `001_roles_rls.sql` → `002_v3.sql` (nouvelles tables V3 + leurs RLS).
 
 ---
 
@@ -188,8 +192,9 @@ inoffensifs si l'on revient au modèle « tout partagé ».
   sont accessibles par URL directe (point S2 de la revue de code). Le passage
   en bucket privé est une décision **séparée**, à arbitrer (impact sur la
   génération du PDF côté client).
-- **Nouvelles tables à venir** (appels, rendez-vous, mesures, photos, base
-  pièces — PRD §3.2) : chacune devra naître **avec** ses RLS par rôle, sur le
+- **Nouvelles tables V3** (appels, rendez-vous, mesures, photos, pièces,
+  documents, contrats) : elles sont créées et protégées par la migration
+  **`002_v3.sql`** (à exécuter après celle-ci), avec des RLS par rôle sur le
   même modèle que `interventions` / `pieces_utilisees`.
 - **`created_by` / `technicien_id` côté frontend** : à terme, le frontend
   devrait renseigner lui-même ces champs (notamment `technicien_id` lors de la

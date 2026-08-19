@@ -52,6 +52,7 @@ body{margin:0;font-family:var(--font);background:#e9edef;color:var(--text);}
 
 .nav-btn.developed .dot{background:var(--success);}
 .mini-badge{font-size:8.5px;font-family:var(--mono);background:rgba(47,158,91,.25);color:#8be3ab;padding:1px 5px;border-radius:100px;margin-left:4px;vertical-align:middle;}
+.mini-badge.v3{background:rgba(47,134,180,.28);color:#a8d8f0;}
 
 /* ---- Phone frame ---- */
 .phone{
@@ -159,7 +160,7 @@ main.content{padding:14px 14px 34px;}
       <img src="" alt="Climat Elec"/>
       <div><strong>Climat Elec</strong><span>Maquettes — backlog</span></div>
     </div>
-    <div class="nav-warn">⚠️ Propositions non arbitrées — à sélectionner pour la prochaine version. Aucun de ces écrans n'est encore développé (sauf mention contraire).</div>
+    <div class="nav-warn">✅ V3 développée (cf. PRD §3.3) : planning, nouvel appel, entretiens dédiés + CERFA, workflow validation/facturation (import PDF), photos, brouillon, numérotation, statistiques. Reportés : Google Agenda (US-14) et envoi automatique d'email.</div>
     <div class="nav-group"><div class="nav-group-label">Transverses</div><button class="nav-btn" data-screen="dashboard" onclick="showScreen('dashboard')">
           <span class="dot"></span><span>Tableau de bord <small>US-13 · US-15</small></span>
         </button></div><div class="nav-group"><div class="nav-group-label">Épopée 1 — Contact & planification</div><button class="nav-btn" data-screen="bouton_plus" onclick="showScreen('bouton_plus')">
@@ -606,8 +607,8 @@ const SCREENS = {
   </main>`
   },
   "devis": {
-    title: "Réalisation d'un devis",
-    sub: "Devis pour des travaux complémentaires identifiés pendant l'intervention, indépendant de la facturation de la visite elle-même.",
+    title: "Devis — import PDF",
+    sub: "Le devis est réalisé par un logiciel externe ; l'application importe le PDF et l'attache au dossier, indépendamment de la facturation de la visite.",
     epic: 'Épopée 3 — Validation & devis',
     us: 'US-07',
     developed: false,
@@ -633,8 +634,8 @@ const SCREENS = {
   </main>`
   },
   "facturation": {
-    title: "Création d'une facture",
-    sub: "Delphine crée la facture à partir d'une fiche validée « à facturer » — les pièces utilisées sont reprises automatiquement.",
+    title: "Facture — import PDF",
+    sub: "La facture est produite par un logiciel externe ; Delphine importe le PDF et l'attache à la fiche « à facturer ».",
     epic: 'Épopée 4 — Facturation',
     us: 'US-09',
     developed: false,
@@ -849,9 +850,9 @@ const SCREENS = {
   },
   "pieces_autocomplete": {
     title: "Pièces utilisées — autocomplétion",
-    sub: "US-23 — en suspens, à confirmer par le client (PRD §3.2.9). Dans la fiche (intervention ou entretien), la désignation propose les pièces déjà enregistrées ; sélectionner une suggestion remplit aussi automatiquement la référence.",
+    sub: "US-23 — base pièces « désignation seule », saisie manuelle (référence/prix réservés pour un import ultérieur). La désignation propose les pièces déjà enregistrées.",
     epic: 'Base de données pièces',
-    us: 'US-23 · en suspens',
+    us: 'US-23',
     developed: false,
     html: `<div class="topbar"><div class="topbar-row">
       <button style="background:rgba(255,255,255,.1);border:none;color:#fff;width:26px;height:26px;border-radius:7px;">‹</button>
@@ -1016,13 +1017,28 @@ function showScreen(id) {
   document.getElementById('stage-sub').textContent = s.sub;
   document.getElementById('stage-epic').textContent = s.epic + ' · ' + s.us;
   const badge = document.getElementById('stage-badge');
-  badge.textContent = s.developed ? '✓ Déjà développé (V1)' : '○ Proposition — non développée';
-  badge.className = 'status-badge ' + (s.developed ? 'dev' : 'proposal');
+  badge.textContent = s.developed ? '✓ Déjà développé (V1)' : '✓ Développé (V3)';
+  badge.className = 'status-badge ' + (s.developed ? 'dev' : 'v3');
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.screen === id));
   document.getElementById('screen-root').scrollTop = 0;
   applyLogo();
 }
 document.querySelector('.nav-brand img').src = LOGO_URI;
+// Badge "V3" sur les écrans non-V1 (comme le badge "V1" des écrans déjà développés).
+document.querySelectorAll('.nav-btn').forEach(btn => {
+  if (btn.querySelector('.mini-badge.dev')) return; // écran V1, déjà badgé
+  const old = btn.querySelector('.mini-badge');
+  if (old) old.remove(); // retire l'ancien badge "16/08"
+  const badge = document.createElement('span');
+  badge.className = 'mini-badge v3';
+  badge.textContent = 'V3';
+  const label = btn.querySelector('span:not(.dot)');
+  if (label) {
+    const small = label.querySelector('small');
+    if (small) label.insertBefore(badge, small); // badge avant la référence US (comme V1)
+    else label.appendChild(badge);
+  }
+});
 showScreen('dashboard');
 </script>
 </body>

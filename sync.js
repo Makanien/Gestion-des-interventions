@@ -39,7 +39,7 @@ async function pullChanges() {
   if (!navigator.onLine) throw new Error("navigator.offline");
 
   const since = SyncState.lastPulledAt;
-  const stores = ["clients", "interventions", "equipements", "pieces_utilisees"];
+  const stores = SYNC_STORES;
 
   for (const store of stores) {
     const rows = await Supabase.list(store, since || undefined);
@@ -102,6 +102,12 @@ function cleanRow(store, row) {
   delete out.synced_at; // champ local (marque de sync), non présent côté SQL
   delete out.equipements; // tableaux imbriqués locaux (V1), désormais éclatés
   delete out.pieces;
+  delete out.mesures; // tableaux imbriqués locaux (V3), stockés en tables filles
+  delete out.photos;
+  delete out.documents;
+  delete out._brouillon;        // champs transitoires de brouillon
+  delete out._client_sig_blob;  // Blob signature (non sérialisable / non stocké côté SQL)
+  delete out._technicien_sig_blob;
   return out;
 }
 
@@ -122,7 +128,7 @@ async function runSync() {
 // Première synchronisation : met en file toutes les données locales
 // (y compris celles créées avant la connexion) pour les pousser vers
 // Supabase. S'appelle à la connexion pour rattraper l'historique local.
-const SYNC_STORES = ["clients", "interventions", "equipements", "pieces_utilisees"];
+const SYNC_STORES = ["clients", "interventions", "equipements", "pieces_utilisees", "appels", "rendezvous", "mesures", "photos", "pieces", "documents", "contrats_entretien"];
 
 async function pushAllLocal() {
   if (!Supabase.configured()) return;

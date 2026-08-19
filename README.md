@@ -1,9 +1,15 @@
-# Climat Elec — Fiches d'intervention (V2)
+# Climat Elec — Fiches d'intervention (V3)
 
 Application web installable sur smartphone (PWA), fonctionnant **offline-first**.
 Les données sont stockées **localement** (IndexedDB) et **synchronisées vers
 Supabase** dès que la connexion est disponible (multi-utilisateur, comptes par
 technicien).
+
+La **V3** ajoute : prise de contact & planification (appel client, rendez-vous,
+planning par technicien), fiches d'entretien dédiées (Air/Eau-Sol/Eau, Air/Air,
+Chaudière bois + CERFA n°15497 + contrat d'entretien), workflow de dossier
+(validation → facturation avec import PDF du devis/facture), photos, mode
+brouillon, numérotation des documents, base pièces et statistiques.
 
 ## Contenu du dossier
 
@@ -22,7 +28,7 @@ manifest.json       configuration PWA (icône, nom, couleurs)
 icons/              icônes de l'application
 vendor/jspdf.umd.min.js   librairie PDF embarquée (offline)
 vendor/supabase-js.min.js SDK Supabase embarqué (offline)
-supabase/           schémas SQL + guide de déploiement backend
+supabase/           schémas SQL + migrations + guide de déploiement backend
 ```
 
 ## ⚠️ Important : une PWA a besoin d'être servie en HTTPS (ou en local)
@@ -48,10 +54,14 @@ Une fois le lien HTTPS obtenu, ouvre-le sur le smartphone du technicien avec Chr
 L'icône Climat Elec apparaît alors sur l'écran d'accueil, et l'application s'ouvre en
 plein écran comme une application native, **même sans connexion** après la première ouverture.
 
-## ⚙️ Configuration Supabase (V2)
+## ⚙️ Configuration Supabase (V2/V3)
 
 1. Renseigner `config.js` avec l'URL du projet et la clé anon/publishable.
-2. Exécuter `supabase/schema.sql` puis `supabase/storage.sql` dans le SQL Editor.
+2. Exécuter dans le SQL Editor, **dans cet ordre** :
+   - `supabase/schema.sql`
+   - `supabase/storage.sql`
+   - `supabase/migrations/001_roles_rls.sql`
+   - `supabase/migrations/002_v3.sql` (nouvelles tables V3)
 3. Voir `supabase/DEPLOYMENT.md` pour le détail complet (Auth, migration, signatures).
 
 ### Tester en local sur ordinateur (avant déploiement)
@@ -67,17 +77,35 @@ aussi en `localhost`, c'est une exception acceptée par les navigateurs).
 
 ## Fonctionnement
 
-- **Nouvelle intervention** : bouton `+` en bas à droite de l'écran d'accueil → parcours
-  guidé en 5 étapes (Client → Intervention → Équipement/Demande → Action/Pièces → Devis/Signature).
-- **Client existant** : commencer à taper le nom dans l'étape 1, une liste de
-  suggestions apparaît automatiquement (auto-remplissage de la fiche).
-- **Signature électronique** (V2) : signature tactile au doigt pour le client et le technicien.
-- **Historique équipements** (V2) : les équipements saisis sont réutilisables lors des visites suivantes.
-- **Synchronisation** (V2) : connexion par compte, données partagées entre appareils,
-  synchronisation automatique offline-first (dès le retour du réseau).
-- **PDF** : depuis le détail d'une fiche, bouton « Générer et partager le PDF ». Sur
-  mobile, le menu de partage natif s'ouvre (email, WhatsApp, AirDrop…). Sur ordinateur,
-  le PDF est téléchargé directement.
+- **Accueil = Planning** (V3) : onglets Planning / Tâches / Dossiers. Jérémy ne
+  voit que son planning ; Régis et Delphine voient toute l'équipe.
+- **Bouton `+`** (V3) : point d'entrée unique — nouvel appel, nouvelle
+  intervention, entretien Air/Eau-Sol/Eau, Air/Air, Chaudière bois, contrat
+  d'entretien annuel.
+- **Nouvel appel** (V3) : enregistre le contexte d'un appel client, puis crée un
+  rendez-vous, une intervention (pré-remplie) ou conserve la fiche sans planifier.
+- **Nouvelle intervention** : parcours guidé (Client → Intervention → Équipement
+  → Action/Pièces → Photos → Devis/Signature). Type resserré : Dépannage,
+  Garantie, Diagnostic.
+- **Fiches d'entretien dédiées** (V3) : mesures propres à chaque équipement,
+  CERFA n°15497 sur une seule page (PAC), « Prochaine intervention prévue »
+  (chaudière bois).
+- **Client existant** : auto-remplissage depuis l'historique. **Pièces** : la
+  désignation est auto-complétée depuis la base pièces.
+- **Signature électronique** (V2) : signature tactile au doigt (client + technicien).
+- **Workflow de dossier** (V3) : Brouillon → À valider → Validée → À facturer →
+  Facture importée → À vérifier → Vérifiée → À envoyer → Clôturée. Le devis et la
+  facture (produits par un logiciel externe) sont **importés en PDF** et attachés
+  au dossier.
+- **Numérotation** (V3) : référence unique `FIC-AAAA-NNN` / `ENT-AAAA-NNN`.
+- **Mode brouillon** (V3) : enregistre une fiche non terminée pour la reprendre.
+- **Duplication** (V3) : bouton « Dupliquer » sur le détail (utile pour les
+  entretiens annuels récurrents).
+- **Statistiques** (V3) : interventions/mois, par type, par technicien, par statut.
+- **Synchronisation** (V2/V3) : offline-first, données partagées entre appareils.
+- **PDF** : depuis le détail d'une fiche, « Générer et partager le PDF » (email,
+  WhatsApp, AirDrop… via le partage natif). Le PDF reprend les mesures, photos et
+  le CERFA.
 - **Sauvegarde manuelle** : icône ⬇ (ou écran « Compte & synchro »), exporte
   toutes les données en un fichier `.json`.
 

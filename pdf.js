@@ -60,7 +60,7 @@ async function generateInterventionPDF(itv, client) {
   doc.setFont("helvetica", "normal");
   doc.setFontSize(8);
   doc.setTextColor(...GREY);
-  doc.text(`Réf. ${itv.id.slice(0, 8).toUpperCase()}`, pageW - margin, y + 21, { align: "right" });
+  doc.text(`Réf. ${itv.numero || itv.id.slice(0, 8).toUpperCase()}`, pageW - margin, y + 21, { align: "right" });
   doc.text(fmtDate(itv.date), pageW - margin, y + 31, { align: "right" });
 
   y += logoH + (window.LOGO_CLIMAT_ELEC_PNG ? 12 : 0);
@@ -170,6 +170,69 @@ async function generateInterventionPDF(itv, client) {
       doc.text(String(p.quantite ?? "-"), pageW - margin - 20, y, { align: "right" });
       y += 16;
     });
+    y += 10;
+  }
+
+  // ---- Mesures (fiches d'entretien) ----
+  const mesures = (itv.mesures || []).filter((m) => !String(m.code).startsWith("cerfa_"));
+  if (mesures.length) {
+    if (y > 620) { doc.addPage(); y = 50; }
+    sectionTitle("Mesures");
+    mesures.forEach((m) => {
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      doc.setTextColor(...GREY);
+      doc.text(m.libelle || "-", margin, y);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(...NAVY);
+      doc.text(`${m.valeur || "-"} ${m.unite || ""}`.trim(), pageW - margin - 120, y);
+      y += 16;
+    });
+    y += 10;
+  }
+
+  // ---- CERFA n°15497 ----
+  const cerfa = (itv.mesures || []).filter((m) => String(m.code).startsWith("cerfa_"));
+  if (cerfa.length) {
+    if (y > 640) { doc.addPage(); y = 50; }
+    sectionTitle("CERFA n°15497 — Fluides frigorigènes");
+    cerfa.forEach((m) => {
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      doc.setTextColor(...GREY);
+      doc.text(m.libelle || "-", margin, y);
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(...NAVY);
+      doc.text(m.valeur || "-", pageW - margin - 120, y);
+      y += 16;
+    });
+    y += 10;
+  }
+
+  // ---- Photos ----
+  if (itv.photos && itv.photos.length) {
+    doc.addPage();
+    y = 50;
+    sectionTitle("Photos");
+    const photoW = (pageW - margin * 2 - 20) / 2;
+    const photoH = 160;
+    let col = 0;
+    for (const ph of itv.photos) {
+      if (!ph.data_url) continue;
+      const img = await loadImage(ph.data_url);
+      const x = margin + (col === 0 ? 0 : photoW + 20);
+      if (img) doc.addImage(img, "JPEG", x, y, photoW, photoH);
+      else { doc.setDrawColor(...LIGHT); doc.rect(x, y, photoW, photoH); }
+      if (ph.legende) {
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(8.5);
+        doc.setTextColor(...GREY);
+        doc.text(doc.splitTextToSize(ph.legende, photoW), x, y + photoH + 12);
+      }
+      col++;
+      if (col === 2) { col = 0; y += photoH + 34; }
+    }
+    if (col !== 0) y += photoH + 20;
     y += 10;
   }
 
