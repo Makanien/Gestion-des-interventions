@@ -261,7 +261,18 @@ const DB = {
   // ---------- Interventions ----------
   async listInterventions() {
     const rows = await this.listRaw("interventions");
-    return rows.filter((i) => !i._deleted).sort((a, b) => (b.updated_at || b.created_at || "").localeCompare(a.updated_at || a.created_at || ""));
+    const clients = await this.listClients();
+    const clientMap = new Map(clients.map((c) => [c.id, c]));
+    return rows
+      .filter((i) => !i._deleted)
+      .map((i) => {
+        if (!i.client) {
+          const c = clientMap.get(i.client_id);
+          if (c) i.client = { nom: c.nom, ville: c.ville };
+        }
+        return i;
+      })
+      .sort((a, b) => (b.updated_at || b.created_at || "").localeCompare(a.updated_at || a.created_at || ""));
   },
   async getIntervention(id) {
     const i = await this.getRaw("interventions", id);
