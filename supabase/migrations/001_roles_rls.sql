@@ -266,9 +266,9 @@ declare
   v_technicien  uuid;
   v_secretaire  uuid;
 begin
-  select id into v_responsable from auth.users where email = 'regis@exemple.fr';
-  select id into v_technicien  from auth.users where email = 'jeremy@exemple.fr';
-  select id into v_secretaire  from auth.users where email = 'delphine@exemple.fr';
+  select id into v_responsable from auth.users where email = 'regis.chanteux@gmail.com';
+  select id into v_technicien  from auth.users where email = 'jgardaisclimatelec@gmail.com';
+  select id into v_secretaire  from auth.users where email = 'contactdsolutions49@gmail.com';
 
   -- Rôles (si la ligne profiles existe déjà)
   update public.profiles set role = 'responsable' where id = v_responsable;
