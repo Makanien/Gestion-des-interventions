@@ -49,6 +49,23 @@ const STATUT_DOSSIER = {
 function statutDossierLabel(s) { return STATUT_DOSSIER[s]?.label || (s || "À valider"); }
 function statutDossierCls(s) { return STATUT_DOSSIER[s]?.cls || "muted"; }
 
+// Icône du point de statut dans la liste des dossiers (une par statut de workflow).
+const STATUT_DOSSIER_ICON = {
+  brouillon: { icon: "pencil", cls: "pending" },
+  a_valider: { icon: "clock", cls: "pending" },
+  validee: { icon: "check", cls: "done" },
+  a_facturer: { icon: "file", cls: "blue" },
+  facture_importee: { icon: "down", cls: "violet" },
+  facture_a_verifier: { icon: "search", cls: "orange" },
+  facture_verifiee: { icon: "check", cls: "blue" },
+  a_envoyer: { icon: "upload", cls: "orange" },
+  cloturee: { icon: "check", cls: "done" },
+};
+function statutDossierDot(s) {
+  const m = STATUT_DOSSIER_ICON[s] || { icon: "clock", cls: "pending" };
+  return { svg: ICONS[m.icon] || ICONS.clock, cls: m.cls };
+}
+
 // Transition "suivante" du workflow (actions proposées au détail).
 const WORKFLOW_NEXT = {
   brouillon: [{ statut: "a_valider", label: "Soumettre pour validation" }],
@@ -497,11 +514,11 @@ async function tachesHTML() {
 }
 
 function itemHTML(itv) {
-  const done = itv.statut === "terminee";
+  const dot = statutDossierDot(itv.statut_dossier);
   const label = itv.type_entretien ? (ENTRETIEN_META[itv.type_entretien]?.label || "Entretien") : (itv.type_intervention || "-");
   return `
   <button class="intervention-item" data-nav="detail" data-id="${itv.id}">
-    <span class="status-dot ${done ? "done" : "pending"}">${done ? ICONS.check : ICONS.clock}</span>
+    <span class="status-dot ${dot.cls}">${dot.svg}</span>
     <span class="ii-body">
       <span class="ii-top">
         <span class="ii-client">${esc(itv.client?.nom || "Client")}</span>

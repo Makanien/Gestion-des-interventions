@@ -150,6 +150,10 @@ main{flex:1;padding:14px 14px calc(90px + var(--safe-bottom));}
 .status-dot svg{width:16px;height:16px;}
 .status-dot.pending{background:var(--ce-pending-bg);color:var(--ce-pending);}
 .status-dot.done{background:var(--ce-success-bg);color:var(--ce-success);}
+.status-dot.blue{background:#eaf3f9;color:var(--ce-blue);}
+.status-dot.violet{background:#efedfb;color:#6a5fc1;}
+.status-dot.orange{background:var(--ce-pending-bg);color:var(--ce-pending);}
+.status-dot.muted{background:#eef2f4;color:var(--ce-text-muted);}
 .ii-body{flex:1;min-width:0;}
 .ii-top{display:flex;justify-content:space-between;gap:8px;align-items:baseline;}
 .ii-client{font-weight:700;font-size:15px;color:var(--ce-navy);}
