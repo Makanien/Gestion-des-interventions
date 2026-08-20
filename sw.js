@@ -4,7 +4,7 @@
    100% hors ligne après la première visite (avec réseau).
    Incrémenter CACHE_VERSION à chaque déploiement de nouvelle version.
    ========================================================= */
-const CACHE_VERSION = "climatelec-v9";
+const CACHE_VERSION = "climatelec-v10";
 const ASSETS = [
   "./",
   "./index.html",

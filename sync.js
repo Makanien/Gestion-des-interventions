@@ -109,6 +109,14 @@ function cleanRow(store, row) {
   delete out._brouillon;        // champs transitoires de brouillon
   delete out._client_sig_blob;  // Blob signature (non sérialisable / non stocké côté SQL)
   delete out._technicien_sig_blob;
+  // Les colonnes text not null côté SQL n'acceptent pas un null explicite
+  // (PostgREST insère NULL au lieu du défaut ''). On normalise ici.
+  if ((store === "interventions" || store === "contrats_entretien") && (out.numero === null || out.numero === undefined)) {
+    out.numero = "";
+  }
+  if (store === "interventions" && (out.statut_dossier === null || out.statut_dossier === undefined)) {
+    out.statut_dossier = "a_valider";
+  }
   return out;
 }
 

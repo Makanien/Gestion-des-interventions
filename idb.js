@@ -134,12 +134,32 @@ async function migrateV2toV3() {
   }
 }
 
+// V3 : backfill des références manquantes sur l'existant, sinon l'envoi
+// vers Supabase échoue sur la contrainte NOT NULL de interventions.numero.
+async function migrateV3numero() {
+  try {
+    const done = await DB.getMeta("migrated_v3_numero");
+    if (done === "done") return;
+    const interventions = await DB.listRaw("interventions");
+    for (const itv of interventions) {
+      if (!itv.numero) {
+        itv.numero = await DB.nextNumero(itv.type_entretien ? "ENT" : "FIC");
+        await DB.putRaw("interventions", itv);
+      }
+    }
+    await DB.setMeta("migrated_v3_numero", "done");
+  } catch (e) {
+    console.warn("migrateV3numero ignoré", e);
+  }
+}
+
 const DB = {
   _db: null,
   async init() {
     this._db = await openDB();
     await migrateV1toV2();
     await migrateV2toV3();
+    await migrateV3numero();
     return this._db;
   },
 
@@ -261,8 +281,8 @@ const DB = {
     if (isNew) {
       itv.id = uuid();
       itv.created_at = now;
-      if (!itv.numero) itv.numero = await this.nextNumero(itv.type_entretien ? "ENT" : "FIC");
     }
+    if (!itv.numero) itv.numero = await this.nextNumero(itv.type_entretien ? "ENT" : "FIC");
     itv.updated_at = now;
     itv.synced_at = null;
 
