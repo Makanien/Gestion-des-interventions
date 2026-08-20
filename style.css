@@ -512,6 +512,8 @@ main{flex:1;padding:14px 14px calc(90px + var(--safe-bottom));}
 .sw-violet{background:#6a5fc1;}
 .sw-orange{background:var(--ce-orange);}
 .sw-done{background:var(--ce-success);}
+.sw-appel{background:#14b8a6;}
+.appel-item{cursor:default;}
 
 .tag.blue{background:#eaf3f9;color:var(--ce-blue);}
 .tag.violet{background:#efedfb;color:#6a5fc1;}

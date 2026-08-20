@@ -62,6 +62,13 @@ const WORKFLOW_NEXT = {
   cloturee: [{ statut: "a_envoyer", label: "Rouvrir (à envoyer)" }],
 };
 
+// Actions de sortie d'un appel (US-01).
+const ACTION_SORTIE = {
+  rdv: { label: "RDV créé", cls: "blue" },
+  intervention: { label: "Intervention créée", cls: "violet" },
+  sans_suite: { label: "Sans suite", cls: "pending" },
+};
+
 // ---------------------------------------------------------
 // Modèles de fiches d'entretien (US-19)
 // ---------------------------------------------------------
@@ -330,7 +337,7 @@ async function route() {
   } else if (parts[0] === "detail" && parts[1]) {
     await renderDetail(parts[1]);
   } else if (parts[0] === "appel") {
-    renderAppel();
+    await renderAppel();
   } else if (parts[0] === "rdv") {
     renderRdv();
   } else if (parts[0] === "contrat") {
@@ -511,7 +518,7 @@ function itemHTML(itv) {
 }
 
 async function dossiersHTML() {
-  const interventions = await DB.listInterventions();
+  const [interventions, appels] = await Promise.all([DB.listInterventions(), DB.listAppels()]);
   const order = Object.keys(WORKFLOW_NEXT);
   const byStatut = {};
   for (const itv of interventions) {
@@ -521,12 +528,38 @@ async function dossiersHTML() {
   const keys = order.filter((k) => byStatut[k]?.length);
   // ajouter les statuts inconnus
   for (const k of Object.keys(byStatut)) if (!keys.includes(k)) keys.push(k);
-  if (!keys.length) return `<div class="empty-state"><div class="glyph">${ICONS.file}</div><h3>Aucun dossier</h3><p>Les fiches terminées apparaissent ici, classées par statut.</p></div>`;
-  return keys.map((k) => `
+
+  const appelsBlock = appels.length ? `
+    <div class="status-block">
+      <div class="status-head"><span class="sw sw-appel"></span><h3>Appels</h3><span class="n">${appels.length}</span></div>
+      ${appels.map(appelHTML).join("")}
+    </div>` : "";
+
+  if (!keys.length && !appels.length) return `<div class="empty-state"><div class="glyph">${ICONS.file}</div><h3>Aucun dossier</h3><p>Les fiches terminées apparaissent ici, classées par statut.</p></div>`;
+  return appelsBlock + keys.map((k) => `
     <div class="status-block">
       <div class="status-head"><span class="sw sw-${statutDossierCls(k)}"></span><h3>${statutDossierLabel(k)}</h3><span class="n">${byStatut[k].length}</span></div>
       ${byStatut[k].map(itemHTML).join("")}
     </div>`).join("");
+}
+
+function appelHTML(a) {
+  const sortie = ACTION_SORTIE[a.action_sortie];
+  return `
+  <div class="intervention-item appel-item">
+    <span class="status-dot">${ICONS.phone}</span>
+    <span class="ii-body">
+      <span class="ii-top">
+        <span class="ii-client">${esc(a.nom || "Client")}</span>
+        <span class="ii-date">${fmtStampShort(a.created_at)}</span>
+      </span>
+      <span class="ii-type">${esc(a.motif || "")}</span>
+      <span class="ii-tags">
+        <span class="tag">${esc(a.type_intervention || "")}</span>
+        ${sortie ? `<span class="tag ${sortie.cls}">${esc(sortie.label)}</span>` : ""}
+      </span>
+    </span>
+  </div>`;
 }
 
 // ---------------------------------------------------------
@@ -569,14 +602,19 @@ function openCreateSheet() {
 // ---------------------------------------------------------
 // Nouvel appel (US-01)
 // ---------------------------------------------------------
-function renderAppel() {
-  const d = state.appelDraft || { nom: "", adresse: "", code_postal: "", ville: "", tel: "", mail: "", motif: "", type_batiment: "+ de 2 ans", type_intervention: "Dépannage" };
+async function renderAppel() {
+  await ensureClientsCache();
+  const d = state.appelDraft || { client_id: null, nom: "", adresse: "", code_postal: "", ville: "", tel: "", mail: "", motif: "", type_batiment: "+ de 2 ans", type_intervention: "Dépannage" };
   state.appelDraft = d;
   setApp(`
     ${topbar({ title: "Nouvel appel", subtitle: "Contexte d'un appel client", back: true })}
     <main>
       <div class="card" style="padding:14px;">
-        <div class="field"><label>Nom du client *</label><input id="a-nom" type="text" value="${esc(d.nom)}" placeholder="Rechercher ou saisir un nouveau nom" /></div>
+        <div class="field combo">
+          <label>Nom du client *</label>
+          <input id="a-nom" type="text" autocomplete="off" value="${esc(d.nom)}" placeholder="Rechercher ou saisir un nouveau nom" />
+          <div class="combo-list" id="a-combo-list" style="display:none;"></div>
+        </div>
         <div class="field"><label>Adresse *</label><input id="a-adresse" type="text" value="${esc(d.adresse)}" /></div>
         <div class="row2">
           <div class="field"><label>Code postal *</label><input id="a-cp" type="text" inputmode="numeric" value="${esc(d.code_postal)}" /></div>
@@ -600,6 +638,53 @@ function renderAppel() {
     </main>
     <div class="toast" id="toast"></div>
   `);
+  wireAppelCombo();
+}
+
+function wireAppelCombo() {
+  const input = $("#a-nom");
+  const list = $("#a-combo-list");
+  function renderCombo() {
+    const q = input.value.trim().toLowerCase();
+    if (!q) { list.style.display = "none"; return; }
+    const matches = state.clientsCache.filter((cl) => cl.nom.toLowerCase().includes(q)).slice(0, 6);
+    const exact = state.clientsCache.some((cl) => cl.nom.toLowerCase() === q);
+    let html = matches.map((cl) => `
+      <div class="combo-item" data-client="${cl.id}">
+        <div class="c-name">${esc(cl.nom)}</div>
+        <div class="c-sub">${esc([cl.ville, cl.tel].filter(Boolean).join(" · ") || "—")}</div>
+      </div>`).join("");
+    if (!exact) html += `<div class="combo-item new" data-client="__new__"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg><span>Créer « ${esc(input.value.trim())} »</span></div>`;
+    list.innerHTML = html || `<div class="combo-item">Aucun résultat</div>`;
+    list.style.display = "block";
+  }
+  input.addEventListener("input", renderCombo);
+  input.addEventListener("focus", renderCombo);
+  list.addEventListener("click", (e) => {
+    const item = e.target.closest("[data-client]");
+    if (!item) return;
+    const id = item.dataset.client;
+    if (id === "__new__") { list.style.display = "none"; $("#a-adresse").focus(); return; }
+    const cl = state.clientsCache.find((x) => x.id === id);
+    if (cl) {
+      state.appelDraft.client_id = cl.id;
+      $("#a-nom").value = cl.nom || "";
+      $("#a-adresse").value = cl.adresse || "";
+      $("#a-cp").value = cl.code_postal || "";
+      $("#a-ville").value = cl.ville || "";
+      $("#a-tel").value = cl.tel || "";
+      $("#a-mail").value = cl.mail || "";
+      const bat = $("#a-bat");
+      if (cl.type_batiment && [...bat.options].some((o) => o.value === cl.type_batiment)) bat.value = cl.type_batiment;
+    }
+    list.style.display = "none";
+  });
+  input.addEventListener("input", () => {
+    if (state.appelDraft.client_id) {
+      const cl = state.clientsCache.find((x) => x.id === state.appelDraft.client_id);
+      if (cl && cl.nom !== input.value) state.appelDraft.client_id = null;
+    }
+  });
 }
 
 function readAppelDraft() {
@@ -620,8 +705,10 @@ function readAppelDraft() {
 async function saveAppelFromDraft(action) {
   if (!readAppelDraft()) return;
   const d = state.appelDraft;
-  // retrouve ou crée le client (insensible à la casse)
-  const client = await DB.findOrCreateClientByName({ nom: d.nom, adresse: d.adresse, code_postal: d.code_postal, ville: d.ville, mail: d.mail, tel: d.tel, type_batiment: d.type_batiment });
+  // utilise le client sélectionné, sinon retrouve ou crée par nom (insensible à la casse)
+  const client = d.client_id
+    ? await DB.getClient(d.client_id)
+    : await DB.findOrCreateClientByName({ nom: d.nom, adresse: d.adresse, code_postal: d.code_postal, ville: d.ville, mail: d.mail, tel: d.tel, type_batiment: d.type_batiment });
   const clientId = client?.id || null;
   const appel = { ...d, client_id: clientId, action_sortie: action };
   await DB.saveAppel(appel);
@@ -1699,6 +1786,11 @@ function fmtDateShort(iso) {
   if (!iso) return "";
   const d = new Date(iso + "T00:00:00");
   return d.toLocaleDateString("fr-FR", { day: "2-digit", month: "short" });
+}
+function fmtStampShort(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return isNaN(d.getTime()) ? "" : d.toLocaleDateString("fr-FR", { day: "2-digit", month: "short" });
 }
 function fmtDateShortLong(iso) {
   if (!iso) return "-";
