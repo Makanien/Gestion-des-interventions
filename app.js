@@ -337,7 +337,8 @@ async function route() {
   } else if (parts[0] === "detail" && parts[1]) {
     await renderDetail(parts[1]);
   } else if (parts[0] === "appel") {
-    await renderAppel();
+    if (parts[1]) await renderAppelEdit(parts[1]);
+    else { state.appelDraft = null; await renderAppel(); }
   } else if (parts[0] === "rdv") {
     renderRdv();
   } else if (parts[0] === "contrat") {
@@ -546,7 +547,7 @@ async function dossiersHTML() {
 function appelHTML(a) {
   const sortie = ACTION_SORTIE[a.action_sortie];
   return `
-  <div class="intervention-item appel-item">
+  <button class="intervention-item" data-nav="appel-edit" data-id="${a.id}">
     <span class="status-dot">${ICONS.phone}</span>
     <span class="ii-body">
       <span class="ii-top">
@@ -559,7 +560,8 @@ function appelHTML(a) {
         ${sortie ? `<span class="tag ${sortie.cls}">${esc(sortie.label)}</span>` : ""}
       </span>
     </span>
-  </div>`;
+    ${ICONS.chevron}
+  </button>`;
 }
 
 // ---------------------------------------------------------
@@ -602,12 +604,17 @@ function openCreateSheet() {
 // ---------------------------------------------------------
 // Nouvel appel (US-01)
 // ---------------------------------------------------------
-async function renderAppel() {
+async function renderAppel(isEdit = false) {
   await ensureClientsCache();
   const d = state.appelDraft || { client_id: null, nom: "", adresse: "", code_postal: "", ville: "", tel: "", mail: "", motif: "", type_batiment: "+ de 2 ans", type_intervention: "Dépannage" };
   state.appelDraft = d;
   setApp(`
-    ${topbar({ title: "Nouvel appel", subtitle: "Contexte d'un appel client", back: true })}
+    ${topbar({
+      title: isEdit ? "Modifier l'appel" : "Nouvel appel",
+      subtitle: isEdit ? "Mettre à jour ou supprimer" : "Contexte d'un appel client",
+      back: true,
+      actions: isEdit ? `<button class="icon-btn" data-nav="appel-delete" data-id="${d.id}" title="Supprimer">${ICONS.trash}</button>` : "",
+    })}
     <main>
       <div class="card" style="padding:14px;">
         <div class="field combo">
@@ -632,13 +639,24 @@ async function renderAppel() {
           <select id="a-type">${["Devis", "Dépannage", "Garantie", "Entretien", "Diagnostic"].map((t) => `<option ${d.type_intervention === t ? "selected" : ""}>${t}</option>`).join("")}</select>
         </div>
       </div>
-      <button class="btn btn-accent" data-nav="appel-rdv" style="margin-top:14px;">${ICONS.calendar} Créer le rendez-vous →</button>
-      <button class="btn btn-primary" data-nav="appel-intervention">${ICONS.wrench} Créer l'intervention →</button>
-      <button class="btn btn-ghost" data-nav="appel-save">Enregistrer sans planifier</button>
+      ${isEdit
+        ? `<button class="btn btn-accent" data-nav="appel-update" style="margin-top:14px;">${ICONS.check} Enregistrer les modifications</button>
+           <button class="btn btn-primary" data-nav="appel-rdv" style="margin-top:9px;">${ICONS.calendar} Créer le rendez-vous →</button>
+           <button class="btn btn-ghost" data-nav="appel-intervention">${ICONS.wrench} Créer l'intervention →</button>`
+        : `<button class="btn btn-accent" data-nav="appel-rdv" style="margin-top:14px;">${ICONS.calendar} Créer le rendez-vous →</button>
+           <button class="btn btn-primary" data-nav="appel-intervention">${ICONS.wrench} Créer l'intervention →</button>
+           <button class="btn btn-ghost" data-nav="appel-save">Enregistrer sans planifier</button>`}
     </main>
     <div class="toast" id="toast"></div>
   `);
   wireAppelCombo();
+}
+
+async function renderAppelEdit(id) {
+  const a = await DB.getRaw("appels", id);
+  if (!a || a._deleted) { go("#/"); return; }
+  state.appelDraft = a;
+  await renderAppel(true);
 }
 
 function wireAppelCombo() {
@@ -710,10 +728,15 @@ async function saveAppelFromDraft(action) {
     ? await DB.getClient(d.client_id)
     : await DB.findOrCreateClientByName({ nom: d.nom, adresse: d.adresse, code_postal: d.code_postal, ville: d.ville, mail: d.mail, tel: d.tel, type_batiment: d.type_batiment });
   const clientId = client?.id || null;
-  const appel = { ...d, client_id: clientId, action_sortie: action };
+  // "save" = simple mise à jour d'un appel existant : on conserve son action_sortie.
+  const appel = { ...d, client_id: clientId, action_sortie: action === "save" ? (d.action_sortie || "sans_suite") : action };
   await DB.saveAppel(appel);
 
-  if (action === "rdv") {
+  if (action === "save") {
+    state.appelDraft = null;
+    toast("Appel enregistré");
+    go("#/");
+  } else if (action === "rdv") {
     state.rdvPrefill = { client_id: clientId, nom: d.nom, note: d.motif, type: d.type_intervention === "Devis" ? "rdv_devis" : (d.type_intervention === "Entretien" ? "entretien" : "depannage") };
     state.appelDraft = null;
     go("#/rdv");
@@ -1754,6 +1777,11 @@ document.addEventListener("click", async (e) => {
   else if (action === "logout") signOutUser();
   else if (action === "stats") go("#/stats");
   else if (action === "sync-now") runSyncNow();
+  else if (action === "appel-edit") go(`#/appel/${nav.dataset.id}`);
+  else if (action === "appel-delete") {
+    if (confirm("Supprimer cet appel ?")) { await DB.deleteAppel(nav.dataset.id); toast("Appel supprimé"); go("#/"); }
+  }
+  else if (action === "appel-update") saveAppelFromDraft("save");
   else if (action === "appel-rdv") saveAppelFromDraft("rdv");
   else if (action === "appel-intervention") saveAppelFromDraft("intervention");
   else if (action === "appel-save") saveAppelFromDraft("sans_suite");
