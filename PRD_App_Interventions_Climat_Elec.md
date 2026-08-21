@@ -1,8 +1,8 @@
 # PRD — Application de gestion des fiches d'intervention
 ## Climat Elec (Chazé-sur-Argos)
 
-**Version du document :** 1.10
-**Date :** 19/08/2026
+**Version du document :** 1.11
+**Date :** 21/08/2026
 **Auteur :** Rédigé avec Claude, sur la base des échanges avec le porteur de projet
 
 ---
@@ -41,7 +41,7 @@ Climat Elec est une entreprise artisanale spécialisée en géothermie, climatis
 
 ## 3. Découpage en versions
 
-> **État d'implémentation (19/08/2026) :** La **V1 (MVP)** et la **V2** sont **implémentées et mergées** (branche `synchro-supabase` fusionnée dans `dev`). La **V3** est désormais **spécifiée et arbitrée** (cf. **§3.3**) ; son développement n'est pas commencé. Le détail de ce qui est réellement livré figure au **§3.1** (V2) et au **§3.3** (V3).
+> **État d'implémentation (21/08/2026) :** La **V1 (MVP)** et la **V2** sont **implémentées et mergées** (branche `synchro-supabase` fusionnée dans `dev`). La **V3** est **spécifiée, arbitrée et son développement est largement avancé** sur la branche `application-v3` : schéma de données, planning/appels, fiches d'entretien dédiées + CERFA, workflow de dossier avec import PDF, dossier final fusionné, statistiques, brouillon et numérotation sont livrés (détail au **§3.4**). Le détail de ce qui est réellement livré figure au **§3.1** (V2) et au **§3.4** (V3).
 
 ### V1 — MVP (cible immédiate)
 - **1 seul technicien**, usage mono-appareil.
@@ -201,7 +201,7 @@ En examinant les fiches papier fournies, deux documents supplémentaires sont ap
 
 ## 3.3 V3 — Définition (arbitrée le 19/08/2026)
 
-> **Statut : arbitré.** Les décisions ci-dessous ont été prises le 19/08/2026 avec le porteur de projet. Elles intègrent en V3 : toutes les user stories du backlog §10 (épopées 1 à 5 + transverses), les nouvelles demandes §3.2 (US-16 → US-25) et les pistes V3, **à l'exception** des éléments explicitement reportés (§3.3.6).
+> **Statut : arbitré.** Les décisions ci-dessous ont été prises le 19/08/2026 avec le porteur de projet. Elles intègrent en V3 : toutes les user stories du backlog §10 (épopées 1 à 5 + transverses), les nouvelles demandes §3.2 (US-16 → US-25) et les pistes V3, **à l'exception** des éléments explicitement reportés (§3.3.6). La plupart de ces fonctionnalités sont désormais **développées** (branche `application-v3`) : voir le récapitulatif des livraisons au **§3.4**.
 
 ### 3.3.1 Prise de contact & planification (épopée 1)
 - **Écran « Nouvel appel »** (US-01, §3.2.5) : enregistrement du contexte d'un appel client, avec 3 actions de sortie (créer le RDV / créer l'intervention avec pré-remplissage / enregistrer sans planifier).
@@ -253,6 +253,53 @@ Brouillon → À valider → Validée → À facturer → Facture importée → 
 - **Synchronisation Google Agenda** (US-14) : le fonctionnement souhaité n'est pas clair ; reportée (cf. §11).
 - **Envoi automatique d'email** : envoi manuel conservé.
 - **Génération de devis/factures** : faite par un logiciel externe (import PDF uniquement) — pas de chiffrage dans l'appli.
+
+---
+
+## 3.4 Liste des modifications livrées (V3 — branche `application-v3`)
+
+> Récapitulatif des changements fonctionnels et techniques effectivement développés depuis l'arbitrage du 19/08/2026, livrés sur la branche `application-v3` (commits du 20 et 21/08/2026). Ils matérialisent la définition V3 du §3.3.
+
+### Backend / schéma de données (V3)
+- **Migration `002_v3.sql`** (à exécuter après `schema.sql` → `storage.sql` → `001_roles_rls.sql`) : colonnes V3 sur `interventions` (`numero`, `statut_dossier`, `type_entretien`, `type_entretien_detail`, `prochaine_intervention_prevue`, `annee_installation`) + tables `appels`, `rendezvous`, `mesures`, `photos`, `pieces` (base pièces), `documents`, `contrats_entretien`, avec index, triggers (`updated_at`, `created_by`/`updated_by`, `set_technicien_default`), RLS par rôle, GRANT et Realtime (idempotent).
+- **RBAC étendu aux nouvelles tables** : les politiques RLS suivent le modèle des tables V2 — les managers (Régis, Delphine) voient tout, le technicien (Jérémy) ne voit que ses données (`mesures`, `photos`, `documents` héritent du périmètre de leur intervention).
+- **Storage élargi** : buckets `photos` et `documents` (privés, lecture/écriture authentifiées) en plus du bucket public `signatures`.
+- **Backfill de migration V1→V2→V3** (`idb.js`) : éclatement équipements/pièces, ajout du `statut_dossier` par défaut sur l'existant, attribution d'un `numero` manquant (`FIC`/`ENT`) pour satisfaire la contrainte NOT NULL Supabase.
+
+### Prise de contact & planification (US-01 · US-02 · US-16 · US-17 · US-18)
+- **Accueil = Planning** : 3 onglets — **Planning** (rendez-vous groupés par jour, filtrés par intervenant pour le technicien), **Tâches** (fiches terrain, masquage des tâches réalisées par défaut, recherche), **Dossiers** (classement par statut du workflow + bloc « Appels »).
+- **Bouton « + »** (US-18) : point d'entrée unique — Nouvel appel, Nouvelle intervention, Entretien Air/Eau-Sol/Eau, Air/Air, Chaudière bois, Contrat d'entretien annuel.
+- **Écran « Nouvel appel »** (US-01) : recherche client avec auto-remplissage, motif, type de bâtiment, type d'intervention ; 3 actions de sortie — « Créer le rendez-vous → », « Créer l'intervention → » (pré-remplissage du flux), « Enregistrer sans planifier ».
+- **Rendez-vous** (US-02) : écran de création (date, heures, type, intervenant, note), pré-rempli depuis un appel ; pas de synchronisation Google Agenda (reportée).
+- **Édition / suppression des appels** : ouverture d'un appel existant en mode édition, mise à jour et suppression depuis la barre de titre.
+- **Gestion des rôles** (US-16) : `profiles.role` (responsable / technicien / secretaire), fonctions `current_role()` / `is_manager()` / `set_user_role()`, anti-élévation de rôle, remplissage auto de `created_by` / `updated_by` / `technicien_id`.
+
+### Intervention terrain (US-19 · US-20 · US-21 · US-22 · US-23 · US-25)
+- **3 fiches d'entretien dédiées** (US-19) : flux guidés Air/Eau-Sol/Eau, Air/Air, Chaudière bois, avec bloc « Mesures » propre à chaque équipement (défini dans `ENTRETIEN_META`), année d'installation, nombre de lignes d'équipement limité par type (3 ou 5), champ « Prochaine intervention prévue » pour la chaudière bois.
+- **CERFA n°15497** (US-25) : bloc réglementaire (contrôle d'étanchéité, quantité/type de fluide, déchets ADR/RID, n° attestation) intégré aux fiches PAC, sur une seule page.
+- **Photos avec légende** (US-21) : étape dédiée dans le wizard, redimensionnement côté client (dataURL), stockage dans la table `photos` (bucket privé `photos` pour un upload ultérieur).
+- **Type d'intervention resserré** (US-22) : Dépannage, Garantie, Diagnostic ; statut « terminée / à prévoir » affiché au récapitulatif final.
+- **Base pièces** (US-23) : table `pieces` (désignation seule), auto-complétion de la désignation dans les lignes de pièces, création à la volée, synchronisée.
+- **Duplication d'une fiche** (US-20) : bouton « Dupliquer » sur le détail (intervention ou entretien), reprise du client et des équipements.
+
+### Workflow de dossier (US-05 · US-06 · US-08 · US-09 · US-10 · US-11 · US-12 · US-13 · US-15)
+- **Statuts de dossier** (US-13) : Brouillon → À valider → Validée → À facturer → Facture importée → Facture à vérifier → Facture vérifiée → À envoyer → Clôturée, avec **icônes et couleurs dynamiques** par statut (remplace le simple point « fait / en attente ») et boutons de transition proposés selon l'état courant.
+- **Import PDF devis / facture** (US-07 · US-09) : sélecteur de fichiers (ou scan caméra), stockage en base64 dans `documents` (table + bucket privé), consultation et suppression des documents depuis le détail. Le devis est attaché en parallèle **sans jamais bloquer la facturation**.
+- **Dossier final fusionné** : génération d'un PDF fusionnant la fiche d'intervention et la facture importée (`pdf-lib`, bouton « Générer le dossier final ») ; la transition vers « Facture vérifiée » exige une facture importée et déclenche automatiquement la génération du dossier.
+- **Brouillon** : sauvegarde d'une fiche non terminée (statut `brouillon`), reprise ultérieure, retour possible en brouillon depuis « À valider ».
+- **Numérotation** : référence unique `PREFIX-AAAA-NNN` (FIC / ENT / CTR), compteur local synchronisé.
+- **Statistiques** (US transverse) : total, par mois (6 derniers), par type, par technicien, par statut.
+
+### Synchronisation & robustesse
+- **File de synchronisation étendue** aux nouvelles boutiques V3 (`appels`, `rendezvous`, `mesures`, `photos`, `pieces`, `documents`, `contrats_entretien`) ; nettoyage des champs purement locaux avant upsert et normalisation des `NULL` (`numero`, `statut_dossier`) pour PostgREST.
+- **Nouvelle tentative automatique** (`scheduleSyncRetry`) : backoff exponentiel (5 s → 30 s max) après un échec réseau, avec indicateur UI du nombre de changements en attente.
+- **Push robuste** : les éléments non envoyés (coupure réseau en cours de push) sont **remis en file** au lieu d'être perdus jusqu'au prochain sign-in.
+- **Enrichissement des listes** : `listInterventions` complète automatiquement `client.nom`/`client.ville` (jointure locale avec la table `clients`).
+- **Anti-réinitialisation Realtime** : une seule initialisation par session (`initRealtime`).
+
+### Divers
+- **PDF de fiche enrichi** : intégration des mesures, du CERFA et des photos dans le PDF généré.
+- **PWA** : service worker mis à jour (`CACHE_VERSION` incrémentée, cache de `pdf-lib.min.js`), mécanisme `updatefound` conservé.
 
 ---
 
@@ -478,10 +525,10 @@ ContratEntretien {
 | 5. Développement V2 | Intégration Supabase, comptes, synchronisation, signature électronique | Terminé (mergé dans `dev`) |
 | 6. Historique équipements par client | Ajout à la fiche équipement | Terminé |
 | 7. Spécification V3 | Cadrage des fonctionnalités V3 (ce PRD, §3.3) | Terminé (19/08/2026) |
-| 8. Développement V3 | Planning/appel, fiches entretien + CERFA + contrat, workflow validation/facturation (import PDF), statistiques, brouillon, numérotation | À faire |
+| 8. Développement V3 | Planning/appel, fiches entretien + CERFA + contrat, workflow validation/facturation (import PDF), statistiques, brouillon, numérotation | **En cours (largement livré — branche `application-v3`, cf. §3.4)** |
 | 9. Recadrage Google Agenda | Clarifier le fonctionnement de la synchronisation (reportée hors V3) | À faire |
 
-> Le contenu de la V3 est **arbitré** (cf. §3.3) ; les seuls points reportés sont la synchronisation Google Agenda (US-14) et l'envoi automatique d'email.
+> Le contenu de la V3 est **arbitré** (cf. §3.3) et son développement est **largement avancé** sur la branche `application-v3` (cf. §3.4) ; les seuls points reportés sont la synchronisation Google Agenda (US-14) et l'envoi automatique d'email.
 
 ---
 
@@ -584,5 +631,5 @@ Points restant ouverts (hors V3) :
 - Le PDF généré est visuellement fidèle à la fiche papier actuelle.
 - Aucune perte de données lors du passage de la V1 (local) à la V2 (Supabase).
 - (V3) Les 3 fiches d'entretien dédiées couvrent les types d'équipement avec leur bloc de mesures spécifique, et le CERFA n°15497 tient sur une seule page.
-- (V3) Un dossier est suivi de bout en bout (brouillon → clôturée) avec import PDF du devis/facture produit par le logiciel externe.
+- (V3) Un dossier est suivi de bout en bout (brouillon → clôturée) avec import PDF du devis/facture produit par le logiciel externe, et génération d'un dossier final fusionné (fiche + facture).
 - (V3) Le classement automatique par statut remplace le classement manuel OneDrive.
