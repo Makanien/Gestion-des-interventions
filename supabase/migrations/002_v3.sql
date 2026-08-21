@@ -283,17 +283,19 @@ begin
   end loop;
 end $$;
 
--- pieces (base pièces) : lecture partagée, écriture réservée aux managers / propriétaire.
+-- pieces (base pièces) : catalogue partagé par l'équipe, comme clients / equipements.
+-- Insertion et sélection sont déjà ouvertes à tout utilisateur authentifié ;
+-- la politique update doit l'être aussi : le sync client re-pousse les lignes
+-- du catalogue (upsert = ON CONFLICT DO UPDATE) quel que soit le créateur, sinon
+-- un technicien recevrait un 403 RLS et la file de synchronisation resterait bloquée.
 drop policy if exists pieces_select on public.pieces;
 create policy pieces_select on public.pieces for select to authenticated using (true);
 drop policy if exists pieces_insert on public.pieces;
 create policy pieces_insert on public.pieces for insert to authenticated with check (true);
 drop policy if exists pieces_update on public.pieces;
-create policy pieces_update on public.pieces for update to authenticated
-  using (public.is_manager() or created_by = auth.uid());
+create policy pieces_update on public.pieces for update to authenticated using (true);
 drop policy if exists pieces_delete on public.pieces;
-create policy pieces_delete on public.pieces for delete to authenticated
-  using (public.is_manager() or created_by = auth.uid());
+create policy pieces_delete on public.pieces for delete to authenticated using (true);
 
 -- contrats_entretien : accès réservé aux managers ou au propriétaire.
 drop policy if exists contrats_select on public.contrats_entretien;
