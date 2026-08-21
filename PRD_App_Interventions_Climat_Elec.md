@@ -1,8 +1,8 @@
 # PRD — Application de gestion des fiches d'intervention
 ## Climat Elec (Chazé-sur-Argos)
 
-**Version du document :** 1.11
-**Date :** 21/08/2026
+**Version du document :** 1.12
+**Date :** 22/08/2026
 **Auteur :** Rédigé avec Claude, sur la base des échanges avec le porteur de projet
 
 ---
@@ -262,6 +262,7 @@ Brouillon → À valider → Validée → À facturer → Facture importée → 
 
 ### Backend / schéma de données (V3)
 - **Migration `002_v3.sql`** (à exécuter après `schema.sql` → `storage.sql` → `001_roles_rls.sql`) : colonnes V3 sur `interventions` (`numero`, `statut_dossier`, `type_entretien`, `type_entretien_detail`, `prochaine_intervention_prevue`, `annee_installation`) + tables `appels`, `rendezvous`, `mesures`, `photos`, `pieces` (base pièces), `documents`, `contrats_entretien`, avec index, triggers (`updated_at`, `created_by`/`updated_by`, `set_technicien_default`), RLS par rôle, GRANT et Realtime (idempotent).
+- **Migration `003_fix_rdv_visibilite.sql`** (à exécuter après `002_v3.sql`) : correction de la visibilité des rendez-vous par technicien (voir §3.4 « Correction — Visibilité des rendez-vous »).
 - **RBAC étendu aux nouvelles tables** : les politiques RLS suivent le modèle des tables V2 — les managers (Régis, Delphine) voient tout, le technicien (Jérémy) ne voit que ses données (`mesures`, `photos`, `documents` héritent du périmètre de leur intervention).
 - **Storage élargi** : buckets `photos` et `documents` (privés, lecture/écriture authentifiées) en plus du bucket public `signatures`.
 - **Backfill de migration V1→V2→V3** (`idb.js`) : éclatement équipements/pièces, ajout du `statut_dossier` par défaut sur l'existant, attribution d'un `numero` manquant (`FIC`/`ENT`) pour satisfaire la contrainte NOT NULL Supabase.
@@ -299,6 +300,14 @@ Brouillon → À valider → Validée → À facturer → Facture importée → 
 - **Push robuste** : les éléments non envoyés (coupure réseau en cours de push) sont **remis en file** au lieu d'être perdus jusqu'au prochain sign-in.
 - **Enrichissement des listes** : `listInterventions` complète automatiquement `client.nom`/`client.ville` (jointure locale avec la table `clients`).
 - **Anti-réinitialisation Realtime** : une seule initialisation par session (`initRealtime`).
+
+### Correction — Visibilité des rendez-vous par technicien (22/08/2026)
+
+Suite à un retour terrain (le technicien Jérémy ne voyait pas dans son planning un rendez-vous qui lui était affecté), le mécanisme d'affectation des rendez-vous (US-02 · US-17) a été corrigé :
+
+- **Cause :** l'affectation d'un rendez-vous se faisait uniquement par le texte `intervenant` ("Jérémy", "Régis", "Delphine") alors que la RLS serveur ne contrôle que `technicien_id` (uuid). Le trigger `rendezvous_set_technicien` initialisait `technicien_id` avec le **créateur** du RDV : un rendez-vous créé par le responsable pour Jérémy restait donc invisible pour Jérémy (jamais reçu en synchronisation, car filtré par la politique `rendezvous_select`).
+- **Côté client (`app.js`, `supabase.js`)** : `technicien_id` est désormais renseigné à partir de l'intervenant sélectionné (`resolveTechId()` — résolution du nom vers l'uuid du profil via la liste de l'équipe chargée à l'authentification) ; le filtre du planning privilégie `technicien_id = utilisateur connecté` ; le calcul du prénom (correspondance « Jérémy » ↔ « Jérémy Gardais ») est corrigé (premier mot du `full_name` au lieu du dernier).
+- **Côté serveur (`supabase/migrations/003_fix_rdv_visibilite.sql`)** : backfill des rendez-vous existants (`technicien_id` rattaché au profil dont le nom correspond à l'intervenant) et politique `rendezvous_select` élargie — le technicien voit son planning via `technicien_id` **ou** le nom d'intervenant ; les RDV non affectés (intervenant vide) restent visibles par toute l'équipe.
 
 ### Divers
 - **PDF de fiche enrichi** : intégration des mesures, du CERFA et des photos dans le PDF généré.
