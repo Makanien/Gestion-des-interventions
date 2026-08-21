@@ -363,7 +363,7 @@ async function route() {
   } else if (parts[0] === "contrats") {
     renderContrats();
   } else if (parts[0] === "contrat") {
-    renderContrat(parts[1] || null);
+    await renderContrat(parts[1] || null);
   } else if (parts[0] === "detail-contrat" && parts[1]) {
     await renderDetailContrat(parts[1]);
   } else if (parts[0] === "stats") {
@@ -1850,9 +1850,17 @@ function monthLabel(ym) {
 // ---------------------------------------------------------
 // CONTRAT D'ENTRETIEN (US-24)
 // ---------------------------------------------------------
-function renderContrat(id) {
-  const c = state.contratDraft || { id: id || null, client_id: null, nom: "", nb_passages: "1", tarification_zone_km: "", conditions_generales: "", signe_client: "", signe_technicien: "", client_signature_url: null, technicien_signature_url: null, numero: null };
-  state.contratDraft = c;
+async function renderContrat(id) {
+  let c;
+  if (id) {
+    c = state.contratDraft = await DB.getContrat(id);
+    if (!c) { go("#/contrats"); return; }
+  } else {
+    c = (state.contratDraft && !state.contratDraft.id)
+      ? state.contratDraft
+      : { id: null, client_id: null, nom: "", nb_passages: "1", tarification_zone_km: "", conditions_generales: "", signe_client: "", signe_technicien: "", client_signature_url: null, technicien_signature_url: null, numero: null };
+    state.contratDraft = c;
+  }
   const isEdit = !!c.id;
   setApp(`
     ${topbar({ title: isEdit ? "Modifier le contrat" : "Contrat d'entretien annuel", back: true, actions: isEdit ? `<button class="icon-btn" data-nav="contrat-delete" data-id="${c.id}" title="Supprimer">${ICONS.trash}</button>` : "" })}

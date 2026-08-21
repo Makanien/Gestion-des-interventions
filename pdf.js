@@ -508,7 +508,7 @@ async function generateContratPDF(contrat, client) {
     return false;
   };
 
-  const clientSigDrawn = await drawSig(contrat.client_signature_url, margin + 8, sigColW - 16, 42);
+  const clientSigDrawn = await drawSig(contrat.client_signature_url, margin + sigColW + 28, sigColW - 16, 42);
   if (!clientSigDrawn) {
     doc.setFont("times", "italic");
     doc.setFontSize(14);

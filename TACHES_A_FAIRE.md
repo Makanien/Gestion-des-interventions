@@ -102,12 +102,14 @@
 
 ## 7. Vérification finale
 
-- [ ] Passer en revue `git diff` des fichiers modifiés
-- [ ] Contrôler la cohérence de la syntaxe JS (ex. `node --check` si disponible)
-- [ ] Incrémenter `CACHE_VERSION` dans `sw.js` avant déploiement
-- [ ] Mettre à jour la section §3.4 du PRD avec les ajouts livrés
+- [x] Passer en revue `git diff` des fichiers modifiés (commits V3 : b24a23b→a36ca1b) — 2 bugs corrigés :
+      position de la signature client dans le PDF du contrat (`pdf.js`) et rechargement
+      du contrat en mode édition depuis la base (`app.js` `renderContrat`)
+- [x] Contrôler la cohérence de la syntaxe JS (revue manuelle — `node` non installé sur la machine)
+- [x] Incrémenter `CACHE_VERSION` dans `sw.js` (→ `climatelec-v12`)
+- [x] Mettre à jour la section §3.4 du PRD avec les ajouts livrés (US-24, filtres, stats par client, upload Storage…)
 
-**Fichiers :** `sw.js`, `PRD_App_Interventions_Climat_Elec.md`
+**Fichiers :** `sw.js`, `PRD_App_Interventions_Climat_Elec.md`, `pdf.js`, `app.js`
 
 ---
 
@@ -116,7 +118,7 @@
 | Priorité | Tâche |
 |---|---|
 | 1 | ~~Câbler les filtres Tâches (`wireTab`) + styles filtre (points 3)~~ ✅
-| 2 | Stats « par client » (point 2) |
-| 3 | ~~Réutilisation historique équipement dans le wizard (point 5)~~ ✅
+| 2 | ~~Stats « par client » (point 2)~~ ✅ |
+| 3 | ~~Réutilisation historique équipement dans le wizard (point 5)~~ ✅ |
 | 4 | ~~Upload photos/documents en fin de wizard + import (point 6)~~ ✅ |
-| 5 | Vérification finale + `sw.js` + PRD (point 7) |
+| 5 | ~~Vérification finale + `sw.js` + PRD (point 7)~~ ✅ |
