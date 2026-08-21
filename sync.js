@@ -22,6 +22,7 @@ function enqueueSync(store, id) {
   if (!Supabase.configured()) return;
   SyncState.queue = SyncState.queue.filter((q) => !(q.store === store && q.id === id));
   SyncState.queue.push({ store, id });
+  updatePendingUI();
   scheduleSync();
 }
 
@@ -75,6 +76,9 @@ async function applyRemote(store, remote) {
 }
 
 // ---------------- Push : envoie les changements locaux ----------------
+// Ne retire de la file que les éléments réellement envoyés : si le réseau
+// coupe en plein push, le reste est remis en file pour une tentative suivante
+// (au lieu d'être perdu jusqu'au prochain sign-in).
 async function pushChanges() {
   if (!Supabase.configured()) return;
   if (!navigator.onLine) return;
@@ -82,16 +86,36 @@ async function pushChanges() {
   const queue = [...SyncState.queue];
   SyncState.queue = [];
 
-  for (const item of queue) {
-    if (!navigator.onLine) throw new Error("navigator.offline");
-    const record = await DB.getRecordForSync(item.store, item.id);
-    if (!record) continue; // supprimé entre-temps
+  const pending = [];
+  let stopped = false;
 
-    if (record._deleted) {
-      await Supabase.remove(item.store, item.id, record.updated_at);
-    } else {
-      await Supabase.upsert(item.store, cleanRow(item.store, record.payload));
+  for (const item of queue) {
+    if (stopped) { pending.push(item); continue; }
+    if (!navigator.onLine) { stopped = true; pending.push(item); continue; }
+    try {
+      const record = await DB.getRecordForSync(item.store, item.id);
+      if (!record) continue; // supprimé entre-temps
+
+      if (record._deleted) {
+        await Supabase.remove(item.store, item.id, record.updated_at);
+      } else {
+        await Supabase.upsert(item.store, cleanRow(item.store, record.payload));
+      }
+    } catch (err) {
+      stopped = true;
+      pending.push(item);
     }
+  }
+
+  SyncState.queue = [...pending, ...SyncState.queue];
+  updatePendingUI();
+  if (pending.length > 0) throw new Error(`Push partiel : ${pending.length} élément(s) remis en file`);
+}
+
+function updatePendingUI() {
+  if (typeof state !== "undefined" && state.sync) {
+    state.sync.pending = SyncState.queue.length;
+    if (typeof updateOfflinePill === "function") updateOfflinePill();
   }
 }
 
@@ -129,8 +153,13 @@ async function runSync() {
       await pullChanges();
       await pushChanges();
     }
+  } catch (e) {
+    // Ne bloque pas la synchronisation : un échec réseau transitoire
+    // sera retenté automatiquement (événement "online" ou prochain enqueue).
+    throw e;
   } finally {
     SyncState.running = false;
+    updatePendingUI();
   }
 }
 

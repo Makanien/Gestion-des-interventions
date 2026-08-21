@@ -1953,7 +1953,30 @@ async function runSyncNow() {
     toast("Synchronisation terminée");
     if (window.location.hash === "#/account") await renderAccount();
     else await renderHome();
-  } catch (err) { console.error(err); toast("Erreur de synchronisation", true); }
+  } catch (err) {
+    console.error(err);
+    toast("Erreur de synchronisation — nouvel essai automatique", true);
+    scheduleSyncRetry();
+  }
+}
+
+let _retryTimer = null;
+function scheduleSyncRetry(delay = 5000) {
+  if (_retryTimer) return;
+  _retryTimer = setTimeout(async () => {
+    _retryTimer = null;
+    if (!navigator.onLine) return;
+    try {
+      await Sync.pushAllLocal();
+      await Sync.runSync();
+      toast("Synchronisation réussie");
+      if (window.location.hash === "#/account") await renderAccount();
+      else await renderHome();
+    } catch (err) {
+      console.warn("Nouvel essai de synchronisation échoué", err);
+      scheduleSyncRetry(Math.min(delay * 2, 30000));
+    }
+  }, delay);
 }
 
 // ---------------------------------------------------------
@@ -1972,7 +1995,11 @@ async function init() {
         state.auth = { user: session.user, profile: pro };
         Sync.initRealtime();
         if (event === "SIGNED_IN" || event === "INITIAL_SESSION") await Sync.pushAllLocal();
-        await Sync.runSync().catch((e) => console.warn("Sync échec", e));
+        await Sync.runSync().catch((e) => {
+          console.warn("Sync échec (nouvel essai automatique)", e);
+          toast("Synchronisation en attente de réseau", true);
+          scheduleSyncRetry();
+        });
       } else {
         state.auth = null;
       }
