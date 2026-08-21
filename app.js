@@ -221,6 +221,7 @@ let state = {
   tachesFilter: { type: "", intervenant: "" },
   clientsCache: [],
   auth: null,
+  team: [],
   sync: { running: false, lastPulledAt: null, pending: 0 },
 };
 
@@ -243,6 +244,21 @@ function toast(msg, isError) {
 
 function currentRole() { return state.auth?.profile?.role || "responsable"; }
 function isManager() { return !state.auth || ["responsable", "secretaire"].includes(currentRole()); }
+
+// Résout le nom d'intervenant (texte) vers l'uuid du profil, pour que la
+// RLS serveur (technicien_id = auth.uid()) laisse le bon technicien
+// récupérer son rendez-vous en synchronisation.
+function resolveTechId(name) {
+  if (!name) return null;
+  const n = name.trim().toLowerCase();
+  const match = (state.team || []).find((p) => {
+    const fn = (p.full_name || "").trim().toLowerCase();
+    if (!fn) return false;
+    const parts = fn.split(/\s+/).filter(Boolean);
+    return fn === n || (parts[0] || "") === n || parts.includes(n);
+  });
+  return match ? match.id : null;
+}
 
 function emptyClient() {
   return { nom: "", adresse: "", code_postal: "", ville: "", mail: "", tel: "", type_batiment: "" };
@@ -494,8 +510,12 @@ async function planningHTML() {
   const clientMap = Object.fromEntries(clients.map((c) => [c.id, c.nom]));
   const today = todayISO();
   const myName = state.auth?.profile?.full_name || "";
-  const myFirstName = myName.split(/\s+/).filter(Boolean).pop() || myName;
-  let visible = isManager() ? rdvs : rdvs.filter((r) => !r.intervenant || r.intervenant === myName || r.intervenant === myFirstName);
+  const myFirstName = (myName.split(/\s+/).filter(Boolean)[0] || myName);
+  const uid = state.auth?.user?.id;
+  let visible = isManager() ? rdvs : rdvs.filter((r) =>
+    (r.technicien_id && r.technicien_id === uid) ||
+    (!r.intervenant || r.intervenant === myName || r.intervenant === myFirstName)
+  );
   const f = state.planFilter;
   if (f.type) visible = visible.filter((r) => r.type === f.type);
   if (f.intervenant) visible = visible.filter((r) => r.intervenant === f.intervenant);
@@ -882,6 +902,7 @@ async function renderRdv(id) {
     d.heure_fin = $("#r-hfin").value;
     d.type = $("#r-type").value.toLowerCase();
     d.intervenant = $("#r-intervenant").value;
+    d.technicien_id = resolveTechId(d.intervenant);
     d.note = cleanText($("#r-note").value);
     if (state.rdvPrefill?.client_id) d.client_id = state.rdvPrefill.client_id;
     await DB.saveRendezvous(d);
@@ -2248,6 +2269,8 @@ async function init() {
       if (session?.user) {
         const pro = await Supabase.getProfile(session.user.id).catch(() => null);
         state.auth = { user: session.user, profile: pro };
+        const team = await Supabase.listProfiles().catch(() => null);
+        state.team = team || [];
         Sync.initRealtime();
         if (event === "SIGNED_IN" || event === "INITIAL_SESSION") await Sync.pushAllLocal();
         await Sync.runSync().catch((e) => {

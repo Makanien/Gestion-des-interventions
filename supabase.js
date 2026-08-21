@@ -83,6 +83,12 @@ const Supabase = {
     const { error } = await c.from("profiles").upsert({ id: user.id, full_name, updated_at: new Date().toISOString() });
     if (error) throw error;
   },
+  async listProfiles() {
+    const c = initSupabase();
+    const { data, error } = await c.from("profiles").select("id, full_name");
+    if (error) throw error;
+    return data || [];
+  },
 
   // ---------------- Collections CRUD ----------------
   // Chaque méthode renvoie les lignes "propres" (sans les métadonnées
