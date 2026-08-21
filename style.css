@@ -368,6 +368,10 @@ main{flex:1;padding:14px 14px calc(90px + var(--safe-bottom));}
 }
 .add-line-btn svg{width:15px;height:15px;}
 .add-line-btn:active{background:#eef2f4;}
+.reuse-block{display:flex;align-items:center;gap:10px;background:#fff8e6;border:1px solid #f2d98a;border-radius:var(--ce-radius-sm);padding:10px 12px;margin-bottom:12px;}
+.reuse-block .reuse-info{flex:1;font-size:13px;color:#8a6d1a;font-weight:600;}
+.reuse-block .btn{width:auto;padding:10px 12px;font-size:13px;white-space:nowrap;}
+.reuse-block .btn svg{width:15px;height:15px;}
 
 /* ---------- Buttons ---------- */
 .btn{

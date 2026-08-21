@@ -1131,6 +1131,7 @@ function stepEquipHTML() {
   const max = meta?.maxEq || 3;
   return `
   ${meta ? `<div class="card" style="padding:14px;margin-bottom:12px;"><div class="field" style="margin-bottom:0;"><label>Année d'installation</label><input id="f-annee" type="text" inputmode="numeric" placeholder="Ex : 2021" value="${esc(d.annee_installation)}" /></div></div>` : ""}
+  <div id="eq-reuse"></div>
   <div class="section-label">Équipement(s) concerné(s)</div>
   <div id="eq-list">${d.equipements.map(equipLineHTML).join("")}</div>
   <button type="button" class="add-line-btn" id="add-eq">${ICONS.plus} Ajouter un équipement</button>
@@ -1145,7 +1146,29 @@ function wireEquipStep() {
     wireEquipLines();
   });
   wireEquipLines();
+  maybeShowEquipHistory();
   if (state.draftType === "intervention") autoResize("f-descriptif");
+}
+
+// Réutilisation de l'historique équipements du client (V2, point 5)
+async function maybeShowEquipHistory() {
+  const el = $("#eq-reuse");
+  const clientId = state.draft.client_id;
+  if (!el || !clientId || state.draft.equipements.length) { if (el) el.innerHTML = ""; return; }
+  const history = await DB.listEquipementsForClient(clientId);
+  const usable = history.filter((e) => e.intitule && e.intitule.trim());
+  if (!usable.length) { el.innerHTML = ""; return; }
+  el.innerHTML = `
+  <div class="reuse-block">
+    <div class="reuse-info">${usable.length} équipement${usable.length > 1 ? "s" : ""} déjà enregistré${usable.length > 1 ? "s" : ""} pour ce client</div>
+    <button type="button" class="btn btn-ghost" id="reuse-eq">${ICONS.sync} Reprendre l'équipement enregistré</button>
+  </div>`;
+  $("#reuse-eq").addEventListener("click", () => {
+    state.draft.equipements = usable.map((e) => ({ intitule: e.intitule, marque: e.marque || "", modele: e.modele || "", numero_serie: e.numero_serie || "" }));
+    el.innerHTML = "";
+    $("#eq-list").innerHTML = state.draft.equipements.map(equipLineHTML).join("");
+    wireEquipLines();
+  });
 }
 function autoResize(id) {
   const ta = document.getElementById(id);

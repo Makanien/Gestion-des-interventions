@@ -1,6 +1,6 @@
 # Tâches à faire — V3 (compléments identifiés)
 
-> Dernière mise à jour : 21/08/2026 — sur la base de la comparaison spec V3 (§3.3 du PRD)
+> Dernière mise à jour : 22/08/2026 — sur la base de la comparaison spec V3 (§3.3 du PRD)
 > vs implémentation réelle (branche `application-v3`).
 >
 > Légende :
@@ -76,9 +76,9 @@
 **Objectif :** pré-remplir l'étape Équipement à partir de l'historique du client.
 
 - [x] L'historisation existe (fin de wizard : `DB.saveClientEquipment`) — `idb.js` / `app.js`
-- [ ] Dans l'étape « Équipement » du wizard, si le client a un historique :
+- [x] Dans l'étape « Équipement » du wizard, si le client a un historique :
       proposer un bouton « Reprendre l'équipement enregistré » qui alimente
-      `draft.equipements` (`DB.listEquipementsForClient`)
+      `draft.equipements` (`DB.listEquipementsForClient`) — `app.js` (`maybeShowEquipHistory`)
 
 **Fichiers :** `app.js`
 
@@ -116,6 +116,6 @@
 |---|---|
 | 1 | ~~Câbler les filtres Tâches (`wireTab`) + styles filtre (points 3)~~ ✅
 | 2 | Stats « par client » (point 2) |
-| 3 | Réutilisation historique équipement dans le wizard (point 5) |
+| 3 | ~~Réutilisation historique équipement dans le wizard (point 5)~~ ✅
 | 4 | Upload photos/documents en fin de wizard + import (point 6) |
 | 5 | Vérification finale + `sw.js` + PRD (point 7) |
