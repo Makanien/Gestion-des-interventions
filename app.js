@@ -357,9 +357,13 @@ async function route() {
     if (parts[1]) await renderAppelEdit(parts[1]);
     else { state.appelDraft = null; await renderAppel(); }
   } else if (parts[0] === "rdv") {
-    renderRdv();
+    renderRdv(parts[1] || null);
+  } else if (parts[0] === "contrats") {
+    renderContrats();
   } else if (parts[0] === "contrat") {
     renderContrat(parts[1] || null);
+  } else if (parts[0] === "detail-contrat" && parts[1]) {
+    await renderDetailContrat(parts[1]);
   } else if (parts[0] === "stats") {
     await renderStats();
   } else if (parts[0] === "account") {
@@ -478,27 +482,43 @@ async function planningHTML() {
   const today = todayISO();
   const myName = state.auth?.profile?.full_name || "";
   const myFirstName = myName.split(/\s+/).filter(Boolean).pop() || myName;
-  const visible = isManager() ? rdvs : rdvs.filter((r) => !r.intervenant || r.intervenant === myName || r.intervenant === myFirstName);
+  let visible = isManager() ? rdvs : rdvs.filter((r) => !r.intervenant || r.intervenant === myName || r.intervenant === myFirstName);
+  const f = state.planFilter = state.planFilter || { type: "", intervenant: "" };
+  if (f.type) visible = visible.filter((r) => r.type === f.type);
+  if (f.intervenant) visible = visible.filter((r) => r.intervenant === f.intervenant);
+  const filterBar = `
+    <div class="filter-row">
+      <select class="filter-select" id="pf-type">
+        <option value="">Type : tous</option>
+        <option value="depannage" ${f.type === "depannage" ? "selected" : ""}>Dépannage</option>
+        <option value="entretien" ${f.type === "entretien" ? "selected" : ""}>Entretien</option>
+        <option value="rdv_devis" ${f.type === "rdv_devis" ? "selected" : ""}>Rdv devis</option>
+      </select>
+      ${isManager() ? `
+      <select class="filter-select" id="pf-tech">
+        <option value="">Intervenant : tous</option>
+        ${["Jérémy", "Régis", "Delphine"].map((t) => `<option value="${t}" ${f.intervenant === t ? "selected" : ""}>${t}</option>`).join("")}
+      </select>` : ""}
+    </div>`;
   const byDate = {};
   for (const r of visible) {
     const key = r.date || today;
     (byDate[key] = byDate[key] || []).push(r);
   }
   const days = Object.keys(byDate).sort();
-  if (!days.length) return `<div class="empty-state"><div class="glyph">${ICONS.calendar}</div><h3>Aucun rendez-vous</h3><p>Créez un rendez-vous depuis le bouton + ou un appel client.</p></div>`;
-
-  return days.map((d) => `
+  const body = days.length ? days.map((d) => `
     <div class="section-label">${d === today ? "Aujourd'hui" : fmtDateShortLong(d)}</div>
     ${byDate[d].map((r) => `
-      <div class="rdv-item">
+      <button class="rdv-item" data-nav="rdv-edit" data-id="${r.id}">
         <span class="rdv-time">${esc(r.heure_debut || "—")}</span>
         <span class="rdv-body">
           <span class="rdv-name">${esc(clientMap[r.client_id] || "Rendez-vous")}</span>
           <span class="rdv-sub">${esc(r.note || r.type || "")}</span>
           <span class="ii-tags"><span class="tag blue">${esc(r.intervenant || "Non affecté")}</span>${r.type ? `<span class="tag">${esc(r.type)}</span>` : ""}</span>
         </span>
-      </div>`).join("")}
-  `).join("");
+      </button>`).join("")}
+  `).join("") : `<div class="empty-state"><div class="glyph">${ICONS.calendar}</div><h3>Aucun rendez-vous</h3><p>Créez un rendez-vous depuis le bouton + ou un appel client.</p></div>`;
+  return filterBar + body;
 }
 
 async function tachesHTML() {
@@ -776,12 +796,19 @@ async function saveAppelFromDraft(action) {
 // ---------------------------------------------------------
 // Rendez-vous (US-02)
 // ---------------------------------------------------------
-function renderRdv() {
+async function renderRdv(id) {
   const p = state.rdvPrefill || {};
-  const d = state.rdvDraft || { date: todayISO(), heure_debut: "09:00", heure_fin: "10:00", type: "depannage", intervenant: "", note: p.note || "" };
-  state.rdvDraft = d;
+  let d;
+  if (id) {
+    d = state.rdvDraft = await DB.getRaw("rendezvous", id);
+  } else {
+    d = state.rdvDraft || { date: todayISO(), heure_debut: "09:00", heure_fin: "10:00", type: "depannage", intervenant: "", note: p.note || "" };
+    state.rdvDraft = d;
+  }
+  const isEdit = !!id && !!d;
+  if (!d) { go("#/"); return; }
   setApp(`
-    ${topbar({ title: "Nouveau rendez-vous", subtitle: "Planning", back: true })}
+    ${topbar({ title: isEdit ? "Modifier le rendez-vous" : "Nouveau rendez-vous", subtitle: "Planning", back: true, actions: isEdit ? `<button class="icon-btn" data-nav="rdv-delete" data-id="${d.id}" title="Supprimer">${ICONS.trash}</button>` : "" })}
     <main>
       <div class="card" style="padding:14px;">
         ${p.nom ? `<div class="note blue">Client : <strong>${esc(p.nom)}</strong></div>` : ""}
@@ -802,7 +829,7 @@ function renderRdv() {
         </div>
         <div class="field"><label>Note / motif</label><textarea id="r-note">${esc(d.note)}</textarea></div>
       </div>
-      <button class="btn btn-accent" id="btn-save-rdv" style="margin-top:14px;">${ICONS.check} Enregistrer le rendez-vous</button>
+      <button class="btn btn-accent" id="btn-save-rdv" style="margin-top:14px;">${ICONS.check} ${isEdit ? "Enregistrer les modifications" : "Enregistrer le rendez-vous"}</button>
     </main>
     <div class="toast" id="toast"></div>
   `);
@@ -817,7 +844,7 @@ function renderRdv() {
     if (state.rdvPrefill?.client_id) d.client_id = state.rdvPrefill.client_id;
     await DB.saveRendezvous(d);
     state.rdvDraft = null; state.rdvPrefill = null;
-    toast("Rendez-vous enregistré");
+    toast(isEdit ? "Rendez-vous modifié" : "Rendez-vous enregistré");
     state.tab = "planning";
     go("#/");
   });
@@ -1678,6 +1705,7 @@ async function renderStats() {
   const byType = {};
   const byTech = {};
   const byStatut = {};
+  const byClient = {};
   for (const i of itvs) {
     const m = (i.date || "").slice(0, 7);
     byMonth[m] = (byMonth[m] || 0) + 1;
@@ -1686,6 +1714,8 @@ async function renderStats() {
     const tech = i.technicien_nom || "Non renseigné";
     byTech[tech] = (byTech[tech] || 0) + 1;
     byStatut[statutDossierLabel(i.statut_dossier)] = (byStatut[statutDossierLabel(i.statut_dossier)] || 0) + 1;
+    const client = i.client?.nom || "Non renseigné";
+    byClient[client] = (byClient[client] || 0) + 1;
   }
   const months = Object.keys(byMonth).sort().slice(-6);
   const maxMonth = Math.max(1, ...Object.values(byMonth));
@@ -1718,6 +1748,11 @@ async function renderStats() {
       <div class="card">
         ${sortedByVal(byStatut).map(([k, v]) => `<div class="kv"><div class="k" style="width:auto;flex:1;">${esc(k)}</div><div class="v">${v}</div></div>`).join("") || `<div class="block-text">Aucune donnée.</div>`}
       </div>
+
+      <div class="section-label">Par client</div>
+      <div class="card">
+        ${sortedByVal(byClient).map(([k, v]) => `<div class="kv"><div class="k" style="width:auto;flex:1;">${esc(k)}</div><div class="v">${v}</div></div>`).join("") || `<div class="block-text">Aucune donnée.</div>`}
+      </div>
     </main>
     <div class="toast" id="toast"></div>
   `);
@@ -1731,10 +1766,11 @@ function monthLabel(ym) {
 // CONTRAT D'ENTRETIEN (US-24)
 // ---------------------------------------------------------
 function renderContrat(id) {
-  const c = state.contratDraft || { id: id || null, client_id: null, nb_passages: "1", tarification_zone_km: "", conditions_generales: "", signe_client: "", signe_technicien: "" };
+  const c = state.contratDraft || { id: id || null, client_id: null, nom: "", nb_passages: "1", tarification_zone_km: "", conditions_generales: "", signe_client: "", signe_technicien: "", client_signature_url: null, technicien_signature_url: null, numero: null };
   state.contratDraft = c;
+  const isEdit = !!c.id;
   setApp(`
-    ${topbar({ title: "Contrat d'entretien annuel", back: true })}
+    ${topbar({ title: isEdit ? "Modifier le contrat" : "Contrat d'entretien annuel", back: true, actions: isEdit ? `<button class="icon-btn" data-nav="contrat-delete" data-id="${c.id}" title="Supprimer">${ICONS.trash}</button>` : "" })}
     <main>
       <div class="card" style="padding:14px;">
         <div class="field"><label>Client *</label><input id="ct-client" type="text" placeholder="Nom du client" value="${esc(c.nom || "")}" /></div>
@@ -1744,10 +1780,32 @@ function renderContrat(id) {
         <div class="field"><label>Tarification par zone / km</label><input id="ct-zone" type="text" value="${esc(c.tarification_zone_km)}" placeholder="Ex : Z2 — 25 €" /></div>
         <div class="field"><label>Conditions générales</label><textarea id="ct-cg" placeholder="Conditions générales du contrat…">${esc(c.conditions_generales)}</textarea></div>
       </div>
+      <div class="section-label">Signatures</div>
+      <div class="card" style="padding:14px;">
+        <button type="button" class="add-line-btn" id="btn-ct-client-sign">${ICONS.pencil.replace('width="24" height="24"', 'width="15" height="15"')} Signer (client)</button>
+        <div class="sig-preview" id="ct-client-preview" style="display:${c.client_signature_url ? "block" : "none"};margin-top:10px;"><img id="ct-client-img" src="${c.client_signature_url ? esc(c.client_signature_url) : ""}" alt="Signature client" /></div>
+        <button type="button" class="add-line-btn" id="btn-ct-tech-sign" style="margin-top:10px;">${ICONS.pencil.replace('width="24" height="24"', 'width="15" height="15"')} Signer (technicien)</button>
+        <div class="sig-preview" id="ct-tech-preview" style="display:${c.technicien_signature_url ? "block" : "none"};margin-top:10px;"><img id="ct-tech-img" src="${c.technicien_signature_url ? esc(c.technicien_signature_url) : ""}" alt="Signature technicien" /></div>
+      </div>
       <button class="btn btn-accent" id="btn-save-contrat" style="margin-top:14px;">${ICONS.check} Enregistrer le contrat</button>
+      ${isEdit ? `<button class="btn btn-primary" id="btn-pdf-contrat" style="margin-top:9px;">${ICONS.file} Générer le PDF du contrat</button>` : ""}
     </main>
     <div class="toast" id="toast"></div>
   `);
+  $("#btn-ct-client-sign").addEventListener("click", async () => {
+    const blob = await signatureModal({ title: "Signature du client" });
+    if (!blob) return;
+    state.contratDraft._client_sig_blob = blob;
+    state.contratDraft.client_signature_url = await blobToDataURL(blob);
+    const p = $("#ct-client-preview"); p.style.display = "block"; $("#ct-client-img").src = state.contratDraft.client_signature_url;
+  });
+  $("#btn-ct-tech-sign").addEventListener("click", async () => {
+    const blob = await signatureModal({ title: "Signature du technicien" });
+    if (!blob) return;
+    state.contratDraft._technicien_sig_blob = blob;
+    state.contratDraft.technicien_signature_url = await blobToDataURL(blob);
+    const p = $("#ct-tech-preview"); p.style.display = "block"; $("#ct-tech-img").src = state.contratDraft.technicien_signature_url;
+  });
   $("#btn-save-contrat").addEventListener("click", async () => {
     const nom = $("#ct-client").value.trim();
     if (!nom) { toast("Indiquez le nom du client", true); return; }
@@ -1757,11 +1815,78 @@ function renderContrat(id) {
     state.contratDraft.nb_passages = $("#ct-passages").value;
     state.contratDraft.tarification_zone_km = $("#ct-zone").value.trim();
     state.contratDraft.conditions_generales = cleanText($("#ct-cg").value);
+    if (Supabase.configured() && state.auth && navigator.onLine) {
+      try {
+        if (state.contratDraft._client_sig_blob) state.contratDraft.client_signature_url = await Supabase.uploadSignature(`ct-client-${Date.now()}`, state.contratDraft._client_sig_blob);
+        if (state.contratDraft._technicien_sig_blob) state.contratDraft.technicien_signature_url = await Supabase.uploadSignature(`ct-tech-${Date.now()}`, state.contratDraft._technicien_sig_blob);
+      } catch (e) { console.warn("Upload signature échoué", e); }
+    }
     if (!state.contratDraft.numero) state.contratDraft.numero = await DB.nextNumero("CTR");
-    await DB.saveContrat({ ...state.contratDraft });
+    const saved = await DB.saveContrat({ ...state.contratDraft });
     state.contratDraft = null;
     toast("Contrat enregistré");
-    go("#/");
+    go(`#/detail-contrat/${saved.id}`);
+  });
+  $("#btn-pdf-contrat")?.addEventListener("click", async () => {
+    const client = state.contratDraft.client_id ? await DB.getClient(state.contratDraft.client_id) : null;
+    try { await downloadContratPDF(state.contratDraft, client); toast("PDF du contrat généré"); }
+    catch (err) { console.error(err); toast("Erreur lors de la génération du PDF", true); }
+  });
+}
+
+async function renderContrats() {
+  const [contrats, clients] = await Promise.all([DB.listContrats(), DB.listClients()]);
+  const clientMap = Object.fromEntries(clients.map((c) => [c.id, c]));
+  setApp(`
+    ${topbar({ title: "Contrats d'entretien", back: true })}
+    <main>
+      <div class="section-label">Contrats annuels</div>
+      ${contrats.length ? contrats.map((ct) => `
+        <button class="intervention-item" data-nav="contrat-edit" data-id="${ct.id}">
+          <span class="status-dot">${ICONS.file}</span>
+          <span class="ii-body">
+            <span class="ii-top"><span class="ii-client">${esc(ct.nom || clientMap[ct.client_id]?.nom || "Client")}</span><span class="ii-date">${esc(ct.numero || "")}</span></span>
+            <span class="ii-type">${esc(`${ct.nb_passages ? ct.nb_passages + " passage(s)/an" : ""}${ct.tarification_zone_km ? " · " + ct.tarification_zone_km : ""}`)}</span>
+            <span class="ii-tags">${ct.client_signature_url ? `<span class="tag done">Signé</span>` : `<span class="tag pending">Non signé</span>`}</span>
+          </span>
+          ${ICONS.chevron}
+        </button>`).join("") : `<div class="empty-state"><div class="glyph">${ICONS.file}</div><h3>Aucun contrat</h3><p>Créez un contrat d'entretien annuel depuis le bouton +.</p></div>`}
+    </main>
+    <div class="toast" id="toast"></div>
+  `);
+}
+
+async function renderDetailContrat(id) {
+  const ct = await DB.getContrat(id);
+  if (!ct) { go("#/contrats"); return; }
+  const client = ct.client_id ? await DB.getClient(ct.client_id) : null;
+  setApp(`
+    ${topbar({ title: "Contrat d'entretien", subtitle: ct.numero || "", back: true, actions: `<button class="icon-btn" data-nav="contrat-edit" data-id="${ct.id}" title="Modifier">${ICONS.pencil}</button>` })}
+    <main>
+      <div class="detail-header"><div class="meta">${esc(client?.nom || ct.nom || "Client")}</div></div>
+      <div class="section-label">Prestations</div>
+      <div class="card">
+        <div class="kv"><div class="k">Passages / an</div><div class="v">${esc(ct.nb_passages || "-")}</div></div>
+        <div class="kv"><div class="k">Tarification</div><div class="v">${esc(ct.tarification_zone_km || "-")}</div></div>
+        <div class="kv"><div class="k">Client</div><div class="v">${client ? esc([client.adresse, client.code_postal, client.ville].filter(Boolean).join(" ")) || "-" : "-"}</div></div>
+      </div>
+      ${ct.conditions_generales ? `
+      <div class="section-label">Conditions générales</div>
+      <div class="card"><div class="block-text">${esc(ct.conditions_generales)}</div></div>` : ""}
+      <div class="section-label">Signatures</div>
+      <div class="card">
+        <div class="kv"><div class="k">Client</div><div class="v">${ct.signe_client || ct.client_signature_url ? (ct.signe_client || "Signé") : "Non signé"}</div></div>
+        ${ct.client_signature_url ? `<div class="sig-preview" style="border:none;"><img src="${esc(ct.client_signature_url)}" alt="Signature client" /></div>` : ""}
+        <div class="kv"><div class="k">Technicien</div><div class="v">${ct.signe_technicien || ct.technicien_signature_url ? (ct.signe_technicien || "Signé") : "Non signé"}</div></div>
+        ${ct.technicien_signature_url ? `<div class="sig-preview" style="border:none;"><img src="${esc(ct.technicien_signature_url)}" alt="Signature technicien" /></div>` : ""}
+      </div>
+      <button class="btn btn-accent" id="btn-pdf-contrat" style="margin-top:14px;">${ICONS.file} Partager le PDF du contrat</button>
+    </main>
+    <div class="toast" id="toast"></div>
+  `);
+  $("#btn-pdf-contrat").addEventListener("click", async () => {
+    try { await downloadContratPDF(ct, client); toast("PDF du contrat généré"); }
+    catch (err) { console.error(err); toast("Erreur lors de la génération du PDF", true); }
   });
 }
 
@@ -1831,6 +1956,14 @@ document.addEventListener("click", async (e) => {
   else if (action === "appel-rdv") saveAppelFromDraft("rdv");
   else if (action === "appel-intervention") saveAppelFromDraft("intervention");
   else if (action === "appel-save") saveAppelFromDraft("sans_suite");
+  else if (action === "contrat-edit") go(`#/contrat/${nav.dataset.id}`);
+  else if (action === "contrat-delete") {
+    if (confirm("Supprimer ce contrat ?")) { await DB.deleteContrat(nav.dataset.id); toast("Contrat supprimé"); go("#/contrats"); }
+  }
+  else if (action === "rdv-edit") go(`#/rdv/${nav.dataset.id}`);
+  else if (action === "rdv-delete") {
+    if (confirm("Supprimer ce rendez-vous ?")) { await DB.deleteRendezvous(nav.dataset.id); toast("Rendez-vous supprimé"); state.tab = "planning"; go("#/"); }
+  }
   else if (action === "delete") {
     if (confirm("Supprimer définitivement cette fiche ?")) { await DB.deleteIntervention(nav.dataset.id); go("#/"); }
   }

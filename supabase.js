@@ -128,6 +128,34 @@ const Supabase = {
     const c = initSupabase();
     await c.storage.from("signatures").remove([`${id}.png`]);
   },
+
+  // ---------------- Storage (photos & documents — buckets privés V3) ----------------
+  // Les buckets "photos" et "documents" sont privés : on conserve le chemin
+  // de l'objet dans fichier_url (les données restent lisibles en local via
+  // le dataURL/base64, ce qui préserve le mode offline-first).
+  async uploadPhoto(id, dataUrl) {
+    const c = initSupabase();
+    const blob = await (await fetch(dataUrl)).blob();
+    const path = `${id}.jpg`;
+    const { error } = await c.storage.from("photos").upload(path, blob, {
+      contentType: "image/jpeg",
+      upsert: true,
+    });
+    if (error) throw error;
+    return path;
+  },
+
+  async uploadDocument(id, dataUrl) {
+    const c = initSupabase();
+    const blob = await (await fetch(dataUrl)).blob();
+    const path = `${id}.pdf`;
+    const { error } = await c.storage.from("documents").upload(path, blob, {
+      contentType: "application/pdf",
+      upsert: true,
+    });
+    if (error) throw error;
+    return path;
+  },
 };
 
 window.Supabase = Supabase;

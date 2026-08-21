@@ -579,6 +579,10 @@ const DB = {
     if (Supabase?.configured()) Sync.enqueueSync("contrats_entretien", contrat.id);
     return contrat;
   },
+  async getContrat(id) {
+    const c = await this.getRaw("contrats_entretien", id);
+    return c && !c._deleted ? c : null;
+  },
   async deleteContrat(id) {
     const c = await this.getRaw("contrats_entretien", id);
     if (!c) return true;
