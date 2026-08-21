@@ -89,11 +89,12 @@
 **Objectif :** uploader les photos et PDF vers les buckets privés (`photos`, `documents`).
 
 - [x] Méthodes `Supabase.uploadPhoto(id, dataUrl)` et `Supabase.uploadDocument(id, dataUrl)` — `supabase.js`
-- [ ] En fin de wizard (fiches intervention/entretien) : uploader chaque photo
+- [x] En fin de wizard (fiches intervention/entretien) : uploader chaque photo
       du brouillon et renseigner `fichier_url` — `app.js` (finishWizard)
-- [ ] À l'import d'un devis/facture (`importDocument`) : uploader le PDF et
+- [x] À l'import d'un devis/facture (`importDocument`) : uploader le PDF et
       renseigner `fichier_url` — `app.js`
-- [ ] Décider si on conserve le dataURL local (offline-first) en plus de l'upload
+- [x] Décision : on conserve le dataURL local (offline-first) **et** on
+      renseigne `fichier_url` (chemin Storage) — `app.js`
 
 **Fichiers :** `app.js`
 
@@ -117,5 +118,5 @@
 | 1 | ~~Câbler les filtres Tâches (`wireTab`) + styles filtre (points 3)~~ ✅
 | 2 | Stats « par client » (point 2) |
 | 3 | ~~Réutilisation historique équipement dans le wizard (point 5)~~ ✅
-| 4 | Upload photos/documents en fin de wizard + import (point 6) |
+| 4 | ~~Upload photos/documents en fin de wizard + import (point 6)~~ ✅ |
 | 5 | Vérification finale + `sw.js` + PRD (point 7) |

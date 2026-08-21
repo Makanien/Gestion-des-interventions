@@ -1524,6 +1524,19 @@ async function finishWizard() {
     } catch (e) { console.warn("Upload signature échoué", e); }
   }
 
+  // Upload des photos vers Supabase Storage (bucket privé « photos »).
+  // On conserve le dataURL local (offline-first) et on renseigne en plus
+  // `fichier_url` avec le chemin de l'objet stocké dans le bucket.
+  if (Supabase.configured() && state.auth && navigator.onLine) {
+    for (let i = 0; i < d.photos.length; i++) {
+      const photo = d.photos[i];
+      if (!photo || !photo.data_url || photo.fichier_url) continue;
+      try {
+        photo.fichier_url = await Supabase.uploadPhoto(`photo-${Date.now()}-${i}`, photo.data_url);
+      } catch (e) { console.warn("Upload photo échoué", e); }
+    }
+  }
+
   // Sauvegarde client
   const savedClient = d.client_id
     ? await DB.saveClient({ ...d.client })
@@ -1739,6 +1752,13 @@ async function importDocument(interventionId, type, inputEl) {
   if (file.size > 10 * 1024 * 1024) { toast("Fichier trop volumineux (max 10 Mo)", true); return; }
   const dataUrl = await new Promise((r) => { const fr = new FileReader(); fr.onload = () => r(fr.result); fr.readAsDataURL(file); });
   const doc = { type, nom: file.name, data_url: dataUrl, numero_externe: "" };
+  // Upload du PDF vers Supabase Storage (bucket privé « documents »).
+  // Le dataURL local est conservé pour l'affichage offline-first.
+  if (Supabase.configured() && state.auth && navigator.onLine) {
+    try {
+      doc.fichier_url = await Supabase.uploadDocument(`doc-${Date.now()}-${type}`, dataUrl);
+    } catch (e) { console.warn("Upload document échoué", e); }
+  }
   await DB.addDocument(interventionId, doc);
   toast(type === "devis" ? "Devis importé" : "Facture importée");
   await renderDetail(interventionId);
