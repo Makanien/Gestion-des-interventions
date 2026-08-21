@@ -217,6 +217,8 @@ let state = {
   draftType: "intervention", // intervention | air_eau | air_air | chaudiere
   step: 1,
   homeSearch: "",
+  planFilter: { type: "", intervenant: "" },
+  tachesFilter: { type: "", intervenant: "" },
   clientsCache: [],
   auth: null,
   sync: { running: false, lastPulledAt: null, pending: 0 },
@@ -474,6 +476,17 @@ async function renderTab() {
 
 function wireTab() {
   $all("[data-nav='detail']").forEach((el) => el.addEventListener("click", () => go(`#/detail/${el.dataset.id}`)));
+  const bind = (sel, evt, cb) => { const el = $(sel); if (el) el.addEventListener(evt, cb); };
+  bind("#home-search", "input", async (e) => {
+    state.homeSearch = e.target.value;
+    await renderTab();
+    const el = $("#home-search");
+    if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
+  });
+  bind("#pf-type", "change", (e) => { state.planFilter.type = e.target.value; renderTab(); });
+  bind("#pf-tech", "change", (e) => { state.planFilter.intervenant = e.target.value; renderTab(); });
+  bind("#tf-type", "change", (e) => { state.tachesFilter.type = e.target.value; renderTab(); });
+  bind("#tf-tech", "change", (e) => { state.tachesFilter.intervenant = e.target.value; renderTab(); });
 }
 
 async function planningHTML() {
@@ -483,7 +496,7 @@ async function planningHTML() {
   const myName = state.auth?.profile?.full_name || "";
   const myFirstName = myName.split(/\s+/).filter(Boolean).pop() || myName;
   let visible = isManager() ? rdvs : rdvs.filter((r) => !r.intervenant || r.intervenant === myName || r.intervenant === myFirstName);
-  const f = state.planFilter = state.planFilter || { type: "", intervenant: "" };
+  const f = state.planFilter;
   if (f.type) visible = visible.filter((r) => r.type === f.type);
   if (f.intervenant) visible = visible.filter((r) => r.intervenant === f.intervenant);
   const filterBar = `
@@ -521,16 +534,45 @@ async function planningHTML() {
   return filterBar + body;
 }
 
+function matchesType(i, t) {
+  if (!t) return true;
+  if (t === "Entretiens") return !!i.type_entretien || i.type_intervention === "Entretien";
+  return i.type_intervention === t;
+}
+function matchesIntervenant(i, name) {
+  if (!name) return true;
+  return (i.technicien_nom || "").toLowerCase().includes(name.toLowerCase());
+}
+function matchesSearch(i, q) {
+  const label = i.type_entretien ? (ENTRETIEN_META[i.type_entretien]?.label || "Entretien") : (i.type_intervention || "");
+  return `${i.client?.nom || ""} ${i.type_intervention || ""} ${label}`.toLowerCase().includes(q);
+}
+
 async function tachesHTML() {
   const interventions = await DB.listInterventions();
   const q = state.homeSearch.trim().toLowerCase();
-  const visible = isManager() ? interventions : interventions.filter((i) => !i.technicien_id || i.technicien_id === state.auth?.user?.id);
-  // masquer les tâches réalisées par défaut (sauf si recherche)
-  let filtered = q ? visible : visible.filter((i) => i.statut !== "terminee");
-  if (q) filtered = visible.filter((i) => (i.client?.nom || "").toLowerCase().includes(q) || (i.type_intervention || "").toLowerCase().includes(q));
+  const f = state.tachesFilter;
+  let visible = isManager() ? interventions : interventions.filter((i) => !i.technicien_id || i.technicien_id === state.auth?.user?.id);
+  if (f.type) visible = visible.filter((i) => matchesType(i, f.type));
+  if (f.intervenant) visible = visible.filter((i) => matchesIntervenant(i, f.intervenant));
+  // masquer les tâches réalisées par défaut (sauf si recherche active)
+  const filtered = q ? visible.filter((i) => matchesSearch(i, q)) : visible.filter((i) => i.statut !== "terminee");
+  const filterBar = `
+    <div class="filter-row">
+      <select class="filter-select" id="tf-type">
+        <option value="">Type : tous</option>
+        ${["Dépannage", "Garantie", "Diagnostic", "Entretiens"].map((t) => `<option value="${t}" ${f.type === t ? "selected" : ""}>${t}</option>`).join("")}
+      </select>
+      ${isManager() ? `
+      <select class="filter-select" id="tf-tech">
+        <option value="">Intervenant : tous</option>
+        ${["Jérémy", "Régis", "Delphine"].map((t) => `<option value="${t}" ${f.intervenant === t ? "selected" : ""}>${t}</option>`).join("")}
+      </select>` : ""}
+    </div>`;
   return `
     <div class="search-wrap">${ICONS.search}<input id="home-search" type="text" placeholder="Rechercher un client, un type…" value="${esc(state.homeSearch)}" /></div>
-    ${filtered.length ? filtered.map(itemHTML).join("") : `<div class="empty-state"><div class="glyph">${ICONS.wrench}</div><h3>Aucune tâche</h3><p>${q ? "Essayez un autre terme." : "Créez une intervention ou un entretien depuis le bouton +."}</p></div>`}`;
+    ${filterBar}
+    ${filtered.length ? filtered.map(itemHTML).join("") : `<div class="empty-state"><div class="glyph">${ICONS.wrench}</div><h3>Aucune tâche</h3><p>${q || f.type || f.intervenant ? "Aucun résultat avec ces critères." : "Créez une intervention ou un entretien depuis le bouton +."}</p></div>`}`;
 }
 
 function itemHTML(itv) {

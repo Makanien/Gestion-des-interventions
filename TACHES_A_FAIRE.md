@@ -50,11 +50,12 @@
 
 ### Tâches (accueil)
 - [x] Filtre par type (Dépannage / Garantie / Diagnostic / Entretiens) et par intervenant — `app.js` (`tachesHTML`)
-- [ ] **Câbler les `<select>` des filtres** dans `wireTab()` (mise à jour de `state.tachesFilter` + re-rendu)
-- [ ] Vérifier que le masquage « tâches réalisées par défaut » tient compte des filtres
+- [x] Câbler les `<select>` des filtres dans `wireTab()` (mise à jour de `state.tachesFilter` + re-rendu)
+      (également câblés : filtres Planning `pf-type`/`pf-tech` et recherche `home-search`)
+- [x] Vérifier que le masquage « tâches réalisées par défaut » tient compte des filtres
 
 ### CSS
-- [ ] Ajouter les styles `.filter-row` / `.filter-select` (et `button.rdv-item` éventuel) — `style.css`
+- [x] Ajouter les styles `.filter-row` / `.filter-select` (et `button.rdv-item` éventuel) — `style.css`
 
 **Fichiers :** `app.js`, `style.css`
 
@@ -113,7 +114,7 @@
 
 | Priorité | Tâche |
 |---|---|
-| 1 | Câbler les filtres Tâches (`wireTab`) + styles filtre (points 3) |
+| 1 | ~~Câbler les filtres Tâches (`wireTab`) + styles filtre (points 3)~~ ✅
 | 2 | Stats « par client » (point 2) |
 | 3 | Réutilisation historique équipement dans le wizard (point 5) |
 | 4 | Upload photos/documents en fin de wizard + import (point 6) |
