@@ -320,4 +320,60 @@ async function downloadInterventionPDF(itv, client) {
   doc.save(filename);
 }
 
+// Récupère le PDF d'un document importé (dataURL) sous forme de bytes.
+async function docBytesFromDataUrl(dataUrl) {
+  const res = await fetch(dataUrl);
+  return res.arrayBuffer();
+}
+
+// Construit le dossier final : fiche d'intervention + facture fusionnées.
+// Retourne null si aucune facture n'est importée dans le dossier.
+async function buildMergedDossierPDF(itv, client) {
+  const facture = (itv.documents || []).find((d) => d.type === "facture" && d.data_url);
+  if (!facture) return null;
+
+  const fiche = await generateInterventionPDF(itv, client);
+  const ficheBytes = fiche.output("arraybuffer");
+
+  const { PDFDocument } = window.PDFLib;
+  const merged = await PDFDocument.create();
+
+  const ficheDoc = await PDFDocument.load(ficheBytes);
+  const factureDoc = await PDFDocument.load(await docBytesFromDataUrl(facture.data_url));
+
+  const facturePages = await merged.copyPages(factureDoc, factureDoc.getPageIndices());
+  facturePages.forEach((p) => merged.addPage(p));
+
+  const fichePages = await merged.copyPages(ficheDoc, ficheDoc.getPageIndices());
+  fichePages.forEach((p) => merged.addPage(p));
+
+  return merged.save();
+}
+
+// Télécharge (ou partage via l'API native) le dossier final fusionné.
+async function downloadMergedDossierPDF(itv, client) {
+  const bytes = await buildMergedDossierPDF(itv, client);
+  if (!bytes) throw new Error("Aucune facture importée dans ce dossier");
+
+  const filename = `Dossier_${(client?.nom || "client").replace(/[^a-z0-9]+/gi, "_")}_${itv.date || ""}.pdf`;
+  const blob = new Blob([bytes], { type: "application/pdf" });
+
+  if (navigator.canShare && navigator.canShare({ files: [new File([blob], filename, { type: "application/pdf" })] })) {
+    try {
+      const file = new File([blob], filename, { type: "application/pdf" });
+      await navigator.share({ files: [file], title: filename });
+      return;
+    } catch (e) {
+      // annulé ou non supporté -> fallback téléchargement
+    }
+  }
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
 window.downloadInterventionPDF = downloadInterventionPDF;
+window.buildMergedDossierPDF = buildMergedDossierPDF;
+window.downloadMergedDossierPDF = downloadMergedDossierPDF;

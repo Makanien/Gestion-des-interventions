@@ -1492,6 +1492,8 @@ async function renderDetail(id) {
   const client = itv.client_id ? await DB.getClient(itv.client_id) : itv.client;
   const meta = itv.type_entretien ? ENTRETIEN_META[itv.type_entretien] : null;
   const label = meta ? meta.label : (itv.type_intervention || "-");
+  const hasFacture = (itv.documents || []).some((d) => d.type === "facture" && d.data_url);
+  const dossierPret = ["facture_verifiee", "a_envoyer", "cloturee"].includes(itv.statut_dossier);
 
   setApp(`
     <div class="topbar">
@@ -1585,6 +1587,7 @@ async function renderDetail(id) {
 
       <div style="margin-top:22px;">
         <button class="btn btn-accent" id="btn-pdf">${ICONS.share} Générer et partager le PDF</button>
+        ${hasFacture && dossierPret ? `<button class="btn btn-primary" id="btn-dossier" style="margin-top:9px;width:100%;">${ICONS.file} Générer le dossier final (fiche + facture)</button>` : ""}
       </div>
     </main>
     <div class="toast" id="toast"></div>
@@ -1599,6 +1602,16 @@ async function renderDetail(id) {
     try { await downloadInterventionPDF(itv, client); toast("PDF prêt"); }
     catch (err) { console.error(err); toast("Erreur lors de la génération du PDF", true); }
     finally { btn.disabled = false; btn.innerHTML = `${ICONS.share} Générer et partager le PDF`; }
+  });
+
+  const btnDossier = $("#btn-dossier");
+  if (btnDossier) btnDossier.addEventListener("click", async (e) => {
+    const btn = e.currentTarget;
+    btn.disabled = true;
+    btn.innerHTML = `${ICONS.file} Génération du dossier…`;
+    try { await downloadMergedDossierPDF(itv, client); toast("Dossier final généré"); }
+    catch (err) { console.error(err); toast("Erreur lors de la génération du dossier final", true); }
+    finally { btn.disabled = false; btn.innerHTML = `${ICONS.file} Générer le dossier final (fiche + facture)`; }
   });
 
   $("#doc-input").addEventListener("change", () => importDocument(itv.id, "facture", $("#doc-input")));
@@ -1772,6 +1785,22 @@ document.addEventListener("click", async (e) => {
   }
   else if (action === "duplicate") duplicateIntervention(nav.dataset.id);
   else if (action === "wf") {
+    if (nav.dataset.to === "facture_verifiee") {
+      const itv = await DB.getIntervention(nav.dataset.id);
+      if (!(itv.documents || []).some((d) => d.type === "facture" && d.data_url)) {
+        toast("Importez d'abord la facture (PDF) avant de fusionner", true);
+        return;
+      }
+      const client = itv.client_id ? await DB.getClient(itv.client_id) : null;
+      await DB.setStatutDossier(nav.dataset.id, nav.dataset.to);
+      toast("Facture vérifiée — génération du dossier final…");
+      await renderDetail(nav.dataset.id);
+      try {
+        await downloadMergedDossierPDF(itv, client);
+        toast("Dossier final (fiche + facture) généré");
+      } catch (err) { console.error(err); toast("Erreur lors de la génération du dossier final", true); }
+      return;
+    }
     await DB.setStatutDossier(nav.dataset.id, nav.dataset.to);
     toast("Statut mis à jour");
     await renderDetail(nav.dataset.id);
