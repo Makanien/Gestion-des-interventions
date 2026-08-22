@@ -1,8 +1,8 @@
 # PRD — Application de gestion des fiches d'intervention
 ## Climat Elec (Chazé-sur-Argos)
 
-**Version du document :** 1.12
-**Date :** 22/08/2026
+**Version du document :** 1.13
+**Date :** 23/08/2026
 **Auteur :** Rédigé avec Claude, sur la base des échanges avec le porteur de projet
 
 ---
@@ -91,6 +91,7 @@ Récapitulatif des changements fonctionnels et techniques effectivement dévelop
 - **Signature tactile** client et technicien (modale de dessin) générant une image.
 - **Upload des signatures vers Supabase Storage** (bucket `signatures`) + URL publique stockée sur la fiche.
 - Fallback local (dataURL) si hors ligne ou si le storage n'est pas configuré.
+- **Upload différé des signatures hors ligne** : une signature capturée sans réseau reste un dataURL local (persisté sur la fiche) ; dès que la connexion revient, elle est automatiquement convertie en image, uploadée vers le bucket `signatures` et remplacée par l'URL publique, puis re-synchronisée (`uploadPendingSignatures` dans `sync.js`). Fonctionne aussi après rechargement de la page.
 
 ### Divers / technique
 - **PWA** : mécanisme de mise à jour du service worker (`updatefound`).
@@ -300,6 +301,7 @@ Brouillon → À valider → Validée → À facturer → Facture importée → 
 - **Push robuste** : les éléments non envoyés (coupure réseau en cours de push) sont **remis en file** au lieu d'être perdus jusqu'au prochain sign-in.
 - **Enrichissement des listes** : `listInterventions` complète automatiquement `client.nom`/`client.ville` (jointure locale avec la table `clients`).
 - **Anti-réinitialisation Realtime** : une seule initialisation par session (`initRealtime`).
+- **Upload différé des signatures hors ligne** : les signatures capturées sans réseau (dataURL local) sont automatiquement ré-uploadées vers le bucket `signatures` au retour de la connexion, puis re-synchronisées (`uploadPendingSignatures`, cf. §3.1).
 
 ### Correction — Visibilité des rendez-vous par technicien (22/08/2026)
 

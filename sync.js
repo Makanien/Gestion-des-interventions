@@ -91,6 +91,43 @@ function mergeRemote(store, local, remote) {
   return cleaned;
 }
 
+// C4 : upload différé des signatures capturées hors ligne.
+// Tant que le réseau est indisponible, la signature reste un dataURL local
+// (persisté dans client_signature_url / technicien_signature_url). Dès que la
+// connexion revient, on convertit le dataURL en Blob, on l'upload vers Storage
+// et on remplace le dataURL par l'URL publique, puis on remet la ligne en file
+// pour la pousser. Fonctionne aussi après rechargement (le dataURL persiste).
+async function uploadPendingSignatures() {
+  if (!Supabase.configured() || !navigator.onLine) return;
+  for (const store of ["interventions", "contrats_entretien"]) {
+    const rows = await DB.listRaw(store);
+    for (const row of rows) {
+      if (row._deleted) continue;
+      let changed = false;
+      if (row.client_signature_url && row.client_signature_url.startsWith("data:")) {
+        try {
+          const blob = await (await fetch(row.client_signature_url)).blob();
+          row.client_signature_url = await Supabase.uploadSignature(`sig-client-${row.id}`, blob);
+          delete row._client_sig_blob;
+          changed = true;
+        } catch (e) { console.warn("Upload différé signature client échoué", e); }
+      }
+      if (row.technicien_signature_url && row.technicien_signature_url.startsWith("data:")) {
+        try {
+          const blob = await (await fetch(row.technicien_signature_url)).blob();
+          row.technicien_signature_url = await Supabase.uploadSignature(`sig-tech-${row.id}`, blob);
+          delete row._technicien_sig_blob;
+          changed = true;
+        } catch (e) { console.warn("Upload différé signature technicien échoué", e); }
+      }
+      if (changed) {
+        await DB.putRaw(store, row);
+        enqueueSync(store, row.id);
+      }
+    }
+  }
+}
+
 // ---------------- Push : envoie les changements locaux ----------------
 // Ne retire de la file que les éléments réellement envoyés : si le réseau
 // coupe en plein push, le reste est remis en file pour une tentative suivante
@@ -172,6 +209,7 @@ async function runSync() {
   SyncState.running = true;
   try {
     if (navigator.onLine) {
+      await uploadPendingSignatures();
       await pullChanges();
       await pushChanges();
     }
@@ -225,4 +263,4 @@ function initRealtime() {
   }
 }
 
-window.Sync = { runSync, pullChanges, pushChanges, enqueueSync, initRealtime, scheduleSync, pushAllLocal, state: SyncState };
+window.Sync = { runSync, pullChanges, pushChanges, enqueueSync, initRealtime, scheduleSync, pushAllLocal, uploadPendingSignatures, state: SyncState };
