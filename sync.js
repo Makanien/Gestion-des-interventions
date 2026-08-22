@@ -70,9 +70,25 @@ async function applyRemote(store, remote) {
     if (isDeleted) {
       await DB.deleteRaw(store, remote.id);
     } else {
-      await DB.putRaw(store, cleanRow(store, remote));
+      await DB.putRaw(store, mergeRemote(store, local, remote));
     }
   }
+}
+
+// P4 : un dataURL de signature (capturé hors ligne) reste local tant qu'aucune
+// URL Storage n'existe côté serveur. On le préserve lors du pull pour ne pas
+// perdre l'affichage de la signature hors ligne (le remote a alors un null).
+function mergeRemote(store, local, remote) {
+  const cleaned = cleanRow(store, remote);
+  if (store === "interventions" || store === "contrats_entretien") {
+    if (!cleaned.client_signature_url && local.client_signature_url && local.client_signature_url.startsWith("data:")) {
+      cleaned.client_signature_url = local.client_signature_url;
+    }
+    if (!cleaned.technicien_signature_url && local.technicien_signature_url && local.technicien_signature_url.startsWith("data:")) {
+      cleaned.technicien_signature_url = local.technicien_signature_url;
+    }
+  }
+  return cleaned;
 }
 
 // ---------------- Push : envoie les changements locaux ----------------
@@ -133,6 +149,12 @@ function cleanRow(store, row) {
   delete out._brouillon;        // champs transitoires de brouillon
   delete out._client_sig_blob;  // Blob signature (non sérialisable / non stocké côté SQL)
   delete out._technicien_sig_blob;
+  // P4 : ne jamais pousser un dataURL base64 (signature capturée hors ligne)
+  // vers SQL — la colonne ne doit contenir qu'une URL Storage. Le dataURL
+  // reste en local pour l'affichage, et sera remplacé par l'URL Storage dès
+  // que l'upload différé aboutira (C4).
+  if (out.client_signature_url && out.client_signature_url.startsWith("data:")) out.client_signature_url = null;
+  if (out.technicien_signature_url && out.technicien_signature_url.startsWith("data:")) out.technicien_signature_url = null;
   // Les colonnes text not null côté SQL n'acceptent pas un null explicite
   // (PostgREST insère NULL au lieu du défaut ''). On normalise ici.
   if ((store === "interventions" || store === "contrats_entretien") && (out.numero === null || out.numero === undefined)) {

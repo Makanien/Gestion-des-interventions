@@ -138,33 +138,36 @@
 
 ## 6. ✅ Checklist de suivi
 
+> **Vérification du 23/08/2026 (branche `application-v3`) :** points revus contre le code actuel.
+> ☑ = corrigé depuis la revue · ◐ = partiellement corrigé · ☐ = toujours d'actualité.
+
 | Réf | Sévérité | Résolu | Note |
 |---|---|---|---|
-| S1 | Élevé | ☐ | |
-| S2 | Moyen | ☐ | |
-| S3 | Info | ☐ | |
-| S4 | Info | ☐ | |
-| S5 | OK | ☐ | rien à faire |
-| P1 | Moyen | ☐ | |
-| P2 | Bas | ☐ | |
-| P3 | Moyen | ☐ | |
-| P4 | Moyen | ☐ | |
-| C1 | Élevé | ☐ | |
-| C2 | Moyen | ☐ | |
-| C3 | Moyen | ☐ | |
-| C4 | Moyen | ☐ | |
-| C5 | Bas | ☐ | |
-| C6 | Bas | ☐ | |
-| C7 | Bas | ☐ | |
-| C8 | Bas | ☐ | |
-| D1 | Bas | ☐ | |
-| D2 | Bas | ☐ | |
-| D3 | Bas | ☐ | |
-| D4 | Bas | ☐ | |
-| D5 | Bas | ☐ | |
-| D6 | Bas | ☐ | |
-| D7 | Bas | ☐ | |
-| D8 | Bas | ☐ | |
-| D9 | Bas | ☐ | |
+| S1 | Élevé | ☑ | RLS par rôle (`001_roles_rls.sql`) : interventions/pieces_utilisees/profiles scopées + anti-élévation ; clients/equipements restent partagés (barrière = inscription publique désactivée) |
+| S2 | Moyen | ☐ | bucket `signatures` toujours public (choix assumé : URL directe dans le PDF) |
+| S3 | Info | ☐ | clé anon publique par nature |
+| S4 | Info | ☐ | `handle_new_user` toujours `security definer` sans `set search_path` (les autres fonctions l'ont) |
+| S5 | OK | ☑ | rien à faire |
+| P1 | Moyen | ☐ | `listRaw` + filtre JS conservés (index `intervention_id` non utilisé) |
+| P2 | Bas | ☐ | `getIntervention` fait 5 scans + 1 lecture client |
+| P3 | Moyen | ☑ | garde-fou `realtimeStarted` (`sync.js:187`) + appel unique (`app.js:2274`) |
+| P4 | Moyen | ☑ | `cleanRow` neutralise tout dataURL (`sync.js:139-140`) ; `mergeRemote` préserve le dataURL local tant que l'URL Storage n'existe pas (`sync.js:81`) |
+| C1 | Élevé | ☑ | `listInterventions` joint `client` par `client_id` (`idb.js:262`) |
+| C2 | Moyen | ☐ | `replace*` hard-delete toujours sans tombstone |
+| C3 | Moyen | ☐ | `saveClientEquipment` réutilise toujours `eq.id` (`idb.js:386`) |
+| C4 | Moyen | ☐ | pas d'upload différé des signatures hors ligne |
+| C5 | Bas | ☐ | `deleteIntervention` hard-delete les enfants sans propagation |
+| C6 | Bas | ☑ | `updatePendingUI` alimente `state.sync.pending` (`sync.js:115`) |
+| C7 | Bas | ☑ | `pushChanges` remet en file les éléments non envoyés (`sync.js:89`) |
+| C8 | Bas | ☐ | trigger `set_updated_at` écrase toujours `updated_at` |
+| D1 | Bas | ☐ | `SELF_CLIENT_FIELDS` toujours inutilisé (`sync.js:18`) |
+| D2 | Bas | ☐ | `removeSignature` toujours non appelé (`supabase.js:133`) |
+| D3 | Bas | ☐ | `importAll` toujours non exposé (`idb.js:638`) |
+| D4 | Bas | ☐ | `temps_intervention` toujours non calculé (`schema.sql:42`) |
+| D5 | Bas | ☐ | `synced_at` toujours `null` (write-only) |
+| D6 | Bas | ☐ | en-tête `REALTIME` toujours dupliqué (`schema.sql:239`) |
+| D7 | Bas | ☑ | liste centralisée dans `SYNC_STORES` (`sync.js:169`) |
+| D8 | Bas | ☐ | motif `replace*` toujours répété (5×) |
+| D9 | Bas | ☐ | `state.sync.running` / `lastPulledAt` toujours inutilisés (`app.js:225`) |
 
 > **Remarque environnement :** pas de `node`/linter ni de config de build dans ce dépôt (site statique) ; la vérification syntaxique automatisée n'a pas pu être lancée.
