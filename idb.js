@@ -207,6 +207,35 @@ const DB = {
     return { payload, updated_at: row.updated_at, _deleted: !!_deleted };
   },
 
+  // ---------- Enfants d'une fiche (C2) ----------
+  // C2 : les enfants d'une fiche (équipements, pièces utilisées, mesures,
+  // photos, documents) sont soft-deletés (tombstone `_deleted`) au lieu d'un
+  // hard-delete local, puis mis en file de sync pour propager la suppression
+  // à Supabase (`Supabase.remove` → `deleted_at`). Sans cela, la suppression
+  // n'atteignait jamais le serveur et l'enfant était réinséré localement au
+  // pull suivant (« ressuscitait »). Le tombstone est nettoyé au pull suivant
+  // quand le serveur renvoie la ligne avec `deleted_at` (voir `applyRemote`).
+  async replaceChildren(store, parentField, parentId, list) {
+    const existing = await this.listRaw(store);
+    const keepIds = new Set(list.map((x) => x.id).filter(Boolean));
+    for (const child of existing) {
+      if (child._deleted || child[parentField] !== parentId || keepIds.has(child.id)) continue;
+      child._deleted = true;
+      child.deleted_at = new Date().toISOString();
+      child.updated_at = child.deleted_at;
+      await this.putRaw(store, child);
+      if (Supabase?.configured()) Sync.enqueueSync(store, child.id);
+    }
+    for (const item of list) {
+      const now = new Date().toISOString();
+      const row = { ...item, id: item.id || uuid(), [parentField]: parentId, created_at: item.created_at || now, updated_at: now };
+      delete row._deleted;
+      delete row.deleted_at;
+      await this.putRaw(store, row);
+      if (Supabase?.configured()) Sync.enqueueSync(store, row.id);
+    }
+  },
+
   // ---------- Numérotation (référence unique) ----------
   // Format : PREFIX-AAAA-NNN (ex. FIC-2026-001, ENT-2026-001).
   async nextNumero(prefix = "FIC") {
@@ -370,16 +399,7 @@ const DB = {
     return rows.filter((e) => !e._deleted && e.client_id === clientId && !e.intervention_id);
   },
   async replaceEquipements(interventionId, list) {
-    const existing = await this.listRaw("equipements");
-    for (const e of existing.filter((x) => x.intervention_id === interventionId)) {
-      await this.deleteRaw("equipements", e.id);
-    }
-    for (const eq of list) {
-      const now = new Date().toISOString();
-      const row = { ...eq, id: eq.id || uuid(), intervention_id: interventionId, created_at: now, updated_at: now };
-      await this.putRaw("equipements", row);
-      if (Supabase?.configured()) Sync.enqueueSync("equipements", row.id);
-    }
+    await this.replaceChildren("equipements", "intervention_id", interventionId, list);
   },
   async saveClientEquipment(clientId, eq) {
     const now = new Date().toISOString();
@@ -395,16 +415,7 @@ const DB = {
     return rows.filter((p) => !p._deleted && p.intervention_id === interventionId);
   },
   async replacePieces(interventionId, list) {
-    const existing = await this.listRaw("pieces_utilisees");
-    for (const p of existing.filter((x) => x.intervention_id === interventionId)) {
-      await this.deleteRaw("pieces_utilisees", p.id);
-    }
-    for (const p of list) {
-      const now = new Date().toISOString();
-      const row = { ...p, id: p.id || uuid(), intervention_id: interventionId, created_at: now, updated_at: now };
-      await this.putRaw("pieces_utilisees", row);
-      if (Supabase?.configured()) Sync.enqueueSync("pieces_utilisees", row.id);
-    }
+    await this.replaceChildren("pieces_utilisees", "intervention_id", interventionId, list);
   },
 
   // ---------- Base pièces (V3 — désignation seule) ----------
@@ -441,16 +452,7 @@ const DB = {
     return rows.filter((m) => !m._deleted && m.intervention_id === interventionId);
   },
   async replaceMesures(interventionId, list) {
-    const existing = await this.listRaw("mesures");
-    for (const m of existing.filter((x) => x.intervention_id === interventionId)) {
-      await this.deleteRaw("mesures", m.id);
-    }
-    for (const m of list) {
-      const now = new Date().toISOString();
-      const row = { ...m, id: m.id || uuid(), intervention_id: interventionId, created_at: now, updated_at: now };
-      await this.putRaw("mesures", row);
-      if (Supabase?.configured()) Sync.enqueueSync("mesures", row.id);
-    }
+    await this.replaceChildren("mesures", "intervention_id", interventionId, list);
   },
 
   // ---------- Photos (V3) ----------
@@ -459,16 +461,7 @@ const DB = {
     return rows.filter((p) => !p._deleted && p.intervention_id === interventionId);
   },
   async replacePhotos(interventionId, list) {
-    const existing = await this.listRaw("photos");
-    for (const p of existing.filter((x) => x.intervention_id === interventionId)) {
-      await this.deleteRaw("photos", p.id);
-    }
-    for (const p of list) {
-      const now = new Date().toISOString();
-      const row = { ...p, id: p.id || uuid(), intervention_id: interventionId, created_at: now, updated_at: now };
-      await this.putRaw("photos", row);
-      if (Supabase?.configured()) Sync.enqueueSync("photos", row.id);
-    }
+    await this.replaceChildren("photos", "intervention_id", interventionId, list);
   },
 
   // ---------- Documents (devis / facture / contrat importés) ----------
@@ -477,16 +470,7 @@ const DB = {
     return rows.filter((d) => !d._deleted && d.intervention_id === interventionId);
   },
   async replaceDocuments(interventionId, list) {
-    const existing = await this.listRaw("documents");
-    for (const d of existing.filter((x) => x.intervention_id === interventionId)) {
-      await this.deleteRaw("documents", d.id);
-    }
-    for (const d of list) {
-      const now = new Date().toISOString();
-      const row = { ...d, id: d.id || uuid(), intervention_id: interventionId, created_at: now, updated_at: now };
-      await this.putRaw("documents", row);
-      if (Supabase?.configured()) Sync.enqueueSync("documents", row.id);
-    }
+    await this.replaceChildren("documents", "intervention_id", interventionId, list);
   },
   async addDocument(interventionId, doc) {
     const now = new Date().toISOString();
@@ -608,14 +592,14 @@ const DB = {
     const [clients, interventions, equipements, pieces, appels, rendezvous, mesures, photos, piecesBase, documents, contrats] = await Promise.all([
       this.listClients(),
       this.listInterventions(),
-      this.listRaw("equipements"),
-      this.listRaw("pieces_utilisees"),
+      (await this.listRaw("equipements")).filter((e) => !e._deleted),
+      (await this.listRaw("pieces_utilisees")).filter((p) => !p._deleted),
       this.listAppels(),
       this.listRendezvous(),
-      this.listRaw("mesures"),
-      this.listRaw("photos"),
+      (await this.listRaw("mesures")).filter((m) => !m._deleted),
+      (await this.listRaw("photos")).filter((p) => !p._deleted),
       this.listPiecesBase(),
-      this.listRaw("documents"),
+      (await this.listRaw("documents")).filter((d) => !d._deleted),
       this.listContrats(),
     ]);
     return {

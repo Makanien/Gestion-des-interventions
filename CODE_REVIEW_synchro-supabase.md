@@ -81,6 +81,7 @@
 ### C2 — Équipements/pièces supprimés qui « ressuscitent » *(moyen)*
 - **Où :** `idb.js:285-303` (`replaceEquipements`), `318-328` (`replacePieces`)
 - **Constats :** les enfants existants sont **hard-delete** localement sans tombstone ni mise en file. La suppression n'est jamais propagée à Supabase : au prochain pull, l'enfant supprimé est réinséré (`sync.js:58-61`).
+- **Résolution (23/08/2026) :** les cinq fonctions `replace*` (équipements, pièces utilisées, mesures, photos, documents) passent désormais par un helper commun `DB.replaceChildren` (`idb.js`). Les enfants retirés d'une fiche sont **soft-deletés** (tombstone `_deleted` + `deleted_at`) et **mis en file de sync** : le push les envoie en `Supabase.remove` (soft-delete côté serveur), puis le pull suivant nettoie le tombstone via `applyRemote`. Une ligne réintroduite dans la fiche (même `id`) voit son tombstone levé (`_deleted`/`deleted_at` supprimés). `created_at` est en outre préservé à la ré-édition (au lieu d'être réécrit à `now`).
 
 ### C3 — Collision d'`id` dans l'historisation d'équipement *(moyen)*
 - **Où :** `idb.js:305-311`
@@ -153,7 +154,7 @@
 | P3 | Moyen | ☑ | garde-fou `realtimeStarted` (`sync.js:187`) + appel unique (`app.js:2274`) |
 | P4 | Moyen | ☑ | `cleanRow` neutralise tout dataURL (`sync.js:139-140`) ; `mergeRemote` préserve le dataURL local tant que l'URL Storage n'existe pas (`sync.js:81`) |
 | C1 | Élevé | ☑ | `listInterventions` joint `client` par `client_id` (`idb.js:262`) |
-| C2 | Moyen | ☐ | `replace*` hard-delete toujours sans tombstone |
+| C2 | Moyen | ☑ | `replace*` factorisées dans `DB.replaceChildren` (`idb.js`) : soft-delete des enfants retirés (tombstone `_deleted`/`deleted_at`) + mise en file → propagation à Supabase, nettoyage du tombstone au pull suivant, tombstone levé si la ligne revient dans la fiche |
 | C3 | Moyen | ☐ | `saveClientEquipment` réutilise toujours `eq.id` (`idb.js:386`) |
 | C4 | Moyen | ☑ | `uploadPendingSignatures` (`sync.js:100`) ré-upload les dataURL de signature vers le bucket `signatures` au retour du réseau, puis re-sync (appelé dans `runSync`) |
 | C5 | Bas | ☐ | `deleteIntervention` hard-delete les enfants sans propagation |
@@ -167,7 +168,7 @@
 | D5 | Bas | ☐ | `synced_at` toujours `null` (write-only) |
 | D6 | Bas | ☐ | en-tête `REALTIME` toujours dupliqué (`schema.sql:239`) |
 | D7 | Bas | ☑ | liste centralisée dans `SYNC_STORES` (`sync.js:169`) |
-| D8 | Bas | ☐ | motif `replace*` toujours répété (5×) |
+| D8 | Bas | ◐ | `replace*` factorisées dans `DB.replaceChildren` (`idb.js`) ; le motif `listRaw + filtre` reste répété dans les fonctions de liste |
 | D9 | Bas | ☐ | `state.sync.running` / `lastPulledAt` toujours inutilisés (`app.js:225`) |
 
 > **Remarque environnement :** pas de `node`/linter ni de config de build dans ce dépôt (site statique) ; la vérification syntaxique automatisée n'a pas pu être lancée.
