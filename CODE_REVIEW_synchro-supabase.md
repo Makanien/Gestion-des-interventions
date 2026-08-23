@@ -56,6 +56,11 @@
 - **Constats :** `listEquipementsForIntervention`, `listPiecesForIntervention`, `replaceEquipements`, `replacePieces` lisent **toute la table** puis filtrent en mémoire.
 - **Aggravant :** l'index `intervention_id` n'est pas créé sur `equipements` (`idb.js:32-36`), et là où il existe (`pieces_utilisees:39`), il n'est jamais utilisé.
 - **Impact :** acceptable pour quelques centaines de lignes, ne passera pas à l'échelle.
+- **Résolution (23/08/2026) :** les lectures d'enfants d'une fiche passent désormais par les **index IndexedDB** au lieu de `getAll()` + filtre en mémoire :
+  - **Index manquant créé** : `intervention_id` sur `equipements` (bump `DB_VERSION` 3 → 4). La migration se fait automatiquement dans `onupgradeneeded` via un helper `ensureIndex` qui ajoute l'index sur un store existant sans perdre les données.
+  - **Helper dédié** : `DB.listByIndex(store, index, value)` (`idb.js`) — équivalent ciblé de `listRaw` pour les requêtes par index.
+  - **Fonctions migrées** : `listEquipementsForIntervention` (index `intervention_id`), `listEquipementsForClient` (index `client_id`), `listPiecesForIntervention` / `listMesuresForIntervention` / `listPhotosForIntervention` / `listDocumentsForIntervention` (index `intervention_id`), et `DB.replaceChildren` (utilisé par les cinq `replace*` et `deleteIntervention`) ne scannent plus la table entière.
+  - **Effet collatéral (P2)** : `getIntervention` passe de 5 scans complets + 1 lecture client à 5 lectures indexées + 1 lecture client.
 
 ### P2 — `getIntervention` en N+1
 - **Où :** `idb.js:218-226`
@@ -152,8 +157,8 @@
 | S3 | Info | ☐ | clé anon publique par nature |
 | S4 | Info | ☐ | `handle_new_user` toujours `security definer` sans `set search_path` (les autres fonctions l'ont) |
 | S5 | OK | ☑ | rien à faire |
-| P1 | Moyen | ☐ | `listRaw` + filtre JS conservés (index `intervention_id` non utilisé) |
-| P2 | Bas | ☐ | `getIntervention` fait 5 scans + 1 lecture client |
+| P1 | Moyen | ☑ | index `intervention_id` créé sur `equipements` (V4, `ensureIndex` sur store existant) + helper `DB.listByIndex` (`idb.js`) ; les listes d'enfants d'une fiche (équipements, pièces utilisées, mesures, photos, documents) et `replaceChildren` passent par l'index — plus de scan complet ; `listEquipementsForClient` utilise l'index `client_id` |
+| P2 | Bas | ◐ | `getIntervention` fait 5 lectures par index + 1 lecture client (scans complets éliminés avec P1) ; le N+1 structurel (5 requêtes) reste, un `multi-get` dans une transaction unique serait le vrai correctif |
 | P3 | Moyen | ☑ | garde-fou `realtimeStarted` (`sync.js:187`) + appel unique (`app.js:2274`) |
 | P4 | Moyen | ☑ | `cleanRow` neutralise tout dataURL (`sync.js:139-140`) ; `mergeRemote` préserve le dataURL local tant que l'URL Storage n'existe pas (`sync.js:81`) |
 | C1 | Élevé | ☑ | `listInterventions` joint `client` par `client_id` (`idb.js:262`) |

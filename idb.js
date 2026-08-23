@@ -10,7 +10,7 @@
    - id en UUID, timestamps, synced_at (renseigné après push).
    ========================================================= */
 const DB_NAME = "climatelec-db";
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 
 function openDB() {
   return new Promise((resolve, reject) => {
@@ -24,6 +24,12 @@ function openDB() {
           const store = db.createObjectStore(name, { keyPath });
           indexes.forEach(([ix, key, opts]) => store.createIndex(ix, key, opts || {}));
         }
+      };
+      // Ajout d'un index manquant sur un store existant (migrations ultérieures).
+      const ensureIndex = (name, ix, key, opts) => {
+        if (!db.objectStoreNames.contains(name)) return;
+        const store = t.objectStore(name);
+        if (!store.indexNames.contains(ix)) store.createIndex(ix, key, opts || {});
       };
 
       ensure("clients", "id", [["nom", "nom"], ["updated_at", "updated_at"]]);
@@ -39,6 +45,9 @@ function openDB() {
       ensure("pieces", "id", [["designation", "designation"]]);            // base pièces (désignation seule)
       ensure("documents", "id", [["intervention_id", "intervention_id"], ["type", "type"]]);
       ensure("contrats_entretien", "id", [["client_id", "client_id"], ["updated_at", "updated_at"]]);
+
+      // ---- V4 (P1) : index manquant sur store existant ----
+      ensureIndex("equipements", "intervention_id", "intervention_id");
 
       if (!db.objectStoreNames.contains("_meta")) db.createObjectStore("_meta");
       if (!db.objectStoreNames.contains("sync_state")) db.createObjectStore("sync_state");
@@ -198,6 +207,16 @@ const DB = {
       req.onerror = () => reject(req.error);
     });
   },
+  // P1 : lecture ciblée par index (ex. intervention_id) au lieu d'un scan
+  // complet de table + filtre en mémoire.
+  async listByIndex(store, index, value) {
+    const db = this._db;
+    return new Promise((resolve, reject) => {
+      const req = tx(db, store).index(index).getAll(value);
+      req.onsuccess = () => resolve(req.result || []);
+      req.onerror = () => reject(req.error);
+    });
+  },
 
   // ---------- Sync support ----------
   async getRecordForSync(store, id) {
@@ -220,7 +239,7 @@ const DB = {
   // fiche supprimée et propager leur suppression au serveur (le soft-delete du
   // parent n'étant qu'un `update`, il ne déclenche aucune cascade).
   async replaceChildren(store, parentField, parentId, list) {
-    const existing = await this.listRaw(store);
+    const existing = await this.listByIndex(store, parentField, parentId);
     const keepIds = new Set(list.map((x) => x.id).filter(Boolean));
     for (const child of existing) {
       if (child._deleted || child[parentField] !== parentId || keepIds.has(child.id)) continue;
@@ -400,12 +419,12 @@ const DB = {
 
   // ---------- Équipements (historisés par client) ----------
   async listEquipementsForIntervention(interventionId) {
-    const rows = await this.listRaw("equipements");
-    return rows.filter((e) => !e._deleted && e.intervention_id === interventionId);
+    const rows = await this.listByIndex("equipements", "intervention_id", interventionId);
+    return rows.filter((e) => !e._deleted);
   },
   async listEquipementsForClient(clientId) {
-    const rows = await this.listRaw("equipements");
-    return rows.filter((e) => !e._deleted && e.client_id === clientId && !e.intervention_id);
+    const rows = await this.listByIndex("equipements", "client_id", clientId);
+    return rows.filter((e) => !e._deleted && !e.intervention_id);
   },
   async replaceEquipements(interventionId, list) {
     await this.replaceChildren("equipements", "intervention_id", interventionId, list);
@@ -429,8 +448,8 @@ const DB = {
 
   // ---------- Pièces utilisées ----------
   async listPiecesForIntervention(interventionId) {
-    const rows = await this.listRaw("pieces_utilisees");
-    return rows.filter((p) => !p._deleted && p.intervention_id === interventionId);
+    const rows = await this.listByIndex("pieces_utilisees", "intervention_id", interventionId);
+    return rows.filter((p) => !p._deleted);
   },
   async replacePieces(interventionId, list) {
     await this.replaceChildren("pieces_utilisees", "intervention_id", interventionId, list);
@@ -466,8 +485,8 @@ const DB = {
 
   // ---------- Mesures (fiches d'entretien) ----------
   async listMesuresForIntervention(interventionId) {
-    const rows = await this.listRaw("mesures");
-    return rows.filter((m) => !m._deleted && m.intervention_id === interventionId);
+    const rows = await this.listByIndex("mesures", "intervention_id", interventionId);
+    return rows.filter((m) => !m._deleted);
   },
   async replaceMesures(interventionId, list) {
     await this.replaceChildren("mesures", "intervention_id", interventionId, list);
@@ -475,8 +494,8 @@ const DB = {
 
   // ---------- Photos (V3) ----------
   async listPhotosForIntervention(interventionId) {
-    const rows = await this.listRaw("photos");
-    return rows.filter((p) => !p._deleted && p.intervention_id === interventionId);
+    const rows = await this.listByIndex("photos", "intervention_id", interventionId);
+    return rows.filter((p) => !p._deleted);
   },
   async replacePhotos(interventionId, list) {
     await this.replaceChildren("photos", "intervention_id", interventionId, list);
@@ -484,8 +503,8 @@ const DB = {
 
   // ---------- Documents (devis / facture / contrat importés) ----------
   async listDocumentsForIntervention(interventionId) {
-    const rows = await this.listRaw("documents");
-    return rows.filter((d) => !d._deleted && d.intervention_id === interventionId);
+    const rows = await this.listByIndex("documents", "intervention_id", interventionId);
+    return rows.filter((d) => !d._deleted);
   },
   async replaceDocuments(interventionId, list) {
     await this.replaceChildren("documents", "intervention_id", interventionId, list);

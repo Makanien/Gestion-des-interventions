@@ -317,6 +317,7 @@ Suite à un retour terrain (le technicien Jérémy ne voyait pas dans son planni
 ### Divers
 - **PDF de fiche enrichi** : intégration des mesures, du CERFA et des photos dans le PDF généré.
 - **PWA** : service worker mis à jour (`CACHE_VERSION` incrémentée, cache de `pdf-lib.min.js`), mécanisme `updatefound` conservé.
+- **Performance (point P1 de la revue `synchro-supabase`)** : les lectures des enfants d'une fiche (équipements, pièces utilisées, mesures, photos, documents) et `replaceChildren` passent par les **index IndexedDB** (`intervention_id`, `client_id`) via un helper `listByIndex` — suppression des scans complets de table (`getAll()` + filtre en mémoire). Index `intervention_id` créé sur `equipements` (bump `DB_VERSION` 3 → 4, migration automatique via `ensureIndex` sans perte de données).
 
 ---
 
