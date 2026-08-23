@@ -207,7 +207,7 @@ const DB = {
     return { payload, updated_at: row.updated_at, _deleted: !!_deleted };
   },
 
-  // ---------- Enfants d'une fiche (C2) ----------
+  // ---------- Enfants d'une fiche (C2 · C5) ----------
   // C2 : les enfants d'une fiche (équipements, pièces utilisées, mesures,
   // photos, documents) sont soft-deletés (tombstone `_deleted`) au lieu d'un
   // hard-delete local, puis mis en file de sync pour propager la suppression
@@ -215,6 +215,10 @@ const DB = {
   // n'atteignait jamais le serveur et l'enfant était réinséré localement au
   // pull suivant (« ressuscitait »). Le tombstone est nettoyé au pull suivant
   // quand le serveur renvoie la ligne avec `deleted_at` (voir `applyRemote`).
+  // C5 : appelé avec une liste vide (`replaceChildren(store, parent, id, [])`)
+  // depuis `deleteIntervention` pour soft-deleter l'ensemble des enfants d'une
+  // fiche supprimée et propager leur suppression au serveur (le soft-delete du
+  // parent n'étant qu'un `update`, il ne déclenche aucune cascade).
   async replaceChildren(store, parentField, parentId, list) {
     const existing = await this.listRaw(store);
     const keepIds = new Set(list.map((x) => x.id).filter(Boolean));
@@ -369,12 +373,17 @@ const DB = {
     i.deleted_at = new Date().toISOString();
     i.updated_at = i.deleted_at;
     await this.putRaw("interventions", i);
-    for (const eq of await this.listEquipementsForIntervention(id)) await this.deleteRaw("equipements", eq.id);
-    for (const p of await this.listPiecesForIntervention(id)) await this.deleteRaw("pieces_utilisees", p.id);
-    for (const m of await this.listMesuresForIntervention(id)) await this.deleteRaw("mesures", m.id);
-    for (const ph of await this.listPhotosForIntervention(id)) await this.deleteRaw("photos", ph.id);
-    for (const doc of await this.listDocumentsForIntervention(id)) await this.deleteRaw("documents", doc.id);
     if (Supabase?.configured()) Sync.enqueueSync("interventions", id);
+    // C5 : propager la suppression aux enfants via le même mécanisme de
+    // tombstone que C2 (`replaceChildren` avec liste vide → soft-delete des
+    // enfants liés + mise en file de sync). Le soft-delete du parent n'est
+    // qu'un `update` côté serveur : il ne déclenche aucune cascade, sans quoi
+    // équipements / pièces / mesures / photos / documents resteraient orphelins.
+    await this.replaceChildren("equipements", "intervention_id", id, []);
+    await this.replaceChildren("pieces_utilisees", "intervention_id", id, []);
+    await this.replaceChildren("mesures", "intervention_id", id, []);
+    await this.replaceChildren("photos", "intervention_id", id, []);
+    await this.replaceChildren("documents", "intervention_id", id, []);
     return true;
   },
   // Transition de statut dossier (simple raccourci qui conserve tout le reste).

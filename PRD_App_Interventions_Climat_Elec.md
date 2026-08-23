@@ -1,7 +1,7 @@
 # PRD — Application de gestion des fiches d'intervention
 ## Climat Elec (Chazé-sur-Argos)
 
-**Version du document :** 1.14
+**Version du document :** 1.15
 **Date :** 23/08/2026
 **Auteur :** Rédigé avec Claude, sur la base des échanges avec le porteur de projet
 
@@ -297,7 +297,7 @@ Brouillon → À valider → Validée → À facturer → Facture importée → 
 
 ### Synchronisation & robustesse
 - **File de synchronisation étendue** aux nouvelles boutiques V3 (`appels`, `rendezvous`, `mesures`, `photos`, `pieces`, `documents`, `contrats_entretien`) ; nettoyage des champs purement locaux avant upsert et normalisation des `NULL` (`numero`, `statut_dossier`) pour PostgREST.
-- **Propagation des suppressions d'enfants (23/08/2026)** : la suppression d'un équipement, d'une pièce utilisée, d'une mesure, d'une photo ou d'un document lors de l'édition d'une fiche est désormais **soft-deletée et propagée aux autres appareils** (`DB.replaceChildren` — tombstone `_deleted`/`deleted_at` + mise en file, push en `Supabase.remove`, nettoyage au pull suivant). Corrige la « résurrection » des lignes supprimées au prochain pull (point C2 de la revue `synchro-supabase`).
+- **Propagation des suppressions d'enfants (23/08/2026)** : la suppression d'un équipement, d'une pièce utilisée, d'une mesure, d'une photo ou d'un document lors de l'édition d'une fiche est désormais **soft-deletée et propagée aux autres appareils** (`DB.replaceChildren` — tombstone `_deleted`/`deleted_at` + mise en file, push en `Supabase.remove`, nettoyage au pull suivant). Corrige la « résurrection » des lignes supprimées au prochain pull (point C2 de la revue `synchro-supabase`). **Étendu à la suppression complète d'une fiche (point C5)** : `deleteIntervention` soft-delete désormais **tous** les enfants de la fiche via `DB.replaceChildren(…, [])` et les met en file de sync — le soft-delete du parent n'étant qu'un `update` côté serveur (aucune cascade), cela évite de laisser des orphelins dans la base. L'historique équipements du client (`client_id`, sans `intervention_id`) est préservé.
 - **Nouvelle tentative automatique** (`scheduleSyncRetry`) : backoff exponentiel (5 s → 30 s max) après un échec réseau, avec indicateur UI du nombre de changements en attente.
 - **Push robuste** : les éléments non envoyés (coupure réseau en cours de push) sont **remis en file** au lieu d'être perdus jusqu'au prochain sign-in.
 - **Enrichissement des listes** : `listInterventions` complète automatiquement `client.nom`/`client.ville` (jointure locale avec la table `clients`).

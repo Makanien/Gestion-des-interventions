@@ -95,6 +95,7 @@
 ### C5 — Orphelins côté serveur sur suppression *(bas)*
 - **Où :** `idb.js:254-270`
 - **Constats :** `deleteIntervention` supprime en dur les enfants localement et n'enfile que l'intervention. Côté Supabase, le soft-delete de l'intervention ne déclenche pas la cascade `on delete` sur les enfants (ce n'est qu'un `update`) ⇒ équipements/pièces orphelins.
+- **Résolution (23/08/2026) :** `deleteIntervention` passe désormais par le même mécanisme que C2 — chaque enfant de la fiche (équipements, pièces utilisées, mesures, photos, documents) est **soft-deleté** (tombstone `_deleted` + `deleted_at`) via `DB.replaceChildren(store, "intervention_id", id, [])` puis **mis en file de sync** : le push les envoie en `Supabase.remove` (soft-delete côté serveur), si bien que le serveur ne conserve plus d'orphelins à la suppression d'une fiche. L'historique équipements du client (`client_id`, sans `intervention_id`) reste inchangé.
 
 ### C6 — Compteur « en attente » jamais alimenté *(bas)*
 - **Où :** `app.js:32`, `186-188`, `951`
@@ -157,7 +158,7 @@
 | C2 | Moyen | ☑ | `replace*` factorisées dans `DB.replaceChildren` (`idb.js`) : soft-delete des enfants retirés (tombstone `_deleted`/`deleted_at`) + mise en file → propagation à Supabase, nettoyage du tombstone au pull suivant, tombstone levé si la ligne revient dans la fiche |
 | C3 | Moyen | ☐ | `saveClientEquipment` réutilise toujours `eq.id` (`idb.js:386`) |
 | C4 | Moyen | ☑ | `uploadPendingSignatures` (`sync.js:100`) ré-upload les dataURL de signature vers le bucket `signatures` au retour du réseau, puis re-sync (appelé dans `runSync`) |
-| C5 | Bas | ☐ | `deleteIntervention` hard-delete les enfants sans propagation |
+| C5 | Bas | ☑ | `deleteIntervention` soft-delete les enfants via `DB.replaceChildren(…, [])` + file de sync, pas de hard-delete (`idb.js`) |
 | C6 | Bas | ☑ | `updatePendingUI` alimente `state.sync.pending` (`sync.js:115`) |
 | C7 | Bas | ☑ | `pushChanges` remet en file les éléments non envoyés (`sync.js:89`) |
 | C8 | Bas | ☐ | trigger `set_updated_at` écrase toujours `updated_at` |
