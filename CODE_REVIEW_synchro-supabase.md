@@ -84,9 +84,10 @@
 - **Résolution (23/08/2026) :** les cinq fonctions `replace*` (équipements, pièces utilisées, mesures, photos, documents) passent désormais par un helper commun `DB.replaceChildren` (`idb.js`). Les enfants retirés d'une fiche sont **soft-deletés** (tombstone `_deleted` + `deleted_at`) et **mis en file de sync** : le push les envoie en `Supabase.remove` (soft-delete côté serveur), puis le pull suivant nettoie le tombstone via `applyRemote`. Une ligne réintroduite dans la fiche (même `id`) voit son tombstone levé (`_deleted`/`deleted_at` supprimés). `created_at` est en outre préservé à la ré-édition (au lieu d'être réécrit à `now`).
 
 ### C3 — Collision d'`id` dans l'historisation d'équipement *(moyen)*
-- **Où :** `idb.js:305-311`
+- **Où :** `idb.js:413-419`
 - **Constats :** `saveClientEquipment` réutilise `eq.id || uuid()`. En édition, un équipement lié à l'intervention avec un `id` existant + nouveau n° de série : la copie « historique » écrase la ligne liée à l'intervention (même clé `id`) ⇒ l'équipement disparaît de la fiche.
 - **Piste :** générer toujours un `uuid()` neuf.
+- **Résolution (23/08/2026) :** `saveClientEquipment` génère désormais **toujours un `id` neuf** (`uuid()`) et ne réutilise plus celui de la ligne liée à la fiche — plus aucune écriture ne peut écraser un équipement d'intervention. La copie d'historique détache en outre `intervention_id` (ainsi que les champs locaux `_deleted`/`deleted_at`/`synced_at`) : elle reste un équipement du client, sans lien avec la fiche, et demeure visible de `listEquipementsForClient` (filtre `!intervention_id`).
 
 ### C4 — Signature hors ligne jamais ré-uploadée *(moyen)*
 - **Où :** `app.js:701-711`
@@ -156,7 +157,7 @@
 | P4 | Moyen | ☑ | `cleanRow` neutralise tout dataURL (`sync.js:139-140`) ; `mergeRemote` préserve le dataURL local tant que l'URL Storage n'existe pas (`sync.js:81`) |
 | C1 | Élevé | ☑ | `listInterventions` joint `client` par `client_id` (`idb.js:262`) |
 | C2 | Moyen | ☑ | `replace*` factorisées dans `DB.replaceChildren` (`idb.js`) : soft-delete des enfants retirés (tombstone `_deleted`/`deleted_at`) + mise en file → propagation à Supabase, nettoyage du tombstone au pull suivant, tombstone levé si la ligne revient dans la fiche |
-| C3 | Moyen | ☐ | `saveClientEquipment` réutilise toujours `eq.id` (`idb.js:386`) |
+| C3 | Moyen | ☑ | `saveClientEquipment` génère toujours un `id` neuf et détache `intervention_id`/champs locaux (`idb.js`) — plus de collision avec la ligne liée à la fiche, la copie d'historique reste visible de `listEquipementsForClient` |
 | C4 | Moyen | ☑ | `uploadPendingSignatures` (`sync.js:100`) ré-upload les dataURL de signature vers le bucket `signatures` au retour du réseau, puis re-sync (appelé dans `runSync`) |
 | C5 | Bas | ☑ | `deleteIntervention` soft-delete les enfants via `DB.replaceChildren(…, [])` + file de sync, pas de hard-delete (`idb.js`) |
 | C6 | Bas | ☑ | `updatePendingUI` alimente `state.sync.pending` (`sync.js:115`) |

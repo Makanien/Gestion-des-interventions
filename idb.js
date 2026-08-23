@@ -410,9 +410,18 @@ const DB = {
   async replaceEquipements(interventionId, list) {
     await this.replaceChildren("equipements", "intervention_id", interventionId, list);
   },
+  // C3 : l'historisation par client crée une copie d'équipement. Elle doit
+  // toujours générer un `id` neuf : réutiliser celui de la ligne liée à la
+  // fiche écraserait l'équipement de l'intervention (même clé dans le store
+  // `equipements`) et le ferait disparaître de la fiche lors d'une édition
+  // avec nouveau n° de série. On détache aussi `intervention_id` (et les
+  // champs purement locaux) : la copie est un équipement du client, sans lien
+  // avec la fiche, pour rester visible de `listEquipementsForClient`
+  // (filtre `!intervention_id`).
   async saveClientEquipment(clientId, eq) {
     const now = new Date().toISOString();
-    const row = { ...eq, id: eq.id || uuid(), client_id: clientId, created_at: now, updated_at: now };
+    const { intervention_id, _deleted, deleted_at, synced_at, ...rest } = eq;
+    const row = { ...rest, id: uuid(), client_id: clientId, created_at: now, updated_at: now };
     await this.putRaw("equipements", row);
     if (Supabase?.configured()) Sync.enqueueSync("equipements", row.id);
     return row;
