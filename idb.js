@@ -326,16 +326,62 @@ const DB = {
       })
       .sort((a, b) => (b.updated_at || b.created_at || "").localeCompare(a.updated_at || a.created_at || ""));
   },
+  // P2 : lecture d'une fiche en une seule transaction readonly (multi-get),
+  // au lieu de 5 requêtes séquentielles (N+1) : intervention + client
+  // (jointure `client_id`) + les 5 collections d'enfants par index.
   async getIntervention(id) {
-    const i = await this.getRaw("interventions", id);
-    if (!i || i._deleted) return null;
-    i.equipements = await this.listEquipementsForIntervention(id);
-    i.pieces = await this.listPiecesForIntervention(id);
-    i.mesures = await this.listMesuresForIntervention(id);
-    i.photos = await this.listPhotosForIntervention(id);
-    i.documents = await this.listDocumentsForIntervention(id);
-    if (!i.client) i.client = await this.getClient(i.client_id).then((c) => (c ? { nom: c.nom, ville: c.ville } : null));
-    return i;
+    const db = this._db;
+    return new Promise((resolve, reject) => {
+      const names = ["interventions", "clients", "equipements", "pieces_utilisees", "mesures", "photos", "documents"];
+      let t;
+      try {
+        t = db.transaction(names, "readonly");
+      } catch (e) {
+        reject(e);
+        return;
+      }
+      const stores = Object.fromEntries(names.map((n) => [n, t.objectStore(n)]));
+
+      let intervention = null;
+      let client = null;
+      const children = {
+        equipements: [], pieces: [], mesures: [], photos: [], documents: [],
+      };
+
+      const reqItv = stores.interventions.get(id);
+      reqItv.onsuccess = () => {
+        intervention = reqItv.result || null;
+        if (intervention && !intervention._deleted && !intervention.client) {
+          const reqClient = stores.clients.get(intervention.client_id);
+          reqClient.onsuccess = () => {
+            const c = reqClient.result;
+            client = c && !c._deleted ? { nom: c.nom, ville: c.ville } : null;
+          };
+        }
+      };
+      reqItv.onerror = () => reject(reqItv.error);
+
+      for (const [store, key] of [["equipements", "equipements"], ["pieces_utilisees", "pieces"], ["mesures", "mesures"], ["photos", "photos"], ["documents", "documents"]]) {
+        const req = stores[store].index("intervention_id").getAll(id);
+        req.onsuccess = () => {
+          children[key] = (req.result || []).filter((r) => !r._deleted);
+        };
+        req.onerror = () => reject(req.error);
+      }
+
+      t.oncomplete = () => {
+        if (!intervention || intervention._deleted) return resolve(null);
+        intervention.equipements = children.equipements;
+        intervention.pieces = children.pieces;
+        intervention.mesures = children.mesures;
+        intervention.photos = children.photos;
+        intervention.documents = children.documents;
+        if (!intervention.client) intervention.client = client;
+        resolve(intervention);
+      };
+      t.onerror = () => reject(t.error);
+      t.onabort = () => reject(t.error || new Error("transaction aborted"));
+    });
   },
   async saveIntervention(itv, { keepStatus = true } = {}) {
     const now = new Date().toISOString();

@@ -60,11 +60,12 @@
   - **Index manquant créé** : `intervention_id` sur `equipements` (bump `DB_VERSION` 3 → 4). La migration se fait automatiquement dans `onupgradeneeded` via un helper `ensureIndex` qui ajoute l'index sur un store existant sans perdre les données.
   - **Helper dédié** : `DB.listByIndex(store, index, value)` (`idb.js`) — équivalent ciblé de `listRaw` pour les requêtes par index.
   - **Fonctions migrées** : `listEquipementsForIntervention` (index `intervention_id`), `listEquipementsForClient` (index `client_id`), `listPiecesForIntervention` / `listMesuresForIntervention` / `listPhotosForIntervention` / `listDocumentsForIntervention` (index `intervention_id`), et `DB.replaceChildren` (utilisé par les cinq `replace*` et `deleteIntervention`) ne scannent plus la table entière.
-  - **Effet collatéral (P2)** : `getIntervention` passe de 5 scans complets + 1 lecture client à 5 lectures indexées + 1 lecture client.
+  - **Effet collatéral (P2)** : les listes d'enfants étant indexées, `getIntervention` a pu être réduite à une **seule transaction readonly** (voir P2).
 
 ### P2 — `getIntervention` en N+1
-- **Où :** `idb.js:218-226`
-- **Constats :** chaque détail d'intervention déclenche 2 scans complets + 1 lecture client.
+- **Où :** `idb.js:332-385`
+- **Constats :** chaque détail d'intervention déclenchait 2 scans complets + 1 lecture client (puis 5 lectures séquentielles par index après P1).
+- **Résolution (23/08/2026) :** `getIntervention` lit désormais l'intervention, le client (jointure `client_id`) et les 5 collections d'enfants (équipements, pièces utilisées, mesures, photos, documents) via leurs index `intervention_id` dans **une seule transaction readonly** (`multi-get`). Le N+1 structurel est éliminé : une seule transaction IndexedDB au lieu de 6 requêtes séquentielles.
 
 ### P3 — Abonnements Realtime dupliqués
 - **Où :** `app.js:1033` & `app.js:1051`, `sync.js:143-157`
@@ -158,7 +159,7 @@
 | S4 | Info | ☐ | `handle_new_user` toujours `security definer` sans `set search_path` (les autres fonctions l'ont) |
 | S5 | OK | ☑ | rien à faire |
 | P1 | Moyen | ☑ | index `intervention_id` créé sur `equipements` (V4, `ensureIndex` sur store existant) + helper `DB.listByIndex` (`idb.js`) ; les listes d'enfants d'une fiche (équipements, pièces utilisées, mesures, photos, documents) et `replaceChildren` passent par l'index — plus de scan complet ; `listEquipementsForClient` utilise l'index `client_id` |
-| P2 | Bas | ◐ | `getIntervention` fait 5 lectures par index + 1 lecture client (scans complets éliminés avec P1) ; le N+1 structurel (5 requêtes) reste, un `multi-get` dans une transaction unique serait le vrai correctif |
+| P2 | Bas | ☑ | `getIntervention` réécrite en **une seule transaction readonly** (multi-get) : intervention + client (jointure `client_id`) + 5 collections d'enfants par index `intervention_id` (`idb.js:332`) — le N+1 structurel est éliminé |
 | P3 | Moyen | ☑ | garde-fou `realtimeStarted` (`sync.js:187`) + appel unique (`app.js:2274`) |
 | P4 | Moyen | ☑ | `cleanRow` neutralise tout dataURL (`sync.js:139-140`) ; `mergeRemote` préserve le dataURL local tant que l'URL Storage n'existe pas (`sync.js:81`) |
 | C1 | Élevé | ☑ | `listInterventions` joint `client` par `client_id` (`idb.js:262`) |
