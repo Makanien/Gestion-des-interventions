@@ -155,7 +155,7 @@
 | C1 | Élevé | ☑ | `listInterventions` joint `client` par `client_id` (`idb.js:262`) |
 | C2 | Moyen | ☐ | `replace*` hard-delete toujours sans tombstone |
 | C3 | Moyen | ☐ | `saveClientEquipment` réutilise toujours `eq.id` (`idb.js:386`) |
-| C4 | Moyen | ☐ | pas d'upload différé des signatures hors ligne |
+| C4 | Moyen | ☑ | `uploadPendingSignatures` (`sync.js:100`) ré-upload les dataURL de signature vers le bucket `signatures` au retour du réseau, puis re-sync (appelé dans `runSync`) |
 | C5 | Bas | ☐ | `deleteIntervention` hard-delete les enfants sans propagation |
 | C6 | Bas | ☑ | `updatePendingUI` alimente `state.sync.pending` (`sync.js:115`) |
 | C7 | Bas | ☑ | `pushChanges` remet en file les éléments non envoyés (`sync.js:89`) |
