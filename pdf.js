@@ -115,7 +115,7 @@ async function generateInterventionPDF(itv, client) {
   kv("Temps d'intervention", computeDuration(itv.heure_arrivee, itv.heure_depart), margin + colW + 20, colW);
   y += 24;
   kv("Forfait déplacement", itv.forfait_deplacement, margin, colW);
-  kv("Statut", itv.statut === "terminee" ? "Terminée avec succès" : "Nouvelle intervention à prévoir", margin + colW + 20, colW);
+  kv("Statut", itv.statut === "terminee" ? "Effectuée" : itv.statut === "terminee_suite" ? "Effectuée, suite à prévoir" : "À effectuer", margin + colW + 20, colW);
   y += 20;
 
   // ---- Équipement ----

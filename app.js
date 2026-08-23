@@ -276,7 +276,7 @@ function emptyDraft(type) {
     heure_arrivee: nowHM(),
     heure_depart: "",
     forfait_deplacement: "",
-    statut: "terminee",
+    statut: type === "intervention" ? "a_prevoir" : "terminee",
     statut_dossier: null,
     numero: null,
     annee_installation: "",
@@ -319,7 +319,7 @@ async function loadDraftFromIntervention(id) {
     heure_arrivee: itv.heure_arrivee,
     heure_depart: itv.heure_depart,
     forfait_deplacement: itv.forfait_deplacement,
-    statut: itv.statut || "terminee",
+    statut: itv.statut || "a_prevoir",
     statut_dossier: itv.statut_dossier || null,
     numero: itv.numero || null,
     annee_installation: itv.annee_installation || "",
@@ -576,7 +576,7 @@ async function tachesHTML() {
   if (f.type) visible = visible.filter((i) => matchesType(i, f.type));
   if (f.intervenant) visible = visible.filter((i) => matchesIntervenant(i, f.intervenant));
   // masquer les tâches réalisées par défaut (sauf si recherche active)
-  const filtered = q ? visible.filter((i) => matchesSearch(i, q)) : visible.filter((i) => i.statut !== "terminee");
+  const filtered = q ? visible.filter((i) => matchesSearch(i, q)) : visible.filter((i) => i.statut !== "terminee" || i.statut_dossier === "brouillon");
   const filterBar = `
     <div class="filter-row">
       <select class="filter-select" id="tf-type">
@@ -962,7 +962,8 @@ async function renderWizard() {
     </div>
     <main style="padding-top:14px;">${step.render()}</main>
     <div class="wizard-footer">
-      ${state.step > 1 ? `<button class="btn btn-ghost" data-nav="prev">${ICONS.back} Retour</button>` : `<button class="btn btn-ghost" data-nav="brouillon">${ICONS.file} Brouillon</button>`}
+      ${state.step > 1 ? `<button class="btn btn-ghost" data-nav="prev">${ICONS.back} Retour</button>` : ""}
+      <button class="btn btn-ghost" data-nav="brouillon">${ICONS.file} Enregistrer le brouillon</button>
       <button class="btn ${state.step === steps.length ? "btn-accent" : "btn-primary"}" data-nav="${state.step === steps.length ? "finish" : "next"}">
         ${state.step === steps.length ? `${ICONS.check} Valider la fiche` : "Continuer"}
       </button>
@@ -1088,6 +1089,14 @@ function readClientEntretienStep() {
 }
 
 // ---- Étape Intervention ----
+function interventionStatutLabel(s) {
+  if (s === "terminee") return "Effectuée";
+  if (s === "terminee_suite") return "Effectuée, suite à prévoir";
+  return "À effectuer";
+}
+function interventionStatutCls(s) {
+  return s === "terminee" ? "done" : "pending";
+}
 function stepInterventionHTML() {
   const d = state.draft;
   const types = ["Dépannage", "Garantie", "Diagnostic"];
@@ -1111,8 +1120,9 @@ function stepInterventionHTML() {
   </div>
   <div class="section-label">Statut de l'intervention</div>
   <div class="segmented" id="f-statut">
-    <button type="button" data-v="terminee" class="${d.statut === "terminee" ? "active" : ""}">Terminée avec succès</button>
-    <button type="button" data-v="a_prevoir" class="${d.statut === "a_prevoir" ? "active" : ""}">Nouvelle intervention à prévoir</button>
+    <button type="button" data-v="a_prevoir" class="${d.statut === "a_prevoir" ? "active" : ""}">À effectuer</button>
+    <button type="button" data-v="terminee" class="${d.statut === "terminee" ? "active" : ""}">Effectuée</button>
+    <button type="button" data-v="terminee_suite" class="${d.statut === "terminee_suite" ? "active" : ""}">Effectuée, suite à prévoir</button>
   </div>`;
 }
 function wireInterventionStep() {
@@ -1128,7 +1138,7 @@ function readInterventionStep() {
   d.heure_arrivee = $("#f-h-arr").value;
   d.heure_depart = $("#f-h-dep").value;
   d.forfait_deplacement = $("#f-forfait").value;
-  d.statut = $("#f-statut .active")?.dataset.v || "terminee";
+  d.statut = $("#f-statut .active")?.dataset.v || "a_prevoir";
   return true;
 }
 
@@ -1468,7 +1478,7 @@ function stepSignHTML() {
     <div class="kv"><div class="k">Client</div><div class="v">${esc(d.client.nom || "-")}</div></div>
     <div class="kv"><div class="k">Type</div><div class="v">${state.draftType === "intervention" ? esc(d.type_intervention) : (meta?.label || "Entretien")}</div></div>
     <div class="kv"><div class="k">Date</div><div class="v">${fmtDateShortLong(d.date)}</div></div>
-    <div class="kv"><div class="k">Statut</div><div class="v">${d.statut === "terminee" ? "Terminée avec succès" : "Nouvelle intervention à prévoir"}</div></div>
+    <div class="kv"><div class="k">Statut</div><div class="v">${interventionStatutLabel(d.statut)}</div></div>
     <div class="kv"><div class="k">Équipements</div><div class="v">${d.equipements.length || 0}</div></div>
     <div class="kv"><div class="k">Pièces</div><div class="v">${d.pieces.length || 0}</div></div>
     <div class="kv"><div class="k">Photos</div><div class="v">${d.photos.length || 0}</div></div>
@@ -1638,7 +1648,7 @@ async function renderDetail(id) {
         <div class="meta">${itv.numero ? `${esc(itv.numero)} · ` : ""}${fmtDateShortLong(itv.date)}</div>
         <div class="ii-tags" style="margin-top:10px;">
           <span class="tag ${statutDossierCls(itv.statut_dossier)}">${statutDossierLabel(itv.statut_dossier)}</span>
-          <span class="tag ${itv.statut === "terminee" ? "done" : "pending"}">${itv.statut === "terminee" ? "Terminée avec succès" : "Nouvelle intervention à prévoir"}</span>
+          <span class="tag ${interventionStatutCls(itv.statut)}">${interventionStatutLabel(itv.statut)}</span>
           ${itv.devis_souhaite ? `<span class="tag">Devis souhaité</span>` : ""}
           ${itv.prochaine_intervention_prevue ? `<span class="tag">Prochaine intervention prévue</span>` : ""}
         </div>

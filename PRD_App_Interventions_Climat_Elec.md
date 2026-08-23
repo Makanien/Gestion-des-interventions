@@ -1,8 +1,8 @@
 # PRD — Application de gestion des fiches d'intervention
 ## Climat Elec (Chazé-sur-Argos)
 
-**Version du document :** 1.16
-**Date :** 23/08/2026
+**Version du document :** 1.17
+**Date :** 24/08/2026
 **Auteur :** Rédigé avec Claude, sur la base des échanges avec le porteur de projet
 
 ---
@@ -155,7 +155,7 @@ Trois actions possibles en sortie d'écran :
 
 ### 3.2.6 Évolutions du formulaire "Nouvelle intervention" — US-21 · US-22
 - **Liste "Type d'intervention" modifiée** (US-22) : retrait de "Entretien" et "Rendez-vous" (qui ont désormais leurs propres flux dédiés, cf. §3.2.4 et §3.2.7) ; ajout de "Garantie". Liste cible : Dépannage, Garantie, Diagnostic.
-- **Statut de l'intervention** (US-22) ("Intervention terminée avec succès" / "Nouvelle intervention à prévoir") affiché en résumé dès l'étape 5/5, avant validation finale.
+- **Statut de l'intervention** (US-22) : « À effectuer » (défaut) / « Effectuée » / « Effectuée, suite à prévoir » (cf. §3.4), affiché en résumé avant validation finale.
 - **Ajout d'une étape "Photos"** (US-21) avec légende par photo, insérée avant l'étape 5/5. Ceci répond au point ouvert du §11 (V1.5) sur la prise de photos ; impacte le choix de stockage (cf. §6.1, IndexedDB déjà anticipé pour cet usage).
 - Le bug remonté initialement ("le bouton retour efface les données déjà saisies") a été vérifié : il ne semble plus présent dans la version actuelle (V2). Aucune action requise pour l'instant ; à re-tester lors des essais terrain (étape 4 de la roadmap, §9).
 
@@ -181,7 +181,7 @@ Trois nouveaux flux de création (accessibles depuis le bouton "+"), chacun dém
 **c) Entretien Chaudière bois**
 - Type d'entretien : Granulés, Bûches ou Pellets
 - Équipement : année d'installation + jusqu'à 3 lignes (intitulé, marque, modèle, n° série)
-- Champ supplémentaire par rapport aux autres fiches : **"Prochaine intervention prévue"** (en plus de "Nouvelle intervention à prévoir")
+- Champ supplémentaire par rapport aux autres fiches : **"Prochaine intervention prévue"** (en plus du statut « Effectuée, suite à prévoir »)
 - Mesures : tension d'alimentation, resserrage des bornes, vannes d'équilibrage, émetteurs zones 1/2, T° d'air extérieur, nettoyage/état filtres et filtre à boue, pression eau, disconnecteur, mitigeur ECS, étalonnage et test remplissage granulés, nettoyage et état du WOS (échangeur), nettoyage creuset/cendrier/sonde lambda/chambre de combustion/chaudière/silo interne, test de combustion, test clapet coupe-feu, test bougie d'allumage, état visuel chaudière et silo interne
 - Remarque/Observation, pièces utilisées (5 lignes), devis souhaité, signatures — identique au modèle (a)
 
@@ -219,7 +219,7 @@ En examinant les fiches papier fournies, deux documents supplémentaires sont ap
 - Base de données pièces (US-23, §3.2.9) : **désignation seule**, saisie manuelle ; import ultérieur possible.
 - **CERFA n°15497** (US-25, §3.2.10) : intégré aux fiches PAC Air/Eau-Sol/Eau et Air/Air, formulaire sur **une seule page** (document officiel).
 - **Contrat d'entretien annuel** (US-24, §3.2.10) : digitalisé (nombre de passages, tarification par zone/km, conditions générales, signatures, PDF).
-- **Mode brouillon** : reprendre une fiche non terminée plus tard — fiche générique + les 3 fiches d'entretien.
+- **Mode brouillon** : reprendre une fiche non terminée plus tard — fiche générique + les 3 fiches d'entretien ; brouillon enregistrable à chaque étape du wizard et visible dans l'onglet Tâches (cf. §3.4).
 - **Numérotation** : référence unique séquentielle sur tous les documents (fiches, dossier).
 
 ### 3.3.3 Validation & facturation (épopées 3-4-5) — sans génération de documents
@@ -283,7 +283,7 @@ Brouillon → À valider → Validée → À facturer → Facture importée → 
 - **Contrat d'entretien annuel digitalisé** (US-24) : création depuis le bouton « + », **signatures tactiles client et technicien** (prévisualisation, upload vers le bucket `signatures`), **génération et partage du PDF du contrat** (`generateContratPDF`, logo, blocs Client / Objet / Prestations / Conditions générales / Signatures), **liste** (`#/contrats`) et **détail** (`#/detail-contrat/:id`) des contrats, édition et suppression, numérotation `CTR-AAAA-NNN`.
 - **Photos avec légende** (US-21) : étape dédiée dans le wizard, redimensionnement côté client (dataURL), stockage dans la table `photos` **et upload effectif vers le bucket privé `photos`** à la finalisation de la fiche (le dataURL local est conservé pour l'affichage hors ligne, `fichier_url` référence l'objet Storage).
 - **Réutilisation de l'historique équipements** : à l'étape « Équipement » du wizard, proposition d'un bouton « Reprendre l'équipement enregistré » qui alimente le brouillon depuis l'historique du client (`listEquipementsForClient`).
-- **Type d'intervention resserré** (US-22) : Dépannage, Garantie, Diagnostic ; statut « terminée / à prévoir » affiché au récapitulatif final.
+- **Type d'intervention resserré** (US-22) : Dépannage, Garantie, Diagnostic ; statut à 3 valeurs « À effectuer » (défaut) / « Effectuée » / « Effectuée, suite à prévoir » affiché au récapitulatif final.
 - **Base pièces** (US-23) : table `pieces` (désignation seule), auto-complétion de la désignation dans les lignes de pièces, création à la volée, synchronisée.
 - **Duplication d'une fiche** (US-20) : bouton « Dupliquer » sur le détail (intervention ou entretien), reprise du client et des équipements.
 
@@ -314,6 +314,15 @@ Suite à un retour terrain (le technicien Jérémy ne voyait pas dans son planni
 - **Côté client (`app.js`, `supabase.js`)** : `technicien_id` est désormais renseigné à partir de l'intervenant sélectionné (`resolveTechId()` — résolution du nom vers l'uuid du profil via la liste de l'équipe chargée à l'authentification) ; le filtre du planning privilégie `technicien_id = utilisateur connecté` ; le calcul du prénom (correspondance « Jérémy » ↔ « Jérémy Gardais ») est corrigé (premier mot du `full_name` au lieu du dernier).
 - **Côté serveur (`supabase/migrations/003_fix_rdv_visibilite.sql`)** : backfill des rendez-vous existants (`technicien_id` rattaché au profil dont le nom correspond à l'intervenant) et politique `rendezvous_select` élargie — le technicien voit son planning via `technicien_id` **ou** le nom d'intervenant ; les RDV non affectés (intervenant vide) restent visibles par toute l'équipe.
 
+### Statut d'intervention & brouillons dans les tâches (24/08/2026)
+
+Suite aux retours d'usage, le statut d'intervention et la gestion des brouillons ont été affinés :
+
+- **Statut d'intervention à 3 valeurs** : « À effectuer » (`a_prevoir`, **nouveau défaut** des nouvelles interventions), « Effectuée » (`terminee`), « Effectuée, suite à prévoir » (`terminee_suite`). Le choix se fait à l'étape « Intervention » du wizard et s'affiche au récapitulatif, sur le détail de la fiche et dans le PDF généré.
+- **Onglet Tâches aligné sur le statut d'intervention** : les fiches « Effectuée » sont masquées par défaut (mais restent accessibles via la recherche et les filtres) ; les fiches « À effectuer » et « Effectuée, suite à prévoir » restent dans la liste, la seconde rappelant qu'une suite est à planifier.
+- **Brouillons visibles dans les tâches** : le filtre de l'onglet Tâches, qui ne regardait que le statut d'intervention, prend désormais aussi en compte `statut_dossier === "brouillon"` — un brouillon ne disparaît plus de la liste.
+- **Enregistrement du brouillon à toutes les étapes** : le bouton « Enregistrer le brouillon » du pied de page du wizard est présent à **chaque étape** (et plus seulement à la première), ce qui permet de sauvegarder une fiche partiellement remplie sans la valider, puis de la reprendre plus tard — les données sont bien persistées (IndexedDB + synchronisation) et récupérables via l'onglet Dossiers, la recherche, ou le bouton Modifier du détail.
+
 ### Divers
 - **PDF de fiche enrichi** : intégration des mesures, du CERFA et des photos dans le PDF généré.
 - **PWA** : service worker mis à jour (`CACHE_VERSION` incrémentée, cache de `pdf-lib.min.js`), mécanisme `updatefound` conservé.
@@ -329,7 +338,7 @@ Suite à un retour terrain (le technicien Jérémy ne voyait pas dans son planni
    - Ou création d'une nouvelle fiche client si premier passage.
 3. **Saisie de l'intervention** :
    - Type d'intervention, date (pré-remplie à aujourd'hui), heure d'arrivée/départ (calcul auto du temps d'intervention), forfait déplacement (oui/non).
-   - Statut : "Intervention terminée avec succès" / "Nouvelle intervention à prévoir".
+   - Statut : « À effectuer » (défaut) / « Effectuée » / « Effectuée, suite à prévoir ».
 4. **Équipement(s)** : 1 à 3 lignes (intitulé, marque, modèle, N° série) — saisie libre en V1 (pas encore d'historique par client, cf. §3 V2).
 5. **Descriptif de la demande** (texte libre).
 6. **Action réalisée** (texte libre).
@@ -379,7 +388,7 @@ Intervention {
   heure_arrivee, heure_depart
   forfait_deplacement: bool
   temps_intervention (calculé)
-  statut: "terminee" | "a_prevoir"
+  statut: "a_prevoir" | "terminee" | "terminee_suite"   (défaut "a_prevoir")
   descriptif_demande: text
   action_realisee: text
   devis_souhaite: bool
