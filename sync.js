@@ -6,6 +6,11 @@
      dès que le réseau est disponible ;
    - le pull récupère les changements des autres appareils via supabase.js.
    - Gestion simple des conflits : "dernière écriture gagne" (updated_at).
+     L'horodatage comparé est celui de l'horloge serveur : à chaque push,
+     l'upsert retourne la valeur posée par le trigger `set_updated_at` et la
+     copie locale est alignée dessus (C8). Les modifications locales pas encore
+     poussées (encore dans la file) l'emportent toujours localement, pour ne
+     jamais perdre une saisie hors ligne avant son envoi.
    ========================================================= */
 
 const SyncState = {
@@ -63,7 +68,16 @@ async function applyRemote(store, remote) {
     return;
   }
 
+  // C8 : une modification locale pas encore poussée (toujours dans la file de
+  // sync, ex. saisie faite hors ligne) doit l'emporter localement. Son
+  // horodatage suit l'horloge du mobile et n'est pas comparable à l'horloge
+  // serveur avant alignement au push : l'écraser pendant le pull ferait perdre
+  // la saisie de l'utilisateur.
+  const isPending = SyncState.queue.some((q) => q.store === store && q.id === remote.id);
+  if (isPending) return;
+
   // Conflit : dernière écriture gagne (updated_at)
+
   const localTime = local.updated_at || local.created_at || "";
   const remoteTime = remote.updated_at || remote.created_at || "";
   if (remoteTime >= localTime || isDeleted) {
@@ -152,7 +166,18 @@ async function pushChanges() {
       if (record._deleted) {
         await Supabase.remove(item.store, item.id, record.updated_at);
       } else {
-        await Supabase.upsert(item.store, cleanRow(item.store, record.payload));
+        // C8 : l'upsert retourne la ligne telle qu'écrite côté serveur, avec
+        // `updated_at` posé par le trigger `set_updated_at` (horloge serveur).
+        // On aligne la copie locale sur cette valeur : la résolution de conflits
+        // au pull suivant compare alors deux horodatages de la même horloge, au
+        // lieu d'un horodatage d'horloge mobile contre un horodatage serveur.
+        const serverRow = await Supabase.upsert(item.store, cleanRow(item.store, record.payload));
+        if (serverRow?.updated_at) {
+          const localRow = await DB.getRaw(item.store, item.id);
+          if (localRow) {
+            await DB.putRaw(item.store, { ...localRow, updated_at: serverRow.updated_at });
+          }
+        }
       }
     } catch (err) {
       stopped = true;

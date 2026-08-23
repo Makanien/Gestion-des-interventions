@@ -109,6 +109,7 @@
 ### C8 — « Dernière écriture gagne » faussé par le trigger serveur *(bas)*
 - **Où :** `schema.sql:117-123` + `sync.js:64-73`
 - **Constats :** le trigger écrase `updated_at = now()` à chaque `update`. Le client compare des horodatages serveur vs client ; en cas de dérive d'horloge, la résolution de conflit devient imprévisible.
+- **Résolution (23/08/2026) :** les deux côtés de la comparaison suivent désormais une **horloge unique (serveur)**. L'upsert retourne la ligne écrite (`Supabase.upsert` → `select("id, updated_at")` dans `supabase.js`) : comme le trigger `set_updated_at` a posé `updated_at` avec l'horloge du serveur, `pushChanges` (as `sync.js`) **aligne la copie locale** sur cette valeur à chaque push. La comparaison de conflits dans `applyRemote` compare ainsi deux horodatages serveur. En complément, **toute modification locale pas encore poussée** (toujours présente dans `SyncState.queue`) **l'emporte localement** pendant le pull (nouvelle garde `isPending`) : une saisie faite hors ligne n'est jamais écrasée par le remote, quelle que soit la dérive de l'horloge du mobile (les changements en file étant re-poussés ensuite).
 
 ---
 
@@ -162,7 +163,7 @@
 | C5 | Bas | ☑ | `deleteIntervention` soft-delete les enfants via `DB.replaceChildren(…, [])` + file de sync, pas de hard-delete (`idb.js`) |
 | C6 | Bas | ☑ | `updatePendingUI` alimente `state.sync.pending` (`sync.js:115`) |
 | C7 | Bas | ☑ | `pushChanges` remet en file les éléments non envoyés (`sync.js:89`) |
-| C8 | Bas | ☐ | trigger `set_updated_at` écrase toujours `updated_at` |
+| C8 | Bas | ☑ | `Supabase.upsert` retourne la ligne écrite (`select("id, updated_at")`) ; `pushChanges` aligne la copie locale sur `updated_at` du serveur, la comparaison de conflits compare deux horodatages serveur ; de plus une modification locale encore dans la file de sync l'emporte localement au pull (`isPending` dans `applyRemote`) — une saisie hors ligne n'est jamais écrasée malgré la dérive d'horloge |
 | D1 | Bas | ☐ | `SELF_CLIENT_FIELDS` toujours inutilisé (`sync.js:18`) |
 | D2 | Bas | ☐ | `removeSignature` toujours non appelé (`supabase.js:133`) |
 | D3 | Bas | ☐ | `importAll` toujours non exposé (`idb.js:638`) |

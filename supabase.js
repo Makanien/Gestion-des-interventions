@@ -105,8 +105,14 @@ const Supabase = {
 
   async upsert(store, row) {
     const c = initSupabase();
-    const { error } = await c.from(store).upsert(row);
+    // C8 : on demande le retour de la ligne écrite pour récupérer `updated_at`
+    // tel que posé par le trigger serveur `set_updated_at` — l'horloge du
+    // serveur est la référence pour la résolution de conflits. On ne sélectionne
+    // que les petites colonnes : les lignes `photos` / `documents` contiennent
+    // un `data_url` volumineux qu'il serait coûteux de renvoyer à chaque push.
+    const { data, error } = await c.from(store).upsert(row).select("id, updated_at");
     if (error) throw error;
+    return (data && data[0]) || null;
   },
 
   async remove(store, id, updated_at) {
