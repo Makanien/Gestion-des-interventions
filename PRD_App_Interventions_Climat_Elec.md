@@ -1,7 +1,7 @@
 # PRD — Application de gestion des fiches d'intervention
 ## Climat Elec (Chazé-sur-Argos)
 
-**Version du document :** 1.18
+**Version du document :** 1.19
 **Date :** 24/08/2026
 **Auteur :** Rédigé avec Claude, sur la base des échanges avec le porteur de projet
 
@@ -35,7 +35,7 @@ Climat Elec est une entreprise artisanale spécialisée en géothermie, climatis
 | **(Nouveau) Secrétaire (Delphine)** | Gère la partie administrative et la facturation | Compte utilisateur à part entière ; valide la génération des factures ; vue équipe comme Régis |
 | Client final | Reçoit la fiche | Reçoit un PDF clair et professionnel (envoi manuel par le technicien) |
 
-> **Terminologie des rôles (Supabase / RLS) :** les trois comptes internes correspondent à l'enum `profiles.role` — `responsable` (Régis), `technicien` (Jérémy), `secretaire` (Delphine). Le **responsable** et la **secrétaire** voient toute l'équipe (`is_manager()`), le **technicien** ne voit que ses propres interventions et son planning. Voir `supabase/migrations/001_roles_rls.sql`.
+> **Terminologie des rôles (Supabase / RLS) :** les trois comptes internes correspondent à l'enum `profiles.role` — `responsable` (Régis), `technicien` (Jérémy), `secretaire` (Delphine). Le **responsable** et la **secrétaire** voient toute l'équipe (`is_manager()`), le **technicien** ne voit que ses propres interventions et son planning. Voir `supabase/schema.sql` (fichier maître unique, section RLS par rôle).
 
 ---
 
@@ -93,7 +93,7 @@ Récapitulatif des changements fonctionnels et techniques effectivement dévelop
 - Fallback local (dataURL) si hors ligne ou si le storage n'est pas configuré.
 - **Upload différé des signatures hors ligne** : une signature capturée sans réseau reste un dataURL local (persisté sur la fiche) ; dès que la connexion revient, elle est automatiquement convertie en image, uploadée vers le bucket `signatures` et remplacée par l'URL publique, puis re-synchronisée (`uploadPendingSignatures` dans `sync.js`). Fonctionne aussi après rechargement de la page.
 - **Nettoyage des anciennes signatures** : une re-signature sur une fiche ou un contrat déjà signé (en ligne) supprime l'ancien fichier du bucket `signatures` (`removeSignature`) pour ne pas laisser d'orphelins dans le Storage.
-- **Posture de sécurité du bucket `signatures` (point S2 de la revue `synchro-supabase`, 24/08/2026)** : le bucket reste **public par choix assumé** — l'URL directe est nécessaire au PDF partagé et à l'affichage hors ligne. L'exposition est limitée par des **noms d'objets non devinables (UUID)** : les uploads directs utilisent `uuid()` (et non plus des horodatages prédictibles) et l'upload différé l'`id` de la fiche ; le risque résiduel (lecture par quiconque possède l'URL exacte) est documenté dans `supabase/storage.sql`.
+- **Posture de sécurité du bucket `signatures` (point S2 de la revue `synchro-supabase`, 24/08/2026)** : le bucket reste **public par choix assumé** — l'URL directe est nécessaire au PDF partagé et à l'affichage hors ligne. L'exposition est limitée par des **noms d'objets non devinables (UUID)** : les uploads directs utilisent `uuid()` (et non plus des horodatages prédictibles) et l'upload différé l'`id` de la fiche ; le risque résiduel (lecture par quiconque possède l'URL exacte) est documenté dans `supabase/schema.sql` (section Storage).
 
 ### Divers / technique
 - **PWA** : mécanisme de mise à jour du service worker (`updatefound`).
@@ -264,8 +264,8 @@ Brouillon → À valider → Validée → À facturer → Facture importée → 
 > Récapitulatif des changements fonctionnels et techniques effectivement développés depuis l'arbitrage du 19/08/2026, livrés sur la branche `application-v3` (commits des 20, 21 et 22/08/2026). Ils matérialisent la définition V3 du §3.3.
 
 ### Backend / schéma de données (V3)
-- **Migration `002_v3.sql`** (à exécuter après `schema.sql` → `storage.sql` → `001_roles_rls.sql`) : colonnes V3 sur `interventions` (`numero`, `statut_dossier`, `type_entretien`, `type_entretien_detail`, `prochaine_intervention_prevue`, `annee_installation`) + tables `appels`, `rendezvous`, `mesures`, `photos`, `pieces` (base pièces), `documents`, `contrats_entretien`, avec index, triggers (`updated_at`, `created_by`/`updated_by`, `set_technicien_default`), RLS par rôle, GRANT et Realtime (idempotent).
-- **Migration `003_fix_rdv_visibilite.sql`** (à exécuter après `002_v3.sql`) : correction de la visibilité des rendez-vous par technicien (voir §3.4 « Correction — Visibilité des rendez-vous »).
+- **Schéma consolidé (`supabase/schema.sql`, 24/08/2026)** : depuis cette date, tous les scripts SQL sont fusionnés dans un **fichier maître unique et idempotent** (état final V2 + V3, exécutable en une étape). Il contient les colonnes V3 sur `interventions` (`numero`, `statut_dossier`, `type_entretien`, `type_entretien_detail`, `prochaine_intervention_prevue`, `annee_installation`) + les tables `appels`, `rendezvous`, `mesures`, `photos`, `pieces` (base pièces), `documents`, `contrats_entretien`, avec index, triggers (`updated_at`, `created_by`/`updated_by`, `set_technicien_default`), Storage (buckets + politiques), RLS par rôle, GRANT et Realtime. Les anciens scripts (`storage.sql`, `migrations/001`/`002`/`003`) sont supprimés (historique conservé dans git).
+- **Visibilité des rendez-vous par technicien** : la politique `rendezvous_select` du fichier maître reprend la version corrigée — le technicien voit son planning via `technicien_id` **ou** le nom d'intervenant ; les RDV non affectés (intervenant vide) restent visibles par toute l'équipe (voir §3.4 « Correction — Visibilité des rendez-vous »).
 - **RBAC étendu aux nouvelles tables** : les politiques RLS suivent le modèle des tables V2 — les managers (Régis, Delphine) voient tout, le technicien (Jérémy) ne voit que ses données (`mesures`, `photos`, `documents` héritent du périmètre de leur intervention).
 - **Storage élargi** : buckets `photos` et `documents` (privés, lecture/écriture authentifiées) en plus du bucket public `signatures`.
 - **Backfill de migration V1→V2→V3** (`idb.js`) : éclatement équipements/pièces, ajout du `statut_dossier` par défaut sur l'existant, attribution d'un `numero` manquant (`FIC`/`ENT`) pour satisfaire la contrainte NOT NULL Supabase.
@@ -314,7 +314,7 @@ Suite à un retour terrain (le technicien Jérémy ne voyait pas dans son planni
 
 - **Cause :** l'affectation d'un rendez-vous se faisait uniquement par le texte `intervenant` ("Jérémy", "Régis", "Delphine") alors que la RLS serveur ne contrôle que `technicien_id` (uuid). Le trigger `rendezvous_set_technicien` initialisait `technicien_id` avec le **créateur** du RDV : un rendez-vous créé par le responsable pour Jérémy restait donc invisible pour Jérémy (jamais reçu en synchronisation, car filtré par la politique `rendezvous_select`).
 - **Côté client (`app.js`, `supabase.js`)** : `technicien_id` est désormais renseigné à partir de l'intervenant sélectionné (`resolveTechId()` — résolution du nom vers l'uuid du profil via la liste de l'équipe chargée à l'authentification) ; le filtre du planning privilégie `technicien_id = utilisateur connecté` ; le calcul du prénom (correspondance « Jérémy » ↔ « Jérémy Gardais ») est corrigé (premier mot du `full_name` au lieu du dernier).
-- **Côté serveur (`supabase/migrations/003_fix_rdv_visibilite.sql`)** : backfill des rendez-vous existants (`technicien_id` rattaché au profil dont le nom correspond à l'intervenant) et politique `rendezvous_select` élargie — le technicien voit son planning via `technicien_id` **ou** le nom d'intervenant ; les RDV non affectés (intervenant vide) restent visibles par toute l'équipe.
+- **Côté serveur (`supabase/schema.sql`)** : backfill des rendez-vous existants (`technicien_id` rattaché au profil dont le nom correspond à l'intervenant, bloc `BACKFILL`) et politique `rendezvous_select` élargie — le technicien voit son planning via `technicien_id` **ou** le nom d'intervenant ; les RDV non affectés (intervenant vide) restent visibles par toute l'équipe.
 
 ### Statut d'intervention & brouillons dans les tâches (24/08/2026)
 

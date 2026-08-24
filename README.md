@@ -57,11 +57,8 @@ plein écran comme une application native, **même sans connexion** après la pr
 ## ⚙️ Configuration Supabase (V2/V3)
 
 1. Renseigner `config.js` avec l'URL du projet et la clé anon/publishable.
-2. Exécuter dans le SQL Editor, **dans cet ordre** :
-   - `supabase/schema.sql`
-   - `supabase/storage.sql`
-   - `supabase/migrations/001_roles_rls.sql`
-   - `supabase/migrations/002_v3.sql` (nouvelles tables V3)
+2. Exécuter dans le SQL Editor : `supabase/schema.sql` — fichier maître unique
+   (tables V2 + V3, RLS par rôle, Storage, Realtime), idempotent.
 3. Voir `supabase/DEPLOYMENT.md` pour le détail complet (Auth, migration, signatures).
 
 ### Tester en local sur ordinateur (avant déploiement)

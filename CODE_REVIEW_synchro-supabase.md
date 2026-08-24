@@ -28,7 +28,7 @@
 - **Risque :** si l'inscription publique par email est activée (défaut Supabase), **n'importe qui peut créer un compte et accéder à tout**.
 - **Remarque :** le commentaire dit « même équipe », mais rien ne l'implémente côté SQL.
 - **Piste :** limiter à un périmètre réel (ex. `created_by = auth.uid()` ou table d'équipes) et/ou désactiver l'auto-inscription.
-- **Résolution (24/08/2026) :** RLS par rôle dans `001_roles_rls.sql` + inscription publique désactivée (prérequis Dashboard). Reste un piège documenté : `schema.sql` conserve encore les politiques `using (true)` qu'il faut **impérativement ne pas re-lancer** après `001` (elles ré-ouvriraient l'accès). En-tête de `schema.sql` mis à jour avec l'ordre d'exécution et l'avertissement.
+- **Résolution (24/08/2026) :** RLS par rôle + inscription publique désactivée (prérequis Dashboard). Le piège « re-lancer `schema.sql` ré-ouvre les RLS » est éliminé par la consolidation du même jour : les 5 scripts (`schema.sql`, `storage.sql`, `migrations/001`/`002`/`003`) sont fusionnés dans un **fichier maître unique `supabase/schema.sql`**, idempotent, qui contient directement l'état final correct (RLS par rôle, aucune politique `using (true)` résiduelle sur interventions/pieces/profiles).
 
 ### S2 — Bucket de signatures public en lecture *(moyen)*
 - **Où :** `supabase/storage.sql:3-8`
@@ -153,6 +153,8 @@
 
 > **Vérification du 23/08/2026 (branche `application-v3`) :** points revus contre le code actuel.
 > ☑ = corrigé depuis la revue · ◐ = partiellement corrigé · ☐ = toujours d'actualité.
+
+> **Mise à jour du 24/08/2026 :** les scripts SQL ont été consolidés en un **fichier maître unique `supabase/schema.sql`** (état final V2 + V3, idempotent). `storage.sql` et `supabase/migrations/` sont supprimés (historique conservé dans git) ; `DEPLOYMENT.md` est passé en procédure en une étape. Les références « `storage.sql` / `001_roles_rls.sql` / `002_v3.sql` » dans le tableau ci-dessous désignent désormais les sections correspondantes du fichier maître.
 
 | Réf | Sévérité | Résolu | Note |
 |---|---|---|---|
