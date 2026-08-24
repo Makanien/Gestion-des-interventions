@@ -28,6 +28,7 @@
 - **Risque :** si l'inscription publique par email est activée (défaut Supabase), **n'importe qui peut créer un compte et accéder à tout**.
 - **Remarque :** le commentaire dit « même équipe », mais rien ne l'implémente côté SQL.
 - **Piste :** limiter à un périmètre réel (ex. `created_by = auth.uid()` ou table d'équipes) et/ou désactiver l'auto-inscription.
+- **Résolution (24/08/2026) :** RLS par rôle dans `001_roles_rls.sql` + inscription publique désactivée (prérequis Dashboard). Reste un piège documenté : `schema.sql` conserve encore les politiques `using (true)` qu'il faut **impérativement ne pas re-lancer** après `001` (elles ré-ouvriraient l'accès). En-tête de `schema.sql` mis à jour avec l'ordre d'exécution et l'avertissement.
 
 ### S2 — Bucket de signatures public en lecture *(moyen)*
 - **Où :** `supabase/storage.sql:3-8`
@@ -44,6 +45,7 @@
 - **Où :** `supabase/schema.sql:148-156`
 - **Constats :** pratique standard, mais risque lié à `search_path`.
 - **Piste :** fixer `search_path` ou qualifier les objets dans les fonctions `security definer`.
+- **Résolution (24/08/2026) :** `set search_path = public` ajouté (`schema.sql:156`), aligné sur les autres fonctions de `001_roles_rls.sql`. Le risque était de toute façon minime : la seule référence est déjà qualifiée (`public.profiles`), c'était de la défense en profondeur + cohérence.
 
 ### S5 — XSS : bien maîtrisé *(OK)*
 - `esc()` est utilisé systématiquement dans les templates (`app.js:40`), y compris pour les URL de signatures et les attributs. Aucune faille XSS identifiée.
@@ -156,8 +158,8 @@
 |---|---|---|---|
 | S1 | Élevé | ☑ | RLS par rôle (`001_roles_rls.sql`) : interventions/pieces_utilisees/profiles scopées + anti-élévation ; clients/equipements restent partagés (barrière = inscription publique désactivée) |
 | S2 | Moyen | ☑ | bucket `signatures` public conservé (choix assumé : URL directe dans le PDF + affichage hors ligne), mais **durcissement 24/08/2026** : noms d'objets non devinables (UUID) — les uploads directs `app.js` passent de `sig-client-${Date.now()}` à `sig-client-${uuid()}` (idem technicien/contrat) ; `sync.js` utilisait déjà l'`id` UUID de la ligne ; risque résiduel accepté et documenté dans `storage.sql` |
-| S3 | Info | ☐ | clé anon publique par nature |
-| S4 | Info | ☐ | `handle_new_user` toujours `security definer` sans `set search_path` (les autres fonctions l'ont) |
+| S3 | Info | ☑ | clé anon publique par nature |
+| S4 | Info | ☑ | `handle_new_user` corrigé : `set search_path = public` ajouté (`schema.sql:156`), aligné sur les autres fonctions ; le risque était minime (référence déjà qualifiée `public.profiles`) — défense en profondeur |
 | S5 | OK | ☑ | rien à faire |
 | P1 | Moyen | ☑ | index `intervention_id` créé sur `equipements` (V4, `ensureIndex` sur store existant) + helper `DB.listByIndex` (`idb.js`) ; les listes d'enfants d'une fiche (équipements, pièces utilisées, mesures, photos, documents) et `replaceChildren` passent par l'index — plus de scan complet ; `listEquipementsForClient` utilise l'index `client_id` |
 | P2 | Bas | ☑ | `getIntervention` réécrite en **une seule transaction readonly** (multi-get) : intervention + client (jointure `client_id`) + 5 collections d'enfants par index `intervention_id` (`idb.js:332`) — le N+1 structurel est éliminé |

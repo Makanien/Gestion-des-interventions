@@ -2,6 +2,15 @@
 -- Climat Elec — Schéma Supabase (V2)
 -- À exécuter dans l'éditeur SQL du projet Supabase
 -- (Dashboard > SQL Editor > New query), puis "Run".
+--
+-- ORDRE D'EXÉCUTION OBLIGATOIRE :
+--   schema.sql → storage.sql → 001_roles_rls.sql → 002_v3.sql → 003_fix_rdv_visibilite.sql
+--
+-- ATTENTION : NE PAS RELANCER ce fichier après les migrations RLS.
+-- Les politiques permissives définies ci-dessous (interventions,
+-- pieces_utilisees, profiles) remplacent celles par rôle de
+-- 001_roles_rls.sql si ce script est re-exécuté, et RÉOUVRIRAIENT
+-- l'accès à tous les utilisateurs authentifiés.
 -- =========================================================
 
 -- ---------------------------------------------------------
@@ -39,7 +48,7 @@ create table if not exists public.interventions (
   heure_arrivee        text not null default '',
   heure_depart         text not null default '',
   forfait_deplacement  text not null default '',
-  temps_intervention   text not null default '', -- calculé
+  temps_intervention   text not null default '', -- calculé par le frontend (heure_arrivee/heure_depart)
   statut               text not null default 'terminee', -- 'terminee' | 'a_prevoir'
   descriptif_demande   text not null default '',
   action_realisee      text not null default '',
@@ -153,7 +162,7 @@ begin
   on conflict (id) do nothing;
   return new;
 end;
-$$ language plpgsql security definer;
+$$ language plpgsql security definer set search_path = public;
 
 drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
