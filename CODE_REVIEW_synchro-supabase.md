@@ -33,6 +33,7 @@
 - **Où :** `supabase/storage.sql:3-8`
 - **Constats :** `public = true` + politique `select` sur `bucket_id = 'signatures'`.
 - **Risque :** les signatures (données personnelles) sont lisibles par quiconque possède l'URL, même sans authentification.
+- **Résolution (24/08/2026) :** choix assumé conservé — le bucket reste public pour permettre l'**URL directe dans le PDF** et l'**affichage hors ligne** (une URL signée expirerait et casserait le PDF partagé). L'exposition est réduite par des **noms d'objets non devinables** : les uploads directs (`app.js`) utilisaient `sig-client-${Date.now()}` (horodatage prédictible, énumérable) et passent désormais par `uuid()` ; `sync.js` utilisait déjà l'`id` UUID de la ligne. Risque résiduel (lecture par quiconque possède l'URL exacte) **accepté et documenté** dans `storage.sql` — la signature est de toute façon destinée au PDF remis au client.
 
 ### S3 — Cohérence clé anon *(info)*
 - **Où :** `config.js:10`
@@ -154,7 +155,7 @@
 | Réf | Sévérité | Résolu | Note |
 |---|---|---|---|
 | S1 | Élevé | ☑ | RLS par rôle (`001_roles_rls.sql`) : interventions/pieces_utilisees/profiles scopées + anti-élévation ; clients/equipements restent partagés (barrière = inscription publique désactivée) |
-| S2 | Moyen | ☐ | bucket `signatures` toujours public (choix assumé : URL directe dans le PDF) |
+| S2 | Moyen | ☑ | bucket `signatures` public conservé (choix assumé : URL directe dans le PDF + affichage hors ligne), mais **durcissement 24/08/2026** : noms d'objets non devinables (UUID) — les uploads directs `app.js` passent de `sig-client-${Date.now()}` à `sig-client-${uuid()}` (idem technicien/contrat) ; `sync.js` utilisait déjà l'`id` UUID de la ligne ; risque résiduel accepté et documenté dans `storage.sql` |
 | S3 | Info | ☐ | clé anon publique par nature |
 | S4 | Info | ☐ | `handle_new_user` toujours `security definer` sans `set search_path` (les autres fonctions l'ont) |
 | S5 | OK | ☑ | rien à faire |

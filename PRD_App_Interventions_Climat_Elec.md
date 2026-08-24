@@ -1,7 +1,7 @@
 # PRD — Application de gestion des fiches d'intervention
 ## Climat Elec (Chazé-sur-Argos)
 
-**Version du document :** 1.17
+**Version du document :** 1.18
 **Date :** 24/08/2026
 **Auteur :** Rédigé avec Claude, sur la base des échanges avec le porteur de projet
 
@@ -93,6 +93,7 @@ Récapitulatif des changements fonctionnels et techniques effectivement dévelop
 - Fallback local (dataURL) si hors ligne ou si le storage n'est pas configuré.
 - **Upload différé des signatures hors ligne** : une signature capturée sans réseau reste un dataURL local (persisté sur la fiche) ; dès que la connexion revient, elle est automatiquement convertie en image, uploadée vers le bucket `signatures` et remplacée par l'URL publique, puis re-synchronisée (`uploadPendingSignatures` dans `sync.js`). Fonctionne aussi après rechargement de la page.
 - **Nettoyage des anciennes signatures** : une re-signature sur une fiche ou un contrat déjà signé (en ligne) supprime l'ancien fichier du bucket `signatures` (`removeSignature`) pour ne pas laisser d'orphelins dans le Storage.
+- **Posture de sécurité du bucket `signatures` (point S2 de la revue `synchro-supabase`, 24/08/2026)** : le bucket reste **public par choix assumé** — l'URL directe est nécessaire au PDF partagé et à l'affichage hors ligne. L'exposition est limitée par des **noms d'objets non devinables (UUID)** : les uploads directs utilisent `uuid()` (et non plus des horodatages prédictibles) et l'upload différé l'`id` de la fiche ; le risque résiduel (lecture par quiconque possède l'URL exacte) est documenté dans `supabase/storage.sql`.
 
 ### Divers / technique
 - **PWA** : mécanisme de mise à jour du service worker (`updatefound`).
@@ -538,7 +539,7 @@ ContratEntretien {
 | Fonctionnement hors ligne | Obligatoire dès la V1, y compris pour créer une fiche client et générer le PDF |
 | Compatibilité | Smartphone Android et iOS (PWA installable), utilisation au doigt sans zoom nécessaire |
 | Performance | Chargement quasi instantané (assets mis en cache), pas de dépendance réseau pour l'usage courant |
-| Sécurité / RGPD | Données clients (nom, adresse, mail, tél) stockées localement en V1 ; en V2, hébergement Supabase avec accès restreint aux comptes techniciens ; prévoir une mention de confidentialité simple |
+| Sécurité / RGPD | Données clients (nom, adresse, mail, tél) stockées localement en V1 ; en V2, hébergement Supabase avec accès restreint aux comptes techniciens (RLS par rôle, inscription publique désactivée) ; le bucket `signatures` reste public par choix (URL directe dans le PDF) mais avec noms d'objets non devinables (UUID) ; prévoir une mention de confidentialité simple |
 | Sauvegarde | En V1, les données ne vivent que sur l'appareil : à prévoir un export/sauvegarde manuel (ex. bouton "exporter toutes les données" en JSON) pour éviter une perte totale en cas de changement de téléphone, en attendant la V2 |
 | Accessibilité | Boutons larges, formulaires en plusieurs étapes plutôt qu'un long formulaire unique, pour limiter les erreurs de saisie sur petit écran |
 

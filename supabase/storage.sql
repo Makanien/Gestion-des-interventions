@@ -12,6 +12,12 @@ values
 on conflict (id) do nothing;
 
 -- signatures : lecture publique (URL directe dans le PDF), écriture authentifiée.
+-- Choix assumé (point S2 de la revue `synchro-supabase`) : le bucket reste public
+-- pour permettre l'URL directe dans le PDF et l'affichage hors ligne. L'exposition
+-- est limitée par des NOMS D'OBJETS NON DEVINABLES (UUID) : l'app ne génère plus de
+-- noms prédictibles (`Date.now()`) et utilise `uuid()` / l'id de la ligne. Risque
+-- résiduel : quiconque possède l'URL exacte peut lire l'image — accepté (le PDF signé
+-- est destiné au client de toute façon).
 drop policy if exists signatures_read on storage.objects;
 create policy signatures_read on storage.objects
   for select using (bucket_id = 'signatures');

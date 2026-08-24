@@ -1565,8 +1565,8 @@ async function finishWizard() {
   // Upload des signatures tactiles vers Supabase Storage (si configuré).
   if (Supabase.configured() && state.auth && navigator.onLine) {
     try {
-      if (d.client_present && d._client_sig_blob) d.client_signature_url = await Supabase.uploadSignature(`sig-client-${Date.now()}`, d._client_sig_blob);
-      if (d._technicien_sig_blob) d.technicien_signature_url = await Supabase.uploadSignature(`sig-tech-${Date.now()}`, d._technicien_sig_blob);
+      if (d.client_present && d._client_sig_blob) d.client_signature_url = await Supabase.uploadSignature(`sig-client-${uuid()}`, d._client_sig_blob);
+      if (d._technicien_sig_blob) d.technicien_signature_url = await Supabase.uploadSignature(`sig-tech-${uuid()}`, d._technicien_sig_blob);
     } catch (e) { console.warn("Upload signature échoué", e); }
   }
 
@@ -1964,8 +1964,8 @@ async function renderContrat(id) {
     state.contratDraft.conditions_generales = cleanText($("#ct-cg").value);
     if (Supabase.configured() && state.auth && navigator.onLine) {
       try {
-        if (state.contratDraft._client_sig_blob) state.contratDraft.client_signature_url = await Supabase.uploadSignature(`ct-client-${Date.now()}`, state.contratDraft._client_sig_blob);
-        if (state.contratDraft._technicien_sig_blob) state.contratDraft.technicien_signature_url = await Supabase.uploadSignature(`ct-tech-${Date.now()}`, state.contratDraft._technicien_sig_blob);
+        if (state.contratDraft._client_sig_blob) state.contratDraft.client_signature_url = await Supabase.uploadSignature(`ct-client-${uuid()}`, state.contratDraft._client_sig_blob);
+        if (state.contratDraft._technicien_sig_blob) state.contratDraft.technicien_signature_url = await Supabase.uploadSignature(`ct-tech-${uuid()}`, state.contratDraft._technicien_sig_blob);
       } catch (e) { console.warn("Upload signature échoué", e); }
     }
     if (!state.contratDraft.numero) state.contratDraft.numero = await DB.nextNumero("CTR");
