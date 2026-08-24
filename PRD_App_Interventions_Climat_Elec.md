@@ -328,6 +328,8 @@ Suite aux retours d'usage, le statut d'intervention et la gestion des brouillons
 - **PDF de fiche enrichi** : intégration des mesures, du CERFA et des photos dans le PDF généré.
 - **PWA** : service worker mis à jour (`CACHE_VERSION` incrémentée, cache de `pdf-lib.min.js`), mécanisme `updatefound` conservé.
 - **Performance (points P1/P2 de la revue `synchro-supabase`)** : les lectures des enfants d'une fiche (équipements, pièces utilisées, mesures, photos, documents) et `replaceChildren` passent par les **index IndexedDB** (`intervention_id`, `client_id`) via un helper `listByIndex` — suppression des scans complets de table (`getAll()` + filtre en mémoire). Index `intervention_id` créé sur `equipements` (bump `DB_VERSION` 3 → 4, migration automatique via `ensureIndex` sans perte de données). En complément, `getIntervention` est réécrite en **une seule transaction readonly** (multi-get : intervention + client + 5 collections d'enfants par index) — le N+1 structurel est éliminé.
+- **Factorisation des listes (point D8 de la revue `synchro-supabase`)** : le motif « lecture complète + filtre des supprimés » répété dans toutes les fonctions de liste est centralisé dans deux helpers `DB.listActive` / `DB.listActiveByIndex` (`idb.js`) — une seule définition du filtre de tombstone `_deleted`, utilisée par toutes les listes (clients, interventions, équipements, pièces, mesures, photos, documents, appels, rendez-vous, contrats, base pièces) et l'export.
+- **Temps d'intervention renseigné (point D4 de la revue `synchro-supabase`)** : le champ `temps_intervention` est désormais calculé à partir des heures d'arrivée/départ à la saisie (calcul auto déjà annoncé au §4, réutilise la même fonction que le PDF), persisté localement et synchronisé — il ne restait qu'une colonne vide déclarée dans le schéma.
 
 ---
 
@@ -413,7 +415,7 @@ PieceUtilisee {
 }
 ```
 
-> Le champ `synced_at` est prévu dès la V1 (même s'il reste toujours `null`) pour ne pas avoir à modifier le schéma lors du passage à Supabase.
+> Le champ `synced_at` est prévu dès la V1 (même s'il restait toujours `null`) pour ne pas avoir à modifier le schéma lors du passage à Supabase. Depuis la résolution du point D5 de la revue `synchro-supabase` (24/08/2026), il est **renseigné après chaque push réussi** avec l'horodatage serveur (même principe que `updated_at` aligné sur l'horloge serveur, point C8) : `null` indique une ligne modifiée localement non encore poussée.
 
 ### 5.2 Modèle de données V3 (Supabase) — extensions
 

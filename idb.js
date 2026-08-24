@@ -217,6 +217,17 @@ const DB = {
       req.onerror = () => reject(req.error);
     });
   },
+  // D8 : factorisation du motif `listRaw/listByIndex + filtre !_deleted` répété
+  // dans toutes les fonctions de liste : ces helpers renvoient les lignes non
+  // supprimées (tombstone `_deleted`), par scan complet ou par index.
+  async listActive(store) {
+    const rows = await this.listRaw(store);
+    return rows.filter((r) => !r._deleted);
+  },
+  async listActiveByIndex(store, index, value) {
+    const rows = await this.listByIndex(store, index, value);
+    return rows.filter((r) => !r._deleted);
+  },
 
   // ---------- Sync support ----------
   async getRecordForSync(store, id) {
@@ -272,8 +283,8 @@ const DB = {
 
   // ---------- Clients ----------
   async listClients() {
-    const rows = await this.listRaw("clients");
-    return rows.filter((c) => !c._deleted).sort((a, b) => (a.nom || "").localeCompare(b.nom || "", "fr"));
+    const rows = await this.listActive("clients");
+    return rows.sort((a, b) => (a.nom || "").localeCompare(b.nom || "", "fr"));
   },
   async getClient(id) {
     const c = await this.getRaw("clients", id);
@@ -312,11 +323,10 @@ const DB = {
 
   // ---------- Interventions ----------
   async listInterventions() {
-    const rows = await this.listRaw("interventions");
+    const rows = await this.listActive("interventions");
     const clients = await this.listClients();
     const clientMap = new Map(clients.map((c) => [c.id, c]));
     return rows
-      .filter((i) => !i._deleted)
       .map((i) => {
         if (!i.client) {
           const c = clientMap.get(i.client_id);
@@ -465,12 +475,11 @@ const DB = {
 
   // ---------- Équipements (historisés par client) ----------
   async listEquipementsForIntervention(interventionId) {
-    const rows = await this.listByIndex("equipements", "intervention_id", interventionId);
-    return rows.filter((e) => !e._deleted);
+    return this.listActiveByIndex("equipements", "intervention_id", interventionId);
   },
   async listEquipementsForClient(clientId) {
-    const rows = await this.listByIndex("equipements", "client_id", clientId);
-    return rows.filter((e) => !e._deleted && !e.intervention_id);
+    const rows = await this.listActiveByIndex("equipements", "client_id", clientId);
+    return rows.filter((e) => !e.intervention_id);
   },
   async replaceEquipements(interventionId, list) {
     await this.replaceChildren("equipements", "intervention_id", interventionId, list);
@@ -494,8 +503,7 @@ const DB = {
 
   // ---------- Pièces utilisées ----------
   async listPiecesForIntervention(interventionId) {
-    const rows = await this.listByIndex("pieces_utilisees", "intervention_id", interventionId);
-    return rows.filter((p) => !p._deleted);
+    return this.listActiveByIndex("pieces_utilisees", "intervention_id", interventionId);
   },
   async replacePieces(interventionId, list) {
     await this.replaceChildren("pieces_utilisees", "intervention_id", interventionId, list);
@@ -503,8 +511,8 @@ const DB = {
 
   // ---------- Base pièces (V3 — désignation seule) ----------
   async listPiecesBase() {
-    const rows = await this.listRaw("pieces");
-    return rows.filter((p) => !p._deleted).sort((a, b) => (a.designation || "").localeCompare(b.designation || "", "fr"));
+    const rows = await this.listActive("pieces");
+    return rows.sort((a, b) => (a.designation || "").localeCompare(b.designation || "", "fr"));
   },
   async savePieceBase(designation) {
     const d = (designation || "").trim();
@@ -531,8 +539,7 @@ const DB = {
 
   // ---------- Mesures (fiches d'entretien) ----------
   async listMesuresForIntervention(interventionId) {
-    const rows = await this.listByIndex("mesures", "intervention_id", interventionId);
-    return rows.filter((m) => !m._deleted);
+    return this.listActiveByIndex("mesures", "intervention_id", interventionId);
   },
   async replaceMesures(interventionId, list) {
     await this.replaceChildren("mesures", "intervention_id", interventionId, list);
@@ -540,8 +547,7 @@ const DB = {
 
   // ---------- Photos (V3) ----------
   async listPhotosForIntervention(interventionId) {
-    const rows = await this.listByIndex("photos", "intervention_id", interventionId);
-    return rows.filter((p) => !p._deleted);
+    return this.listActiveByIndex("photos", "intervention_id", interventionId);
   },
   async replacePhotos(interventionId, list) {
     await this.replaceChildren("photos", "intervention_id", interventionId, list);
@@ -549,8 +555,7 @@ const DB = {
 
   // ---------- Documents (devis / facture / contrat importés) ----------
   async listDocumentsForIntervention(interventionId) {
-    const rows = await this.listByIndex("documents", "intervention_id", interventionId);
-    return rows.filter((d) => !d._deleted);
+    return this.listActiveByIndex("documents", "intervention_id", interventionId);
   },
   async replaceDocuments(interventionId, list) {
     await this.replaceChildren("documents", "intervention_id", interventionId, list);
@@ -575,8 +580,8 @@ const DB = {
 
   // ---------- Appels (V3 — US-01) ----------
   async listAppels() {
-    const rows = await this.listRaw("appels");
-    return rows.filter((a) => !a._deleted).sort((a, b) => (b.created_at || "").localeCompare(a.created_at || ""));
+    const rows = await this.listActive("appels");
+    return rows.sort((a, b) => (b.created_at || "").localeCompare(a.created_at || ""));
   },
   async saveAppel(appel) {
     const now = new Date().toISOString();
@@ -603,8 +608,8 @@ const DB = {
 
   // ---------- Rendez-vous (V3 — US-02) ----------
   async listRendezvous() {
-    const rows = await this.listRaw("rendezvous");
-    return rows.filter((r) => !r._deleted).sort((a, b) => (a.date || "").localeCompare(b.date || "") || (a.heure_debut || "").localeCompare(b.heure_debut || ""));
+    const rows = await this.listActive("rendezvous");
+    return rows.sort((a, b) => (a.date || "").localeCompare(b.date || "") || (a.heure_debut || "").localeCompare(b.heure_debut || ""));
   },
   async saveRendezvous(rdv) {
     const now = new Date().toISOString();
@@ -631,8 +636,8 @@ const DB = {
 
   // ---------- Contrats d'entretien (V3 — US-24) ----------
   async listContrats() {
-    const rows = await this.listRaw("contrats_entretien");
-    return rows.filter((c) => !c._deleted).sort((a, b) => (b.created_at || "").localeCompare(a.created_at || ""));
+    const rows = await this.listActive("contrats_entretien");
+    return rows.sort((a, b) => (b.created_at || "").localeCompare(a.created_at || ""));
   },
   async saveContrat(contrat) {
     const now = new Date().toISOString();
@@ -675,14 +680,14 @@ const DB = {
     const [clients, interventions, equipements, pieces, appels, rendezvous, mesures, photos, piecesBase, documents, contrats] = await Promise.all([
       this.listClients(),
       this.listInterventions(),
-      (await this.listRaw("equipements")).filter((e) => !e._deleted),
-      (await this.listRaw("pieces_utilisees")).filter((p) => !p._deleted),
+      this.listActive("equipements"),
+      this.listActive("pieces_utilisees"),
       this.listAppels(),
       this.listRendezvous(),
-      (await this.listRaw("mesures")).filter((m) => !m._deleted),
-      (await this.listRaw("photos")).filter((p) => !p._deleted),
+      this.listActive("mesures"),
+      this.listActive("photos"),
       this.listPiecesBase(),
-      (await this.listRaw("documents")).filter((d) => !d._deleted),
+      this.listActive("documents"),
       this.listContrats(),
     ]);
     return {

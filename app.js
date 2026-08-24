@@ -276,6 +276,7 @@ function emptyDraft(type) {
     heure_arrivee: nowHM(),
     heure_depart: "",
     forfait_deplacement: "",
+    temps_intervention: "",
     statut: type === "intervention" ? "a_prevoir" : "terminee",
     statut_dossier: null,
     numero: null,
@@ -319,6 +320,7 @@ async function loadDraftFromIntervention(id) {
     heure_arrivee: itv.heure_arrivee,
     heure_depart: itv.heure_depart,
     forfait_deplacement: itv.forfait_deplacement,
+    temps_intervention: itv.temps_intervention || "",
     statut: itv.statut || "a_prevoir",
     statut_dossier: itv.statut_dossier || null,
     numero: itv.numero || null,
@@ -1137,6 +1139,10 @@ function readInterventionStep() {
   d.date = $("#f-date").value || todayISO();
   d.heure_arrivee = $("#f-h-arr").value;
   d.heure_depart = $("#f-h-dep").value;
+  // D4 : renseigne `temps_intervention` (calculé à partir des heures saisies)
+  // au lieu de laisser la colonne vide — le même calcul alimente le PDF.
+  const dur = computeDuration(d.heure_arrivee, d.heure_depart);
+  d.temps_intervention = dur === "-" ? "" : dur;
   d.forfait_deplacement = $("#f-forfait").value;
   d.statut = $("#f-statut .active")?.dataset.v || "a_prevoir";
   return true;

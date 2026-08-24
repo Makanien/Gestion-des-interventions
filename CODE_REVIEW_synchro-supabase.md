@@ -173,11 +173,11 @@
 | D1 | Bas | ☑ | `SELF_CLIENT_FIELDS` supprimé (`sync.js`) |
 | D2 | Bas | ☑ | `removeSignature` branché sur la re-signature (fiche + contrat) : l'ancien fichier Storage est supprimé dès qu'une nouvelle signature le remplace (`app.js:1497-1523, 1928-1949` ; `supabase.js:139-148`) |
 | D3 | Bas | ☑ | `importAll` branché : bouton « Importer une sauvegarde » dans l'écran Compte & synchro (`app.js:2255, 2134-2149`) ; les lignes restaurées rejoignent la file de sync (`idb.js:705-717`) |
-| D4 | Bas | ☐ | `temps_intervention` toujours non calculé (`schema.sql:42`) |
-| D5 | Bas | ☐ | `synced_at` toujours `null` (write-only) |
+| D4 | Bas | ☑ | `temps_intervention` désormais renseigné : calculé à partir de `heure_arrivee`/`heure_depart` à la lecture de l'étape « Intervention » (réutilise `computeDuration`, `app.js`) ; champ initialisé dans le draft et chargé depuis une fiche existante ; normalisé à `""` dans `cleanRow` pour la colonne `not null` |
+| D5 | Bas | ☑ | `synced_at` désormais renseigné après un push réussi : `pushChanges` aligne la copie locale sur l'horloge serveur (`synced_at = updated_at` serveur, même principe que C8) — `null` signale une ligne modifiée localement non encore poussée (`idb.js`), la valeur reste une marque locale non poussée (`cleanRow`, `sync.js`) |
 | D6 | Bas | ☐ | en-tête `REALTIME` toujours dupliqué (`schema.sql:239`) |
 | D7 | Bas | ☑ | liste centralisée dans `SYNC_STORES` (`sync.js:169`) |
-| D8 | Bas | ◐ | `replace*` factorisées dans `DB.replaceChildren` (`idb.js`) ; le motif `listRaw + filtre` reste répété dans les fonctions de liste |
+| D8 | Bas | ☑ | `replace*` factorisées dans `DB.replaceChildren` ; le motif `listRaw + filtre !_deleted` est factorisé dans deux helpers `DB.listActive` / `DB.listActiveByIndex` (`idb.js:220-231`), utilisés par toutes les fonctions de liste (clients, interventions, équipements, pièces, mesures, photos, documents, appels, rendez-vous, contrats, base pièces) et `exportAll` |
 | D9 | Bas | ☐ | `state.sync.running` / `lastPulledAt` toujours inutilisés (`app.js:225`) |
 
 > **Remarque environnement :** pas de `node`/linter ni de config de build dans ce dépôt (site statique) ; la vérification syntaxique automatisée n'a pas pu être lancée.

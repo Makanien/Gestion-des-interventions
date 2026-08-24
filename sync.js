@@ -169,11 +169,13 @@ async function pushChanges() {
         // On aligne la copie locale sur cette valeur : la résolution de conflits
         // au pull suivant compare alors deux horodatages de la même horloge, au
         // lieu d'un horodatage d'horloge mobile contre un horodatage serveur.
+        // D5 : on renseigne en plus `synced_at` (même horloge serveur) — marque
+        // « dernière synchronisation réussie » de la ligne, prévue dès V1.
         const serverRow = await Supabase.upsert(item.store, cleanRow(item.store, record.payload));
         if (serverRow?.updated_at) {
           const localRow = await DB.getRaw(item.store, item.id);
           if (localRow) {
-            await DB.putRaw(item.store, { ...localRow, updated_at: serverRow.updated_at });
+            await DB.putRaw(item.store, { ...localRow, updated_at: serverRow.updated_at, synced_at: serverRow.updated_at });
           }
         }
       }
@@ -200,7 +202,7 @@ function cleanRow(store, row) {
   const out = { ...row };
   delete out._deleted;
   delete out.client; // champ dénormalisé local (affichage)
-  delete out.synced_at; // champ local (marque de sync), non présent côté SQL
+  delete out.synced_at; // marque locale « dernière sync » (renseignée après push, D5) — on ne pousse pas la copie locale
   delete out.equipements; // tableaux imbriqués locaux (V1), désormais éclatés
   delete out.pieces;
   delete out.mesures; // tableaux imbriqués locaux (V3), stockés en tables filles
@@ -222,6 +224,11 @@ function cleanRow(store, row) {
   }
   if (store === "interventions" && (out.statut_dossier === null || out.statut_dossier === undefined)) {
     out.statut_dossier = "a_valider";
+  }
+  // D4 : `temps_intervention` (calculé à partir des heures) est une colonne
+  // text not null : les lignes antérieures au calcul n'ont pas le champ.
+  if (store === "interventions" && (out.temps_intervention === null || out.temps_intervention === undefined)) {
+    out.temps_intervention = "";
   }
   return out;
 }
