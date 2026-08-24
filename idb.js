@@ -703,17 +703,16 @@ const DB = {
     };
   },
   async importAll(data) {
-    (data.clients || []).forEach((c) => this.putRaw("clients", c));
-    (data.interventions || []).forEach((i) => this.putRaw("interventions", i));
-    (data.equipements || []).forEach((e) => this.putRaw("equipements", e));
-    (data.pieces_utilisees || []).forEach((p) => this.putRaw("pieces_utilisees", p));
-    (data.appels || []).forEach((a) => this.putRaw("appels", a));
-    (data.rendezvous || []).forEach((r) => this.putRaw("rendezvous", r));
-    (data.mesures || []).forEach((m) => this.putRaw("mesures", m));
-    (data.photos || []).forEach((p) => this.putRaw("photos", p));
-    (data.pieces || []).forEach((p) => this.putRaw("pieces", p));
-    (data.documents || []).forEach((d) => this.putRaw("documents", d));
-    (data.contrats_entretien || []).forEach((c) => this.putRaw("contrats_entretien", c));
+    const stores = ["clients", "interventions", "equipements", "pieces_utilisees", "appels", "rendezvous", "mesures", "photos", "pieces", "documents", "contrats_entretien"];
+    for (const store of stores) {
+      const rows = data[store] || [];
+      for (const row of rows) {
+        await this.putRaw(store, row);
+        // D3 : les données restaurées rejoignent la file de sync, comme toute
+        // écriture locale, pour être poussées vers Supabase.
+        if (Supabase?.configured() && !row._deleted) Sync.enqueueSync(store, row.id);
+      }
+    }
     return true;
   },
 };

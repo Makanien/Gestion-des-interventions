@@ -136,9 +136,17 @@ const Supabase = {
     return c.storage.from("signatures").getPublicUrl(path).data.publicUrl;
   },
 
-  async removeSignature(id) {
+  // D2 : nettoyage des anciennes signatures. Accepte soit l'id d'upload
+  // ("sig-client-123"), soit l'URL publique complète stockée dans
+  // *_signature_url : on extrait le nom de l'objet après "/signatures/".
+  async removeSignature(urlOrId) {
     const c = initSupabase();
-    await c.storage.from("signatures").remove([`${id}.png`]);
+    let path = String(urlOrId || "");
+    if (path.includes("/signatures/")) path = path.split("/signatures/").pop();
+    if (!path) return;
+    if (!path.endsWith(".png")) path = `${path}.png`;
+    const { error } = await c.storage.from("signatures").remove([path]);
+    if (error) console.warn("Suppression ancienne signature échouée", error);
   },
 
   // ---------------- Storage (photos & documents — buckets privés V3) ----------------

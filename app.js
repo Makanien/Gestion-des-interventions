@@ -1497,20 +1497,29 @@ function wireSignStep() {
   $("#btn-client-sign")?.addEventListener("click", async () => {
     const blob = await signatureModal({ title: "Signature du client" });
     if (!blob) return;
+    // D2 : une re-signature rend l'ancien fichier Storage obsolète — on le supprime.
+    const oldUrl = state.draft.client_signature_url;
     state.draft._client_sig_blob = blob;
     state.draft.client_signature_url = await blobToDataURL(blob);
     const prev = $("#client-sig-preview");
     prev.style.display = "block";
     $("#client-sig-img").src = state.draft.client_signature_url;
+    if (Supabase.configured() && navigator.onLine && oldUrl && oldUrl.startsWith("http")) {
+      try { await Supabase.removeSignature(oldUrl); } catch (e) { console.warn("Suppression ancienne signature client échouée", e); }
+    }
   });
   $("#btn-tech-sign")?.addEventListener("click", async () => {
     const blob = await signatureModal({ title: "Signature du technicien" });
     if (!blob) return;
+    const oldUrl = state.draft.technicien_signature_url;
     state.draft._technicien_sig_blob = blob;
     state.draft.technicien_signature_url = await blobToDataURL(blob);
     const prev = $("#tech-sig-preview");
     prev.style.display = "block";
     $("#tech-sig-img").src = state.draft.technicien_signature_url;
+    if (Supabase.configured() && navigator.onLine && oldUrl && oldUrl.startsWith("http")) {
+      try { await Supabase.removeSignature(oldUrl); } catch (e) { console.warn("Suppression ancienne signature technicien échouée", e); }
+    }
   });
 }
 function readSignStep() {
@@ -1919,16 +1928,24 @@ async function renderContrat(id) {
   $("#btn-ct-client-sign").addEventListener("click", async () => {
     const blob = await signatureModal({ title: "Signature du client" });
     if (!blob) return;
+    const oldUrl = state.contratDraft.client_signature_url;
     state.contratDraft._client_sig_blob = blob;
     state.contratDraft.client_signature_url = await blobToDataURL(blob);
     const p = $("#ct-client-preview"); p.style.display = "block"; $("#ct-client-img").src = state.contratDraft.client_signature_url;
+    if (Supabase.configured() && navigator.onLine && oldUrl && oldUrl.startsWith("http")) {
+      try { await Supabase.removeSignature(oldUrl); } catch (e) { console.warn("Suppression ancienne signature client échouée", e); }
+    }
   });
   $("#btn-ct-tech-sign").addEventListener("click", async () => {
     const blob = await signatureModal({ title: "Signature du technicien" });
     if (!blob) return;
+    const oldUrl = state.contratDraft.technicien_signature_url;
     state.contratDraft._technicien_sig_blob = blob;
     state.contratDraft.technicien_signature_url = await blobToDataURL(blob);
     const p = $("#ct-tech-preview"); p.style.display = "block"; $("#ct-tech-img").src = state.contratDraft.technicien_signature_url;
+    if (Supabase.configured() && navigator.onLine && oldUrl && oldUrl.startsWith("http")) {
+      try { await Supabase.removeSignature(oldUrl); } catch (e) { console.warn("Suppression ancienne signature technicien échouée", e); }
+    }
   });
   $("#btn-save-contrat").addEventListener("click", async () => {
     const nom = $("#ct-client").value.trim();
@@ -2067,6 +2084,7 @@ document.addEventListener("click", async (e) => {
   else if (action === "finish") finishWizard();
   else if (action === "brouillon") saveBrouillon();
   else if (action === "export") exportData();
+  else if (action === "import") $("#import-file").click();
   else if (action === "account") go("#/account");
   else if (action === "login") go("#/login");
   else if (action === "logout") signOutUser();
@@ -2111,6 +2129,23 @@ async function exportData() {
   a.download = `climat-elec-sauvegarde-${todayISO()}.json`;
   a.click();
   toast("Sauvegarde exportée");
+}
+
+async function importData() {
+  const file = $("#import-file").files[0];
+  if (!file) return;
+  try {
+    const data = JSON.parse(await file.text());
+    if (!data || typeof data !== "object") throw new Error("Format invalide");
+    if (!confirm("Importer cette sauvegarde ? Les données locales existantes seront complétées/écrasées par celles du fichier.")) return;
+    await DB.importAll(data);
+    toast("Sauvegarde importée");
+    if (window.location.hash === "#/account") await renderAccount();
+    else await renderHome();
+  } catch (err) {
+    console.error(err);
+    toast("Import impossible — fichier invalide", true);
+  }
 }
 
 function fmtDateShort(iso) {
@@ -2215,8 +2250,10 @@ async function renderAccount() {
       </div>
 
       <div class="section-label">Données locales</div>
-      <div class="card"><div class="block-text">Sauvegardez manuellement l'intégralité de vos données (clients, interventions, équipements, pièces, appels, rendez-vous, mesures, photos, documents, contrats) au format JSON.</div></div>
+      <div class="card"><div class="block-text">Sauvegardez manuellement l'intégralité de vos données (clients, interventions, équipements, pièces, appels, rendez-vous, mesures, photos, documents, contrats) au format JSON, ou restaurez-les depuis un fichier de sauvegarde.</div></div>
       <button class="btn btn-ghost" data-nav="export" style="margin-top:12px;">${ICONS.down} Exporter toutes les données</button>
+      <button class="btn btn-ghost" data-nav="import" style="margin-top:12px;">${ICONS.upload} Importer une sauvegarde</button>
+      <input type="file" id="import-file" accept="application/json" style="display:none;" />
 
       ${state.auth ? `<button class="btn btn-ghost" data-nav="logout" style="margin-top:12px;color:var(--ce-danger);">Se déconnecter</button>` : ""}
     </main>
@@ -2228,6 +2265,7 @@ async function renderAccount() {
     try { await Supabase.updateProfile(name); if (state.auth?.profile) state.auth.profile.full_name = name; toast("Nom enregistré"); }
     catch (err) { console.error(err); toast("Erreur d'enregistrement", true); }
   });
+  $("#import-file")?.addEventListener("change", () => importData());
 }
 
 async function runSyncNow() {

@@ -123,9 +123,9 @@
 
 | Réf | Élément | Emplacement | État |
 |---|---|---|---|
-| D1 | `SELF_CLIENT_FIELDS` déclaré, jamais utilisé | `sync.js:17` | à supprimer |
-| D2 | `removeSignature` jamais appelé (pas de nettoyage des anciens fichiers) | `supabase.js:127-130` | à supprimer ou brancher |
-| D3 | `importAll` jamais exposé dans l'UI (aucun bouton d'import) | `idb.js:358-364` | à brancher ou supprimer |
+| D1 | `SELF_CLIENT_FIELDS` déclaré, jamais utilisé | `sync.js:23` | à supprimer |
+| D2 | `removeSignature` jamais appelé (pas de nettoyage des anciens fichiers) | `supabase.js:139-150` | à supprimer ou brancher |
+| D3 | `importAll` jamais exposé dans l'UI (aucun bouton d'import) | `idb.js:705-723` | à brancher ou supprimer |
 | D4 | Colonne `temps_intervention` jamais écrite (« calculé » jamais calculé) | `schema.sql:42` | à renseigner ou supprimer |
 | D5 | `synced_at` toujours mis à `null`, jamais renseigné, supprimé au push | `idb.js:197,235` ; `sync.js:102` | write-only |
 | D6 | En-tête `-- REALTIME` dupliqué | `schema.sql:240-246` | cosmétique |
@@ -170,9 +170,9 @@
 | C6 | Bas | ☑ | `updatePendingUI` alimente `state.sync.pending` (`sync.js:115`) |
 | C7 | Bas | ☑ | `pushChanges` remet en file les éléments non envoyés (`sync.js:89`) |
 | C8 | Bas | ☑ | `Supabase.upsert` retourne la ligne écrite (`select("id, updated_at")`) ; `pushChanges` aligne la copie locale sur `updated_at` du serveur, la comparaison de conflits compare deux horodatages serveur ; de plus une modification locale encore dans la file de sync l'emporte localement au pull (`isPending` dans `applyRemote`) — une saisie hors ligne n'est jamais écrasée malgré la dérive d'horloge |
-| D1 | Bas | ☐ | `SELF_CLIENT_FIELDS` toujours inutilisé (`sync.js:18`) |
-| D2 | Bas | ☐ | `removeSignature` toujours non appelé (`supabase.js:133`) |
-| D3 | Bas | ☐ | `importAll` toujours non exposé (`idb.js:638`) |
+| D1 | Bas | ☑ | `SELF_CLIENT_FIELDS` supprimé (`sync.js`) |
+| D2 | Bas | ☑ | `removeSignature` branché sur la re-signature (fiche + contrat) : l'ancien fichier Storage est supprimé dès qu'une nouvelle signature le remplace (`app.js:1497-1523, 1928-1949` ; `supabase.js:139-148`) |
+| D3 | Bas | ☑ | `importAll` branché : bouton « Importer une sauvegarde » dans l'écran Compte & synchro (`app.js:2255, 2134-2149`) ; les lignes restaurées rejoignent la file de sync (`idb.js:705-717`) |
 | D4 | Bas | ☐ | `temps_intervention` toujours non calculé (`schema.sql:42`) |
 | D5 | Bas | ☐ | `synced_at` toujours `null` (write-only) |
 | D6 | Bas | ☐ | en-tête `REALTIME` toujours dupliqué (`schema.sql:239`) |

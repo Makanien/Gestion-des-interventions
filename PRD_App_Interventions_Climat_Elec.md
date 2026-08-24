@@ -76,7 +76,7 @@ Récapitulatif des changements fonctionnels et techniques effectivement dévelop
 - **Restoration de session** au chargement + écoute des changements d'auth (`onAuthStateChange`).
 - **Bouton de connexion dans la barre de titre** : icône utilisateur (`👤`) quand déconnecté, icône utilisateur **avec coche** (`👤✓`) quand connecté — remplace l'icône unique indifférenciée.
 - **Nom de l'utilisateur connecté affiché dans la barre de titre** à la place de « Climat Elec » : priorité `full_name` (profil), sinon e-mail, sinon « Mon compte » ; « Climat Elec » reste affiché quand personne n'est connecté.
-- **Écran « Compte & synchro »** (`#/account`) : affichage du profil, édition du **nom affiché** (`full_name`), bouton de connexion/déconnexion, état de la synchronisation, export des données locales.
+- **Écran « Compte & synchro »** (`#/account`) : affichage du profil, édition du **nom affiché** (`full_name`), bouton de connexion/déconnexion, état de la synchronisation, export **et import** des données locales (sauvegarde/restauration JSON ; les données restaurées rejoignent la file de synchronisation).
 
 ### Synchronisation multi-appareil (Supabase)
 - **Offline-first** : écriture locale en premier (IndexedDB), puis **file de synchronisation** vers Supabase.
@@ -92,6 +92,7 @@ Récapitulatif des changements fonctionnels et techniques effectivement dévelop
 - **Upload des signatures vers Supabase Storage** (bucket `signatures`) + URL publique stockée sur la fiche.
 - Fallback local (dataURL) si hors ligne ou si le storage n'est pas configuré.
 - **Upload différé des signatures hors ligne** : une signature capturée sans réseau reste un dataURL local (persisté sur la fiche) ; dès que la connexion revient, elle est automatiquement convertie en image, uploadée vers le bucket `signatures` et remplacée par l'URL publique, puis re-synchronisée (`uploadPendingSignatures` dans `sync.js`). Fonctionne aussi après rechargement de la page.
+- **Nettoyage des anciennes signatures** : une re-signature sur une fiche ou un contrat déjà signé (en ligne) supprime l'ancien fichier du bucket `signatures` (`removeSignature`) pour ne pas laisser d'orphelins dans le Storage.
 
 ### Divers / technique
 - **PWA** : mécanisme de mise à jour du service worker (`updatefound`).

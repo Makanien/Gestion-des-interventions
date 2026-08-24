@@ -20,8 +20,6 @@ const SyncState = {
   realtimeStarted: false,
 };
 
-const SELF_CLIENT_FIELDS = ["created_at", "updated_at"];
-
 // ---------------- File de synchronisation ----------------
 function enqueueSync(store, id) {
   if (!Supabase.configured()) return;
