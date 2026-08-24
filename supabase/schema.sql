@@ -238,9 +238,6 @@ grant insert, update on public.profiles to authenticated;
 
 -- ---------------------------------------------------------
 -- REALTIME
--- ---------------------------------------------------------
--- ---------------------------------------------------------
--- REALTIME
 -- Idempotent : n'ajoute que les tables qui ne sont pas déjà membres
 -- de la publication (évite l'erreur 42710 en cas de relance du script).
 -- ---------------------------------------------------------

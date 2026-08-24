@@ -128,10 +128,10 @@
 | D3 | `importAll` jamais exposé dans l'UI (aucun bouton d'import) | `idb.js:705-723` | à brancher ou supprimer |
 | D4 | Colonne `temps_intervention` jamais écrite (« calculé » jamais calculé) | `schema.sql:42` | à renseigner ou supprimer |
 | D5 | `synced_at` toujours mis à `null`, jamais renseigné, supprimé au push | `idb.js:197,235` ; `sync.js:102` | write-only |
-| D6 | En-tête `-- REALTIME` dupliqué | `schema.sql:240-246` | cosmétique |
+| D6 | En-tête `-- REALTIME` dupliqué | `schema.sql:239-243` | cosmétique |
 | D7 | Liste des 4 stores dupliquée 3× | `sync.js:42`, `125`, `147` | à factoriser |
 | D8 | `replaceEquipements` ≈ `replacePieces` ; motif `listRaw+filter` répété 4× | `idb.js:273-328` | à factoriser |
-| D9 | `state.sync.running` / `state.sync.lastPulledAt` inutilisés (double de `SyncState`) | `app.js:32` | à supprimer |
+| D9 | `state.sync.running` / `state.sync.lastPulledAt` inutilisés (double de `SyncState`) | `app.js:225` | à supprimer |
 
 ---
 
@@ -175,9 +175,9 @@
 | D3 | Bas | ☑ | `importAll` branché : bouton « Importer une sauvegarde » dans l'écran Compte & synchro (`app.js:2255, 2134-2149`) ; les lignes restaurées rejoignent la file de sync (`idb.js:705-717`) |
 | D4 | Bas | ☑ | `temps_intervention` désormais renseigné : calculé à partir de `heure_arrivee`/`heure_depart` à la lecture de l'étape « Intervention » (réutilise `computeDuration`, `app.js`) ; champ initialisé dans le draft et chargé depuis une fiche existante ; normalisé à `""` dans `cleanRow` pour la colonne `not null` |
 | D5 | Bas | ☑ | `synced_at` désormais renseigné après un push réussi : `pushChanges` aligne la copie locale sur l'horloge serveur (`synced_at = updated_at` serveur, même principe que C8) — `null` signale une ligne modifiée localement non encore poussée (`idb.js`), la valeur reste une marque locale non poussée (`cleanRow`, `sync.js`) |
-| D6 | Bas | ☐ | en-tête `REALTIME` toujours dupliqué (`schema.sql:239`) |
+| D6 | Bas | ☑ | en-tête `REALTIME` fusionné (un seul bloc) (`schema.sql:239-243`) |
 | D7 | Bas | ☑ | liste centralisée dans `SYNC_STORES` (`sync.js:169`) |
 | D8 | Bas | ☑ | `replace*` factorisées dans `DB.replaceChildren` ; le motif `listRaw + filtre !_deleted` est factorisé dans deux helpers `DB.listActive` / `DB.listActiveByIndex` (`idb.js:220-231`), utilisés par toutes les fonctions de liste (clients, interventions, équipements, pièces, mesures, photos, documents, appels, rendez-vous, contrats, base pièces) et `exportAll` |
-| D9 | Bas | ☐ | `state.sync.running` / `lastPulledAt` toujours inutilisés (`app.js:225`) |
+| D9 | Bas | ☑ | `state.sync.running` / `lastPulledAt` supprimés — seul `state.sync.pending` (alimenté par `updatePendingUI`) est conservé (`app.js:225`) |
 
 > **Remarque environnement :** pas de `node`/linter ni de config de build dans ce dépôt (site statique) ; la vérification syntaxique automatisée n'a pas pu être lancée.

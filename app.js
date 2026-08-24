@@ -222,7 +222,7 @@ let state = {
   clientsCache: [],
   auth: null,
   team: [],
-  sync: { running: false, lastPulledAt: null, pending: 0 },
+  sync: { pending: 0 },
 };
 
 // ---------------------------------------------------------
