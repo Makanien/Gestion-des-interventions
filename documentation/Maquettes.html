@@ -52,6 +52,7 @@ body{margin:0;font-family:var(--font);background:#e9edef;color:var(--text);}
 
 .nav-btn.developed .dot{background:var(--success);}
 .mini-badge{font-size:8.5px;font-family:var(--mono);background:rgba(47,158,91,.25);color:#8be3ab;padding:1px 5px;border-radius:100px;margin-left:4px;vertical-align:middle;}
+.mini-badge.v3{background:rgba(47,134,180,.28);color:#a8d8f0;}
 
 /* ---- Phone frame ---- */
 .phone{
@@ -159,7 +160,7 @@ main.content{padding:14px 14px 34px;}
       <img src="" alt="Climat Elec"/>
       <div><strong>Climat Elec</strong><span>Maquettes — backlog</span></div>
     </div>
-    <div class="nav-warn">⚠️ Propositions non arbitrées — à sélectionner pour la prochaine version. Aucun de ces écrans n'est encore développé (sauf mention contraire).</div>
+    <div class="nav-warn">✅ V3 développée (cf. PRD §3.3) : planning, nouvel appel, entretiens dédiés + CERFA, workflow validation/facturation (import PDF), photos, brouillon, numérotation, statistiques. Reportés : Google Agenda (US-14) et envoi automatique d'email.</div>
     <div class="nav-group"><div class="nav-group-label">Transverses</div><button class="nav-btn" data-screen="dashboard" onclick="showScreen('dashboard')">
           <span class="dot"></span><span>Tableau de bord <small>US-13 · US-15</small></span>
         </button></div><div class="nav-group"><div class="nav-group-label">Épopée 1 — Contact & planification</div><button class="nav-btn" data-screen="bouton_plus" onclick="showScreen('bouton_plus')">
@@ -606,8 +607,8 @@ const SCREENS = {
   </main>`
   },
   "devis": {
-    title: "Réalisation d'un devis",
-    sub: "Devis pour des travaux complémentaires identifiés pendant l'intervention, indépendant de la facturation de la visite elle-même.",
+    title: "Devis — import PDF",
+    sub: "Le devis est réalisé par un logiciel externe ; l'application importe le PDF et l'attache au dossier, indépendamment de la facturation de la visite.",
     epic: 'Épopée 3 — Validation & devis',
     us: 'US-07',
     developed: false,
@@ -620,21 +621,22 @@ const SCREENS = {
   <main class="content">
     <div class="card" style="padding:14px;">
       <div class="field"><label>Objet du devis</label><input value="Remplacement complet du ballon tampon"/></div>
+      <div class="field"><label>Devis nécessaire</label>
+        <div class="toggle-row" style="margin-bottom:0;"><div><div class="t-label">Devis à réaliser (logiciel externe)</div><div class="t-hint">L'appli ne chiffre pas le devis, elle importe le PDF produit</div></div><div class="switch on"></div></div>
+      </div>
     </div>
-    <div class="section-label">Lignes du devis</div>
-    <div class="card">
-      <div class="line-item"><span class="d">Ballon tampon 300L</span><span class="m">890,00 €</span></div>
-      <div class="line-item"><span class="d">Main d'œuvre (4h)</span><span class="m">240,00 €</span></div>
-      <div class="line-item"><span class="d">Déplacement zone Z1</span><span class="m">35,00 €</span></div>
-      <div class="total-row"><span>Total TTC</span><span>1 165,00 €</span></div>
+    <div class="note blue">Le devis est réalisé dans votre <strong>logiciel externe</strong> habituel, puis le PDF est importé ici et attaché au dossier — sans jamais bloquer la facturation de l'intervention.</div>
+    <div class="section-label">PDF du devis</div>
+    <div class="card" style="padding:24px;text-align:center;color:#9aa7ad;font-size:11px;">
+      📄 Aucun PDF importé pour l'instant
     </div>
-    <button class="btn btn-ghost btn-sm" style="margin-top:10px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Ajouter une ligne</button>
-    <button class="btn btn-accent" style="margin-top:14px;">Envoyer le devis au client</button>
+    <button class="btn btn-accent" style="margin-top:14px;">Importer le PDF du devis</button>
+    <button class="btn btn-ghost">Scanner avec la caméra</button>
   </main>`
   },
   "facturation": {
-    title: "Création d'une facture",
-    sub: "Delphine crée la facture à partir d'une fiche validée « à facturer » — les pièces utilisées sont reprises automatiquement.",
+    title: "Facture — import PDF",
+    sub: "La facture est produite par un logiciel externe ; Delphine importe le PDF et l'attache à la fiche « à facturer ».",
     epic: 'Épopée 4 — Facturation',
     us: 'US-09',
     developed: false,
@@ -646,16 +648,13 @@ const SCREENS = {
     </div></div>
   <main class="content">
     <div class="note blue">Fiche liée : Installation chaudière bois — 08/08/2026 — validée par Régis.</div>
-    <div class="section-label">Lignes de facturation</div>
-    <div class="card">
-      <div class="line-item"><span class="d">Main d'œuvre (2h30)</span><span class="m">150,00 €</span></div>
-      <div class="line-item"><span class="d">Forfait déplacement — Z2</span><span class="m">25,00 €</span></div>
-      <div class="line-item"><span class="d">1 × Filtre à air (FA-2201)</span><span class="m">18,00 €</span></div>
-      <div class="line-item"><span class="d">2 × Joint torique (JT-0087)</span><span class="m">9,00 €</span></div>
-      <div class="total-row"><span>Total TTC</span><span>202,00 €</span></div>
+    <div class="note">La facture est produite dans votre <strong>logiciel externe</strong> habituel, puis le PDF est importé ici et attaché à la fiche.</div>
+    <div class="section-label">PDF de la facture</div>
+    <div class="card" style="padding:24px;text-align:center;color:#9aa7ad;font-size:11px;">
+      📄 Aucun PDF importé pour l'instant
     </div>
-    <button class="btn btn-ghost btn-sm" style="margin-top:10px;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Ajouter une ligne</button>
-    <button class="btn btn-accent" style="margin-top:14px;">Générer la facture</button>
+    <button class="btn btn-accent" style="margin-top:14px;">Importer le PDF de la facture</button>
+    <button class="btn btn-ghost">Scanner avec la caméra</button>
   </main>`
   },
   "verification": {
@@ -849,9 +848,9 @@ const SCREENS = {
   },
   "pieces_autocomplete": {
     title: "Pièces utilisées — autocomplétion",
-    sub: "US-23 — en suspens, à confirmer par le client (PRD §3.2.9). Dans la fiche (intervention ou entretien), la désignation propose les pièces déjà enregistrées ; sélectionner une suggestion remplit aussi automatiquement la référence.",
+    sub: "US-23 — base pièces « désignation seule », saisie manuelle (référence/prix réservés pour un import ultérieur). La désignation propose les pièces déjà enregistrées.",
     epic: 'Base de données pièces',
-    us: 'US-23 · en suspens',
+    us: 'US-23',
     developed: false,
     html: `<div class="topbar"><div class="topbar-row">
       <button style="background:rgba(255,255,255,.1);border:none;color:#fff;width:26px;height:26px;border-radius:7px;">‹</button>
@@ -1016,13 +1015,28 @@ function showScreen(id) {
   document.getElementById('stage-sub').textContent = s.sub;
   document.getElementById('stage-epic').textContent = s.epic + ' · ' + s.us;
   const badge = document.getElementById('stage-badge');
-  badge.textContent = s.developed ? '✓ Déjà développé (V1)' : '○ Proposition — non développée';
-  badge.className = 'status-badge ' + (s.developed ? 'dev' : 'proposal');
+  badge.textContent = s.developed ? '✓ Déjà développé (V1)' : '✓ Développé (V3)';
+  badge.className = 'status-badge ' + (s.developed ? 'dev' : 'v3');
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.screen === id));
   document.getElementById('screen-root').scrollTop = 0;
   applyLogo();
 }
 document.querySelector('.nav-brand img').src = LOGO_URI;
+// Badge "V3" sur les écrans non-V1 (comme le badge "V1" des écrans déjà développés).
+document.querySelectorAll('.nav-btn').forEach(btn => {
+  if (btn.querySelector('.mini-badge.dev')) return; // écran V1, déjà badgé
+  const old = btn.querySelector('.mini-badge');
+  if (old) old.remove(); // retire l'ancien badge "16/08"
+  const badge = document.createElement('span');
+  badge.className = 'mini-badge v3';
+  badge.textContent = 'V3';
+  const label = btn.querySelector('span:not(.dot)');
+  if (label) {
+    const small = label.querySelector('small');
+    if (small) label.insertBefore(badge, small); // badge avant la référence US (comme V1)
+    else label.appendChild(badge);
+  }
+});
 showScreen('dashboard');
 </script>
 </body>
