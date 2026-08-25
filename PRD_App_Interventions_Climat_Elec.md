@@ -280,7 +280,7 @@ Brouillon → À valider → Validée → À facturer → Facture importée → 
 - **Écran « Nouvel appel »** (US-01) : recherche client avec auto-remplissage, motif, type de bâtiment, type d'intervention ; 3 actions de sortie — « Créer le rendez-vous → », « Créer l'intervention → » (pré-remplissage du flux), « Enregistrer sans planifier ».
 - **Rendez-vous** (US-02) : **CRUD complet** — création (date, heures, type, intervenant, note) pré-remplie depuis un appel, édition d'un rendez-vous existant (`#/rdv/:id`) et suppression depuis la barre de titre ; pas de synchronisation Google Agenda (reportée).
 - **Édition / suppression des appels** : ouverture d'un appel existant en mode édition, mise à jour et suppression depuis la barre de titre.
-- **Gestion des rôles** (US-16) : `profiles.role` (responsable / technicien / secretaire), fonctions `current_role()` / `is_manager()` / `set_user_role()`, anti-élévation de rôle, remplissage auto de `created_by` / `updated_by` / `technicien_id`.
+- **Gestion des rôles** (US-16) : `profiles.role` (responsable / technicien / secretaire / developpeur), fonctions `current_role()` / `is_manager()` / `set_user_role()`, anti-élévation de rôle, remplissage auto de `created_by` / `updated_by` / `technicien_id`.
 
 ### Intervention terrain (US-19 · US-20 · US-21 · US-22 · US-23 · US-24 · US-25)
 - **3 fiches d'entretien dédiées** (US-19) : flux guidés Air/Eau-Sol/Eau, Air/Air, Chaudière bois, avec bloc « Mesures » propre à chaque équipement (défini dans `ENTRETIEN_META`), année d'installation, nombre de lignes d'équipement limité par type (3 ou 5), champ « Prochaine intervention prévue » pour la chaudière bois.

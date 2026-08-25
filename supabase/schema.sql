@@ -135,21 +135,15 @@ create table if not exists public.profiles (
   updated_at   timestamptz not null default now()
 );
 
--- Rôle (V3) : enum responsable / technicien / secretaire
+-- Rôle (V3) : enum responsable / technicien / secretaire / developpeur
 alter table public.profiles add column if not exists role text not null default 'technicien';
 
-do $$
-begin
-  if not exists (
-    select 1 from pg_constraint
-    where conname = 'profiles_role_check'
-      and conrelid = 'public.profiles'::regclass
-  ) then
-    alter table public.profiles
-      add constraint profiles_role_check
-      check (role in ('responsable', 'technicien', 'secretaire'));
-  end if;
-end $$;
+-- Contrainte recréée pour accepter le nouveau rôle `developpeur`
+-- (drop + create : idempotent sur une base déjà migrée).
+alter table public.profiles drop constraint if exists profiles_role_check;
+alter table public.profiles
+  add constraint profiles_role_check
+  check (role in ('responsable', 'technicien', 'secretaire', 'developpeur'));
 
 -- ---------------------------------------------------------
 -- 6. TABLE appels (V3, US-01)
@@ -330,7 +324,7 @@ $$;
 create or replace function public.is_manager()
 returns boolean
 language sql stable security definer set search_path = public as $$
-  select public.current_role() in ('responsable', 'secretaire');
+  select public.current_role() in ('responsable', 'secretaire', 'developpeur');
 $$;
 
 -- Changement de rôle réservé aux managers (responsable / secretaire).
@@ -342,7 +336,7 @@ begin
   if not public.is_manager() then
     raise exception 'Réservé aux gestionnaires (responsable ou secrétaire)';
   end if;
-  if new_role not in ('responsable', 'technicien', 'secretaire') then
+  if new_role not in ('responsable', 'technicien', 'secretaire', 'developpeur') then
     raise exception 'Rôle invalide';
   end if;
   insert into public.profiles (id, role)
@@ -846,15 +840,18 @@ declare
   v_responsable uuid;
   v_technicien  uuid;
   v_secretaire  uuid;
+  v_developpeur uuid;
 begin
   select id into v_responsable from auth.users where email = 'regis.chanteux@gmail.com';
   select id into v_technicien  from auth.users where email = 'jgardaisclimatelec@gmail.com';
   select id into v_secretaire  from auth.users where email = 'contactdsolutions49@gmail.com';
+  select id into v_developpeur from auth.users where email = 'makanien@gmail.com';
 
   -- Rôles (si la ligne profiles existe déjà)
   update public.profiles set role = 'responsable' where id = v_responsable;
   update public.profiles set role = 'technicien'  where id = v_technicien;
   update public.profiles set role = 'secretaire' where id = v_secretaire;
+  update public.profiles set role = 'developpeur' where id = v_developpeur;
 
   -- Lien auteur/technicien sur l'existant. Avant cette migration,
   -- created_by / technicien_id n'étaient jamais renseignés (null).
