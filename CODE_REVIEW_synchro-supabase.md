@@ -28,11 +28,13 @@
 - **Risque :** si l'inscription publique par email est activée (défaut Supabase), **n'importe qui peut créer un compte et accéder à tout**.
 - **Remarque :** le commentaire dit « même équipe », mais rien ne l'implémente côté SQL.
 - **Piste :** limiter à un périmètre réel (ex. `created_by = auth.uid()` ou table d'équipes) et/ou désactiver l'auto-inscription.
+- **Résolution (24/08/2026) :** RLS par rôle + inscription publique désactivée (prérequis Dashboard). Le piège « re-lancer `schema.sql` ré-ouvre les RLS » est éliminé par la consolidation du même jour : les 5 scripts (`schema.sql`, `storage.sql`, `migrations/001`/`002`/`003`) sont fusionnés dans un **fichier maître unique `supabase/schema.sql`**, idempotent, qui contient directement l'état final correct (RLS par rôle, aucune politique `using (true)` résiduelle sur interventions/pieces/profiles).
 
 ### S2 — Bucket de signatures public en lecture *(moyen)*
 - **Où :** `supabase/storage.sql:3-8`
 - **Constats :** `public = true` + politique `select` sur `bucket_id = 'signatures'`.
 - **Risque :** les signatures (données personnelles) sont lisibles par quiconque possède l'URL, même sans authentification.
+- **Résolution (24/08/2026) :** choix assumé conservé — le bucket reste public pour permettre l'**URL directe dans le PDF** et l'**affichage hors ligne** (une URL signée expirerait et casserait le PDF partagé). L'exposition est réduite par des **noms d'objets non devinables** : les uploads directs (`app.js`) utilisaient `sig-client-${Date.now()}` (horodatage prédictible, énumérable) et passent désormais par `uuid()` ; `sync.js` utilisait déjà l'`id` UUID de la ligne. Risque résiduel (lecture par quiconque possède l'URL exacte) **accepté et documenté** dans `storage.sql` — la signature est de toute façon destinée au PDF remis au client.
 
 ### S3 — Cohérence clé anon *(info)*
 - **Où :** `config.js:10`
@@ -43,6 +45,7 @@
 - **Où :** `supabase/schema.sql:148-156`
 - **Constats :** pratique standard, mais risque lié à `search_path`.
 - **Piste :** fixer `search_path` ou qualifier les objets dans les fonctions `security definer`.
+- **Résolution (24/08/2026) :** `set search_path = public` ajouté (`schema.sql:156`), aligné sur les autres fonctions de `001_roles_rls.sql`. Le risque était de toute façon minime : la seule référence est déjà qualifiée (`public.profiles`), c'était de la défense en profondeur + cohérence.
 
 ### S5 — XSS : bien maîtrisé *(OK)*
 - `esc()` est utilisé systématiquement dans les templates (`app.js:40`), y compris pour les URL de signatures et les attributs. Aucune faille XSS identifiée.
@@ -56,10 +59,16 @@
 - **Constats :** `listEquipementsForIntervention`, `listPiecesForIntervention`, `replaceEquipements`, `replacePieces` lisent **toute la table** puis filtrent en mémoire.
 - **Aggravant :** l'index `intervention_id` n'est pas créé sur `equipements` (`idb.js:32-36`), et là où il existe (`pieces_utilisees:39`), il n'est jamais utilisé.
 - **Impact :** acceptable pour quelques centaines de lignes, ne passera pas à l'échelle.
+- **Résolution (23/08/2026) :** les lectures d'enfants d'une fiche passent désormais par les **index IndexedDB** au lieu de `getAll()` + filtre en mémoire :
+  - **Index manquant créé** : `intervention_id` sur `equipements` (bump `DB_VERSION` 3 → 4). La migration se fait automatiquement dans `onupgradeneeded` via un helper `ensureIndex` qui ajoute l'index sur un store existant sans perdre les données.
+  - **Helper dédié** : `DB.listByIndex(store, index, value)` (`idb.js`) — équivalent ciblé de `listRaw` pour les requêtes par index.
+  - **Fonctions migrées** : `listEquipementsForIntervention` (index `intervention_id`), `listEquipementsForClient` (index `client_id`), `listPiecesForIntervention` / `listMesuresForIntervention` / `listPhotosForIntervention` / `listDocumentsForIntervention` (index `intervention_id`), et `DB.replaceChildren` (utilisé par les cinq `replace*` et `deleteIntervention`) ne scannent plus la table entière.
+  - **Effet collatéral (P2)** : les listes d'enfants étant indexées, `getIntervention` a pu être réduite à une **seule transaction readonly** (voir P2).
 
 ### P2 — `getIntervention` en N+1
-- **Où :** `idb.js:218-226`
-- **Constats :** chaque détail d'intervention déclenche 2 scans complets + 1 lecture client.
+- **Où :** `idb.js:332-385`
+- **Constats :** chaque détail d'intervention déclenchait 2 scans complets + 1 lecture client (puis 5 lectures séquentielles par index après P1).
+- **Résolution (23/08/2026) :** `getIntervention` lit désormais l'intervention, le client (jointure `client_id`) et les 5 collections d'enfants (équipements, pièces utilisées, mesures, photos, documents) via leurs index `intervention_id` dans **une seule transaction readonly** (`multi-get`). Le N+1 structurel est éliminé : une seule transaction IndexedDB au lieu de 6 requêtes séquentielles.
 
 ### P3 — Abonnements Realtime dupliqués
 - **Où :** `app.js:1033` & `app.js:1051`, `sync.js:143-157`
@@ -81,11 +90,13 @@
 ### C2 — Équipements/pièces supprimés qui « ressuscitent » *(moyen)*
 - **Où :** `idb.js:285-303` (`replaceEquipements`), `318-328` (`replacePieces`)
 - **Constats :** les enfants existants sont **hard-delete** localement sans tombstone ni mise en file. La suppression n'est jamais propagée à Supabase : au prochain pull, l'enfant supprimé est réinséré (`sync.js:58-61`).
+- **Résolution (23/08/2026) :** les cinq fonctions `replace*` (équipements, pièces utilisées, mesures, photos, documents) passent désormais par un helper commun `DB.replaceChildren` (`idb.js`). Les enfants retirés d'une fiche sont **soft-deletés** (tombstone `_deleted` + `deleted_at`) et **mis en file de sync** : le push les envoie en `Supabase.remove` (soft-delete côté serveur), puis le pull suivant nettoie le tombstone via `applyRemote`. Une ligne réintroduite dans la fiche (même `id`) voit son tombstone levé (`_deleted`/`deleted_at` supprimés). `created_at` est en outre préservé à la ré-édition (au lieu d'être réécrit à `now`).
 
 ### C3 — Collision d'`id` dans l'historisation d'équipement *(moyen)*
-- **Où :** `idb.js:305-311`
+- **Où :** `idb.js:413-419`
 - **Constats :** `saveClientEquipment` réutilise `eq.id || uuid()`. En édition, un équipement lié à l'intervention avec un `id` existant + nouveau n° de série : la copie « historique » écrase la ligne liée à l'intervention (même clé `id`) ⇒ l'équipement disparaît de la fiche.
 - **Piste :** générer toujours un `uuid()` neuf.
+- **Résolution (23/08/2026) :** `saveClientEquipment` génère désormais **toujours un `id` neuf** (`uuid()`) et ne réutilise plus celui de la ligne liée à la fiche — plus aucune écriture ne peut écraser un équipement d'intervention. La copie d'historique détache en outre `intervention_id` (ainsi que les champs locaux `_deleted`/`deleted_at`/`synced_at`) : elle reste un équipement du client, sans lien avec la fiche, et demeure visible de `listEquipementsForClient` (filtre `!intervention_id`).
 
 ### C4 — Signature hors ligne jamais ré-uploadée *(moyen)*
 - **Où :** `app.js:701-711`
@@ -94,6 +105,7 @@
 ### C5 — Orphelins côté serveur sur suppression *(bas)*
 - **Où :** `idb.js:254-270`
 - **Constats :** `deleteIntervention` supprime en dur les enfants localement et n'enfile que l'intervention. Côté Supabase, le soft-delete de l'intervention ne déclenche pas la cascade `on delete` sur les enfants (ce n'est qu'un `update`) ⇒ équipements/pièces orphelins.
+- **Résolution (23/08/2026) :** `deleteIntervention` passe désormais par le même mécanisme que C2 — chaque enfant de la fiche (équipements, pièces utilisées, mesures, photos, documents) est **soft-deleté** (tombstone `_deleted` + `deleted_at`) via `DB.replaceChildren(store, "intervention_id", id, [])` puis **mis en file de sync** : le push les envoie en `Supabase.remove` (soft-delete côté serveur), si bien que le serveur ne conserve plus d'orphelins à la suppression d'une fiche. L'historique équipements du client (`client_id`, sans `intervention_id`) reste inchangé.
 
 ### C6 — Compteur « en attente » jamais alimenté *(bas)*
 - **Où :** `app.js:32`, `186-188`, `951`
@@ -106,6 +118,7 @@
 ### C8 — « Dernière écriture gagne » faussé par le trigger serveur *(bas)*
 - **Où :** `schema.sql:117-123` + `sync.js:64-73`
 - **Constats :** le trigger écrase `updated_at = now()` à chaque `update`. Le client compare des horodatages serveur vs client ; en cas de dérive d'horloge, la résolution de conflit devient imprévisible.
+- **Résolution (23/08/2026) :** les deux côtés de la comparaison suivent désormais une **horloge unique (serveur)**. L'upsert retourne la ligne écrite (`Supabase.upsert` → `select("id, updated_at")` dans `supabase.js`) : comme le trigger `set_updated_at` a posé `updated_at` avec l'horloge du serveur, `pushChanges` (as `sync.js`) **aligne la copie locale** sur cette valeur à chaque push. La comparaison de conflits dans `applyRemote` compare ainsi deux horodatages serveur. En complément, **toute modification locale pas encore poussée** (toujours présente dans `SyncState.queue`) **l'emporte localement** pendant le pull (nouvelle garde `isPending`) : une saisie faite hors ligne n'est jamais écrasée par le remote, quelle que soit la dérive de l'horloge du mobile (les changements en file étant re-poussés ensuite).
 
 ---
 
@@ -113,15 +126,15 @@
 
 | Réf | Élément | Emplacement | État |
 |---|---|---|---|
-| D1 | `SELF_CLIENT_FIELDS` déclaré, jamais utilisé | `sync.js:17` | à supprimer |
-| D2 | `removeSignature` jamais appelé (pas de nettoyage des anciens fichiers) | `supabase.js:127-130` | à supprimer ou brancher |
-| D3 | `importAll` jamais exposé dans l'UI (aucun bouton d'import) | `idb.js:358-364` | à brancher ou supprimer |
+| D1 | `SELF_CLIENT_FIELDS` déclaré, jamais utilisé | `sync.js:23` | à supprimer |
+| D2 | `removeSignature` jamais appelé (pas de nettoyage des anciens fichiers) | `supabase.js:139-150` | à supprimer ou brancher |
+| D3 | `importAll` jamais exposé dans l'UI (aucun bouton d'import) | `idb.js:705-723` | à brancher ou supprimer |
 | D4 | Colonne `temps_intervention` jamais écrite (« calculé » jamais calculé) | `schema.sql:42` | à renseigner ou supprimer |
 | D5 | `synced_at` toujours mis à `null`, jamais renseigné, supprimé au push | `idb.js:197,235` ; `sync.js:102` | write-only |
-| D6 | En-tête `-- REALTIME` dupliqué | `schema.sql:240-246` | cosmétique |
+| D6 | En-tête `-- REALTIME` dupliqué | `schema.sql:239-243` | cosmétique |
 | D7 | Liste des 4 stores dupliquée 3× | `sync.js:42`, `125`, `147` | à factoriser |
 | D8 | `replaceEquipements` ≈ `replacePieces` ; motif `listRaw+filter` répété 4× | `idb.js:273-328` | à factoriser |
-| D9 | `state.sync.running` / `state.sync.lastPulledAt` inutilisés (double de `SyncState`) | `app.js:32` | à supprimer |
+| D9 | `state.sync.running` / `state.sync.lastPulledAt` inutilisés (double de `SyncState`) | `app.js:225` | à supprimer |
 
 ---
 
@@ -138,33 +151,38 @@
 
 ## 6. ✅ Checklist de suivi
 
+> **Vérification du 23/08/2026 (branche `application-v3`) :** points revus contre le code actuel.
+> ☑ = corrigé depuis la revue · ◐ = partiellement corrigé · ☐ = toujours d'actualité.
+
+> **Mise à jour du 24/08/2026 :** les scripts SQL ont été consolidés en un **fichier maître unique `supabase/schema.sql`** (état final V2 + V3, idempotent). `storage.sql` et `supabase/migrations/` sont supprimés (historique conservé dans git) ; `DEPLOYMENT.md` est passé en procédure en une étape. Les références « `storage.sql` / `001_roles_rls.sql` / `002_v3.sql` » dans le tableau ci-dessous désignent désormais les sections correspondantes du fichier maître.
+
 | Réf | Sévérité | Résolu | Note |
 |---|---|---|---|
-| S1 | Élevé | ☐ | |
-| S2 | Moyen | ☐ | |
-| S3 | Info | ☐ | |
-| S4 | Info | ☐ | |
-| S5 | OK | ☐ | rien à faire |
-| P1 | Moyen | ☐ | |
-| P2 | Bas | ☐ | |
-| P3 | Moyen | ☐ | |
-| P4 | Moyen | ☐ | |
-| C1 | Élevé | ☐ | |
-| C2 | Moyen | ☐ | |
-| C3 | Moyen | ☐ | |
-| C4 | Moyen | ☐ | |
-| C5 | Bas | ☐ | |
-| C6 | Bas | ☐ | |
-| C7 | Bas | ☐ | |
-| C8 | Bas | ☐ | |
-| D1 | Bas | ☐ | |
-| D2 | Bas | ☐ | |
-| D3 | Bas | ☐ | |
-| D4 | Bas | ☐ | |
-| D5 | Bas | ☐ | |
-| D6 | Bas | ☐ | |
-| D7 | Bas | ☐ | |
-| D8 | Bas | ☐ | |
-| D9 | Bas | ☐ | |
+| S1 | Élevé | ☑ | RLS par rôle (`001_roles_rls.sql`) : interventions/pieces_utilisees/profiles scopées + anti-élévation ; clients/equipements restent partagés (barrière = inscription publique désactivée) |
+| S2 | Moyen | ☑ | bucket `signatures` public conservé (choix assumé : URL directe dans le PDF + affichage hors ligne), mais **durcissement 24/08/2026** : noms d'objets non devinables (UUID) — les uploads directs `app.js` passent de `sig-client-${Date.now()}` à `sig-client-${uuid()}` (idem technicien/contrat) ; `sync.js` utilisait déjà l'`id` UUID de la ligne ; risque résiduel accepté et documenté dans `storage.sql` |
+| S3 | Info | ☑ | clé anon publique par nature |
+| S4 | Info | ☑ | `handle_new_user` corrigé : `set search_path = public` ajouté (`schema.sql:156`), aligné sur les autres fonctions ; le risque était minime (référence déjà qualifiée `public.profiles`) — défense en profondeur |
+| S5 | OK | ☑ | rien à faire |
+| P1 | Moyen | ☑ | index `intervention_id` créé sur `equipements` (V4, `ensureIndex` sur store existant) + helper `DB.listByIndex` (`idb.js`) ; les listes d'enfants d'une fiche (équipements, pièces utilisées, mesures, photos, documents) et `replaceChildren` passent par l'index — plus de scan complet ; `listEquipementsForClient` utilise l'index `client_id` |
+| P2 | Bas | ☑ | `getIntervention` réécrite en **une seule transaction readonly** (multi-get) : intervention + client (jointure `client_id`) + 5 collections d'enfants par index `intervention_id` (`idb.js:332`) — le N+1 structurel est éliminé |
+| P3 | Moyen | ☑ | garde-fou `realtimeStarted` (`sync.js:187`) + appel unique (`app.js:2274`) |
+| P4 | Moyen | ☑ | `cleanRow` neutralise tout dataURL (`sync.js:139-140`) ; `mergeRemote` préserve le dataURL local tant que l'URL Storage n'existe pas (`sync.js:81`) |
+| C1 | Élevé | ☑ | `listInterventions` joint `client` par `client_id` (`idb.js:262`) |
+| C2 | Moyen | ☑ | `replace*` factorisées dans `DB.replaceChildren` (`idb.js`) : soft-delete des enfants retirés (tombstone `_deleted`/`deleted_at`) + mise en file → propagation à Supabase, nettoyage du tombstone au pull suivant, tombstone levé si la ligne revient dans la fiche |
+| C3 | Moyen | ☑ | `saveClientEquipment` génère toujours un `id` neuf et détache `intervention_id`/champs locaux (`idb.js`) — plus de collision avec la ligne liée à la fiche, la copie d'historique reste visible de `listEquipementsForClient` |
+| C4 | Moyen | ☑ | `uploadPendingSignatures` (`sync.js:100`) ré-upload les dataURL de signature vers le bucket `signatures` au retour du réseau, puis re-sync (appelé dans `runSync`) |
+| C5 | Bas | ☑ | `deleteIntervention` soft-delete les enfants via `DB.replaceChildren(…, [])` + file de sync, pas de hard-delete (`idb.js`) |
+| C6 | Bas | ☑ | `updatePendingUI` alimente `state.sync.pending` (`sync.js:115`) |
+| C7 | Bas | ☑ | `pushChanges` remet en file les éléments non envoyés (`sync.js:89`) |
+| C8 | Bas | ☑ | `Supabase.upsert` retourne la ligne écrite (`select("id, updated_at")`) ; `pushChanges` aligne la copie locale sur `updated_at` du serveur, la comparaison de conflits compare deux horodatages serveur ; de plus une modification locale encore dans la file de sync l'emporte localement au pull (`isPending` dans `applyRemote`) — une saisie hors ligne n'est jamais écrasée malgré la dérive d'horloge |
+| D1 | Bas | ☑ | `SELF_CLIENT_FIELDS` supprimé (`sync.js`) |
+| D2 | Bas | ☑ | `removeSignature` branché sur la re-signature (fiche + contrat) : l'ancien fichier Storage est supprimé dès qu'une nouvelle signature le remplace (`app.js:1497-1523, 1928-1949` ; `supabase.js:139-148`) |
+| D3 | Bas | ☑ | `importAll` branché : bouton « Importer une sauvegarde » dans l'écran Compte & synchro (`app.js:2255, 2134-2149`) ; les lignes restaurées rejoignent la file de sync (`idb.js:705-717`) |
+| D4 | Bas | ☑ | `temps_intervention` désormais renseigné : calculé à partir de `heure_arrivee`/`heure_depart` à la lecture de l'étape « Intervention » (réutilise `computeDuration`, `app.js`) ; champ initialisé dans le draft et chargé depuis une fiche existante ; normalisé à `""` dans `cleanRow` pour la colonne `not null` |
+| D5 | Bas | ☑ | `synced_at` désormais renseigné après un push réussi : `pushChanges` aligne la copie locale sur l'horloge serveur (`synced_at = updated_at` serveur, même principe que C8) — `null` signale une ligne modifiée localement non encore poussée (`idb.js`), la valeur reste une marque locale non poussée (`cleanRow`, `sync.js`) |
+| D6 | Bas | ☑ | en-tête `REALTIME` fusionné (un seul bloc) (`schema.sql:239-243`) |
+| D7 | Bas | ☑ | liste centralisée dans `SYNC_STORES` (`sync.js:169`) |
+| D8 | Bas | ☑ | `replace*` factorisées dans `DB.replaceChildren` ; le motif `listRaw + filtre !_deleted` est factorisé dans deux helpers `DB.listActive` / `DB.listActiveByIndex` (`idb.js:220-231`), utilisés par toutes les fonctions de liste (clients, interventions, équipements, pièces, mesures, photos, documents, appels, rendez-vous, contrats, base pièces) et `exportAll` |
+| D9 | Bas | ☑ | `state.sync.running` / `lastPulledAt` supprimés — seul `state.sync.pending` (alimenté par `updatePendingUI`) est conservé (`app.js:225`) |
 
 > **Remarque environnement :** pas de `node`/linter ni de config de build dans ce dépôt (site statique) ; la vérification syntaxique automatisée n'a pas pu être lancée.

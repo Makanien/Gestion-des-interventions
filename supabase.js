@@ -83,6 +83,12 @@ const Supabase = {
     const { error } = await c.from("profiles").upsert({ id: user.id, full_name, updated_at: new Date().toISOString() });
     if (error) throw error;
   },
+  async listProfiles() {
+    const c = initSupabase();
+    const { data, error } = await c.from("profiles").select("id, full_name");
+    if (error) throw error;
+    return data || [];
+  },
 
   // ---------------- Collections CRUD ----------------
   // Chaque méthode renvoie les lignes "propres" (sans les métadonnées
@@ -99,8 +105,14 @@ const Supabase = {
 
   async upsert(store, row) {
     const c = initSupabase();
-    const { error } = await c.from(store).upsert(row);
+    // C8 : on demande le retour de la ligne écrite pour récupérer `updated_at`
+    // tel que posé par le trigger serveur `set_updated_at` — l'horloge du
+    // serveur est la référence pour la résolution de conflits. On ne sélectionne
+    // que les petites colonnes : les lignes `photos` / `documents` contiennent
+    // un `data_url` volumineux qu'il serait coûteux de renvoyer à chaque push.
+    const { data, error } = await c.from(store).upsert(row).select("id, updated_at");
     if (error) throw error;
+    return (data && data[0]) || null;
   },
 
   async remove(store, id, updated_at) {
@@ -124,9 +136,45 @@ const Supabase = {
     return c.storage.from("signatures").getPublicUrl(path).data.publicUrl;
   },
 
-  async removeSignature(id) {
+  // D2 : nettoyage des anciennes signatures. Accepte soit l'id d'upload
+  // ("sig-client-123"), soit l'URL publique complète stockée dans
+  // *_signature_url : on extrait le nom de l'objet après "/signatures/".
+  async removeSignature(urlOrId) {
     const c = initSupabase();
-    await c.storage.from("signatures").remove([`${id}.png`]);
+    let path = String(urlOrId || "");
+    if (path.includes("/signatures/")) path = path.split("/signatures/").pop();
+    if (!path) return;
+    if (!path.endsWith(".png")) path = `${path}.png`;
+    const { error } = await c.storage.from("signatures").remove([path]);
+    if (error) console.warn("Suppression ancienne signature échouée", error);
+  },
+
+  // ---------------- Storage (photos & documents — buckets privés V3) ----------------
+  // Les buckets "photos" et "documents" sont privés : on conserve le chemin
+  // de l'objet dans fichier_url (les données restent lisibles en local via
+  // le dataURL/base64, ce qui préserve le mode offline-first).
+  async uploadPhoto(id, dataUrl) {
+    const c = initSupabase();
+    const blob = await (await fetch(dataUrl)).blob();
+    const path = `${id}.jpg`;
+    const { error } = await c.storage.from("photos").upload(path, blob, {
+      contentType: "image/jpeg",
+      upsert: true,
+    });
+    if (error) throw error;
+    return path;
+  },
+
+  async uploadDocument(id, dataUrl) {
+    const c = initSupabase();
+    const blob = await (await fetch(dataUrl)).blob();
+    const path = `${id}.pdf`;
+    const { error } = await c.storage.from("documents").upload(path, blob, {
+      contentType: "application/pdf",
+      upsert: true,
+    });
+    if (error) throw error;
+    return path;
   },
 };
 
