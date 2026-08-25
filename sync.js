@@ -152,11 +152,10 @@ async function pushChanges() {
   SyncState.queue = [];
 
   const pending = [];
-  let stopped = false;
+  let firstError = null;
 
   for (const item of queue) {
-    if (stopped) { pending.push(item); continue; }
-    if (!navigator.onLine) { stopped = true; pending.push(item); continue; }
+    if (!navigator.onLine) { pending.push(item); continue; }
     try {
       const record = await DB.getRecordForSync(item.store, item.id);
       if (!record) continue; // supprimé entre-temps
@@ -180,14 +179,23 @@ async function pushChanges() {
         }
       }
     } catch (err) {
-      stopped = true;
+      // Un échec isolé (réseau transitoire, RLS, contrainte, payload trop gros…)
+      // ne bloque plus le reste de la file : on remet SEULEMENT cet élément en
+      // file et on poursuit. Auparavant, un seul élément « empoisonné » gelait
+      // tous les suivants et la cause réelle était avalée — on la logge ici.
+      const reason = err && err.message ? err.message : String(err);
+      if (!firstError) firstError = { store: item.store, id: item.id, reason };
+      console.error(`Push échoué — ${item.store}/${item.id} : ${reason}`);
       pending.push(item);
     }
   }
 
   SyncState.queue = [...pending, ...SyncState.queue];
   updatePendingUI();
-  if (pending.length > 0) throw new Error(`Push partiel : ${pending.length} élément(s) remis en file`);
+  if (pending.length > 0) {
+    const detail = firstError ? ` — premier échec : ${firstError.store}/${firstError.id} (${firstError.reason})` : "";
+    throw new Error(`Push partiel : ${pending.length} élément(s) remis en file${detail}`);
+  }
 }
 
 function updatePendingUI() {
