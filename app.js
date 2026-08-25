@@ -236,7 +236,7 @@ function toast(msg, isError) {
 }
 
 function currentRole() { return state.auth?.profile?.role || "responsable"; }
-function isManager() { return !state.auth || ["responsable", "secretaire"].includes(currentRole()); }
+function isManager() { return !state.auth || ["responsable", "secretaire", "developpeur"].includes(currentRole()); }
 
 // Résout le nom d'intervenant (texte) vers l'uuid du profil, pour que la
 // RLS serveur (technicien_id = auth.uid()) laisse le bon technicien

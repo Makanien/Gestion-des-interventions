@@ -27,11 +27,11 @@ projet, puis **SQL Editor → New query**. Collez le contenu de
 |---|---|
 | `clients`, `interventions`, `equipements`, `pieces_utilisees` | Données métier (id UUID, `updated_at`, `deleted_at`) |
 | `appels`, `rendezvous`, `mesures`, `photos`, `pieces`, `documents`, `contrats_entretien` | Données V3 (appel, planning, entretiens, photos, base pièces, PDF importés, contrats) |
-| `profiles` | Nom affiché + rôle (`responsable` / `technicien` / `secretaire`) |
+| `profiles` | Nom affiché + rôle (`responsable` / `technicien` / `secretaire` / `developpeur`) |
 | Triggers `set_updated_at` / `set_created_by` / `set_updated_by` / `set_technicien_default` | Horodatage + propriétaire automatiques |
 | Trigger `handle_new_user` | Création auto du profil à l'inscription |
 | Buckets Storage `signatures`, `photos`, `documents` + politiques | Signatures (public pour le PDF) / photos / documents (privés) |
-| RLS par rôle | `responsable` & `secretaire` → toute l'équipe ; `technicien` → ses fiches et son planning |
+| RLS par rôle | `responsable`, `secretaire` & `developpeur` → toute l'équipe ; `technicien` → ses fiches et son planning |
 | `alter publication supabase_realtime` | Active le Realtime sur les tables |
 
 > ⚠️ Le rôle `anon` n'obtient **aucun** privilège : la clé anon est inutile sans
@@ -68,13 +68,14 @@ Dans **Authentication → Sign In / Providers** :
   (ex. `https://votre-app.netlify.app` et `http://localhost:8080` pour les tests).
 - Le lien magique doit renvoyer vers l'app (le SDK utilise `emailRedirectTo`).
 
-Créez les 3 comptes via **Authentication → Users → Add user** :
+Créez les 4 comptes via **Authentication → Users → Add user** :
 
 | Email | Rôle cible |
 |---|---|
 | `regis.chanteux@gmail.com` | `responsable` |
 | `jgardaisclimatelec@gmail.com` | `technicien` |
 | `contactdsolutions49@gmail.com` | `secretaire` |
+| `makanien@gmail.com` | `developpeur` (Alexandre) |
 
 > Le rôle ne se règle **pas** à la création du compte : il est attribué par le
 > backfill du schéma (fin de `schema.sql`) ou via `set_user_role()`. La ligne
@@ -88,6 +89,7 @@ Créez les 3 comptes via **Authentication → Users → Add user** :
 ```sql
 -- En SQL editor (sans session) ou via l'API en tant que manager :
 select public.set_user_role('<uuid-du-compte>', 'secretaire');
+-- Ex. pour Alexandre : select public.set_user_role('<uuid>', 'developpeur');
 ```
 
 ## 5. Vérifications
