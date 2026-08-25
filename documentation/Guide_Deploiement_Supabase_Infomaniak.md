@@ -16,7 +16,7 @@
 - Le **disque (20 Go)** se remplit vite avec les photos, PDF et signatures : à surveiller dès le début.
 
 ### Bonnes pratiques à ne jamais sauter
-- **Ne jamais garder les secrets par défaut** du `.env.example` (JWT_SECRET, ANON_KEY, SERVICE_ROLE_KEY, mot de passe Postgres) — c'est la faille de sécurité n°1 des installations Supabase auto-hébergées.
+- **Ne jamais garder les secrets par défaut** du `.env.example` (`JWT_SECRET`, `SUPABASE_PUBLISHABLE_KEY`/`SUPABASE_SECRET_KEY` ou leurs équivalents historiques `ANON_KEY`/`SERVICE_ROLE_KEY`, mot de passe Postgres) — c'est la faille de sécurité n°1 des installations Supabase auto-hébergées. Utiliser les scripts `utils/generate-keys.sh` puis `utils/add-new-auth-keys.sh` fournis par Supabase (voir Étape 5) plutôt que de les générer à la main.
 - Toujours mettre un **reverse proxy avec HTTPS** (Traefik, Nginx ou Caddy) devant Supabase avant tout usage réel — jamais d'accès direct en HTTP sur les ports bruts.
 - **Sauvegardes automatiques** de la base Postgres (`pg_dump`) et du bucket Storage (photos/signatures), avec une copie **hors du VPS** (ex. Backblaze B2, autre stockage). Une sauvegarde qui reste sur la même machine que la prod ne protège de rien en cas de problème serveur.
 - Ajouter un **firewall** (`ufw`) et `fail2ban` pour protéger le SSH.
@@ -111,19 +111,31 @@ cp supabase/docker/.env.example .env
 rm -rf supabase   # on garde juste les fichiers docker
 ```
 
-Éditer le `.env` et **remplacer impérativement toutes les valeurs par défaut** :
-```bash
-# Générer un JWT secret unique (40+ caractères)
-openssl rand -base64 32
+**Génération des secrets — deux scripts fournis par Supabase, dans cet ordre :**
 
-# Générer un mot de passe Postgres fort
-openssl rand -base64 24
+```bash
+cd /opt/supabase/docker
+
+# 1) Secrets de base : mot de passe Postgres, JWT_SECRET, mot de passe Studio,
+#    + clés historiques ANON_KEY/SERVICE_ROLE_KEY (gardées en fallback de compatibilité)
+bash utils/generate-keys.sh
+
+# 2) Clés API "nouvelle génération" (mêmes clés que celles déjà utilisées
+#    dans config.js de l'appli : sb_publishable_... / sb_secret_...)
+#    Ce script met aussi à jour docker-compose.yml automatiquement.
+bash utils/add-new-auth-keys.sh
 ```
-→ Reporter ces valeurs dans `.env` (`JWT_SECRET`, `POSTGRES_PASSWORD`, puis régénérer `ANON_KEY` et `SERVICE_ROLE_KEY` avec le script fourni par Supabase à partir du nouveau `JWT_SECRET`).
+
+> ⚠️ **Ne pas générer les clés à la main avec `openssl rand` + un script JWT maison** (c'était l'ancienne méthode, sujette à erreur si `JWT_SECRET` et les clés dérivées ne correspondent pas). Les deux scripts officiels ci-dessus font tout : génération **et** cohérence entre les secrets.
+
+Les valeurs qui nous intéressent pour connecter l'appli sont écrites dans `.env` par `add-new-auth-keys.sh` :
+- `SUPABASE_PUBLISHABLE_KEY` → c'est la clé **publique**, celle qui va dans `config.js` de l'app (`anonKey`). Elle est faite pour être exposée côté client — la vraie protection reste la RLS (`supabase/schema.sql`).
+- `SUPABASE_SECRET_KEY` → clé **serveur**, ne doit **jamais** apparaître dans `config.js` ni dans aucun fichier servi au navigateur. L'appli Climat Elec n'a normalement aucun usage pour cette clé (pas de composant serveur dans l'architecture actuelle).
 
 Configurer aussi dans `.env` :
 - `SITE_URL` → l'URL de ton appli (ex. `https://app.climat-elec.fr`)
 - `API_EXTERNAL_URL` → l'URL publique de Supabase (ex. `https://supabase.climat-elec.fr`)
+- `SUPABASE_PUBLIC_URL` → généralement la même valeur que `API_EXTERNAL_URL` ; c'est celle à reporter dans `config.js` (`url`)
 
 ### Étape 6 — Alléger le stack (optionnel mais recommandé sur 2 Go de RAM)
 Dans `docker-compose.yml`, commenter/supprimer les services non indispensables au démarrage :
@@ -160,9 +172,10 @@ docker compose logs -f
 ```
 
 ### Étape 10 — Connecter l'application Climat Elec
-- Dans la config de l'app (variables d'environnement / config Supabase client), remplacer l'URL et les clés par celles du VPS auto-hébergé (`API_EXTERNAL_URL`, `ANON_KEY`).
+- Dans `config.js` (à la racine de l'app), remplacer `url` et `anonKey` par les valeurs du VPS auto-hébergé : `SUPABASE_PUBLIC_URL` → `url`, `SUPABASE_PUBLISHABLE_KEY` → `anonKey`. **Jamais** `SUPABASE_SECRET_KEY` ici.
 - Appliquer le schéma du projet sur la base Postgres du VPS (via Studio ou `psql`) : `supabase/schema.sql` — fichier maître unique (tables V2 + V3 : appels, rendez-vous, mesures, photos, pièces, documents, contrats, RLS par rôle, Storage, Realtime), idempotent.
 - Tester la connexion, l'auth (lien magique), et un cycle complet de synchro offline → online.
+- **Vérifier dans le Dashboard Studio** (Authentication > Sign In / Providers) que l'**inscription publique par email est désactivée**. C'est ce réglage — pas la clé — qui empêche un inconnu de créer un compte et d'accéder aux données de l'équipe (voir `supabase/schema.sql`, section RLS).
 
 ### Étape 11 — Mettre en place les sauvegardes automatiques
 ```bash
@@ -180,7 +193,9 @@ Puis synchroniser régulièrement `/opt/supabase/backups` vers un stockage exter
 
 ## 4. Checklist avant mise en usage réel avec les techniciens
 
-- [ ] Tous les secrets `.env` regénérés (aucune valeur par défaut restante)
+- [ ] Tous les secrets `.env` regénérés via `utils/generate-keys.sh` + `utils/add-new-auth-keys.sh` (aucune valeur par défaut restante)
+- [ ] `config.js` de l'app pointe vers `SUPABASE_PUBLISHABLE_KEY` (jamais `SUPABASE_SECRET_KEY`)
+- [ ] **Inscription publique par email désactivée** dans Studio (Authentication > Sign In / Providers) — c'est la vraie barrière d'accès, à vérifier à chaque nouveau déploiement/reset du projet
 - [ ] HTTPS actif et fonctionnel (pas d'accès HTTP direct)
 - [ ] Firewall (`ufw`) + `fail2ban` actifs
 - [ ] Swap configuré
