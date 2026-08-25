@@ -1,7 +1,7 @@
 # PRD — Application de gestion des fiches d'intervention
 ## Climat Elec (Chazé-sur-Argos)
 
-**Version du document :** 1.21
+**Version du document :** 1.22
 **Date :** 25/08/2026
 **Auteur :** Rédigé avec Claude, sur la base des échanges avec le porteur de projet
 
@@ -350,6 +350,7 @@ Suite à l'arbitrage UX du 25/08/2026 (§3.2.5, §3.3.1, §5.2), le cycle de vie
 - **Reliage des appels** : un RDV créé depuis un appel renseigne `rendezvous.appel_id` et `appels.rendezvous_id` ; une fiche créée depuis un appel (bouton « Créer l'intervention → ») ou depuis un RDV renseigne `appels.intervention_id` (`linkAppelToRdv`, `linkAppelToIntervention`, `rdvToIntervention` dans `app.js`).
 - **Masquage des appels traités** : le bloc « Appels » de l'onglet Dossiers ne montre plus que les appels en attente (sans `rendezvous_id` ni `intervention_id`), étiquetés « **À traiter** » (l'étiquette « Sans suite », jugée ambiguë, est abandonnée). Plus aucune suppression manuelle nécessaire dans le flux normal.
 - **RDV → intervention** : bouton « **Créer l'intervention →** » sur le détail d'un rendez-vous — la fiche s'ouvre pré-remplie avec le client, le motif (note) et la date du RDV ; si le RDV est issu d'un appel, le lien est reporté sur la fiche.
+- **Anti-doublon RDV → fiche** : dès qu'une fiche est créée depuis un RDV (validation **ou** brouillon), `rendezvous.intervention_id` est renseigné (`linkRdvToIntervention`) ; le bouton du RDV devient alors « **Reprendre la fiche** » (brouillon) ou « **Voir la fiche** », ce qui empêche de créer une seconde fiche par erreur. La suppression de la fiche délie le RDV (`unlinkRdvFromIntervention`), qui repasse à « Créer l'intervention → ».
 - **Dé-lien** : bouton « Détacher de l'appel d'origine » sur un RDV lié ; la suppression d'un RDV ou d'une fiche détache automatiquement l'appel lié (qui revient « À traiter ») (`unlinkAppelFromRdv`, `unlinkAppelFromIntervention`).
 - **Pré-remplissage enrichi** : le motif de l'appel est reporté dans le descriptif de la fiche créée depuis un appel.
 - **`appels_update` élargi** (`supabase/schema.sql`) : la politique de mise à jour passe à `using (true)` (comme l'insert) afin que le technicien puisse relier une fiche/un RDV à un appel enregistré par le responsable ; la lecture reste restreinte (managers ou créateur).
@@ -462,6 +463,7 @@ RendezVous {
   date, heure_debut, heure_fin
   type: "depannage" | "entretien" | "rdv_devis"
   client_id, appel_id (optionnels)
+  intervention_id (optionnel — fiche créée depuis ce RDV, anti-doublon)
   statut
   created_at, updated_at
 }
@@ -513,7 +515,7 @@ ContratEntretien {
 }
 ```
 
-> **Cycle de vie de l'appel :** `action_sortie` enregistre la sortie (`rdv` / `intervention` / `sans_suite` — ce dernier signifie « en attente », étiquette « À traiter »). Les champs de lien `rendezvous_id` / `intervention_id` (et `rendezvous.appel_id`) sont renseignés lorsque le RDV ou la fiche est créé depuis l'appel ; l'appel est alors retiré de la liste active du bloc « Appels » mais reste en base (traçabilité). Un rendez-vous peut à son tour produire une intervention via « Créer l'intervention » sur son détail (reprise du client et du motif).
+> **Cycle de vie de l'appel :** `action_sortie` enregistre la sortie (`rdv` / `intervention` / `sans_suite` — ce dernier signifie « en attente », étiquette « À traiter »). Les champs de lien `rendezvous_id` / `intervention_id` (et `rendezvous.appel_id`) sont renseignés lorsque le RDV ou la fiche est créé depuis l'appel ; l'appel est alors retiré de la liste active du bloc « Appels » mais reste en base (traçabilité). Un rendez-vous peut à son tour produire une intervention via « Créer l'intervention » sur son détail (reprise du client et du motif) ; le RDV enregistre de son côté `intervention_id` pour éviter qu'un même rendez-vous produise deux fiches (anti-doublon).
 >
 > **Numérotation :** un compteur par type de document (fiche d'intervention/entretien, dossier) génère les références uniques (ex. `FIC-2026-001`). Le format exact reste à valider (§11).
 >

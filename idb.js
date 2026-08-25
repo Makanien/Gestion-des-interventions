@@ -425,6 +425,7 @@ const DB = {
     delete itv._client_sig_blob;
     delete itv._technicien_sig_blob;
     delete itv.appel_id;            // lien transitoire vers l'appel d'origine (appels.intervention_id)
+    delete itv.rdv_id;              // lien transitoire vers le RDV d'origine (rendezvous.intervention_id)
 
     await this.putRaw("interventions", itv);
 

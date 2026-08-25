@@ -901,12 +901,23 @@ async function renderRdv(id) {
   const isEdit = !!id && !!d;
   if (!d) { go("#/"); return; }
   const lienAppel = isEdit && d.appel_id ? await DB.getRaw("appels", d.appel_id) : null;
+  // Anti-doublon : si une fiche a déjà été créée depuis ce RDV (ou depuis son
+  // appel d'origine), le bouton devient « Voir / Reprendre la fiche ».
+  let ficheLiee = null;
+  if (isEdit) {
+    const itvId = d.intervention_id || (lienAppel && lienAppel.intervention_id) || null;
+    if (itvId) {
+      const itv = await DB.getRaw("interventions", itvId);
+      if (itv && !itv._deleted) ficheLiee = itv;
+    }
+  }
   setApp(`
     ${topbar({ title: isEdit ? "Modifier le rendez-vous" : "Nouveau rendez-vous", subtitle: "Planning", back: true, actions: isEdit ? `<button class="icon-btn" data-nav="rdv-delete" data-id="${d.id}" title="Supprimer">${ICONS.trash}</button>` : "" })}
     <main>
       <div class="card" style="padding:14px;">
         ${p.nom ? `<div class="note blue">Client : <strong>${esc(p.nom)}</strong></div>` : ""}
         ${lienAppel ? `<div class="note">Issu de l'appel client du ${fmtStampShort(lienAppel.created_at)}.</div>` : ""}
+        ${ficheLiee ? `<div class="note blue">Fiche d'intervention déjà créée pour ce rendez-vous.</div>` : ""}
         <div class="field"><label>Date *</label><input id="r-date" type="date" value="${esc(d.date)}" /></div>
         <div class="row2">
           <div class="field"><label>Heure début</label><input id="r-hdeb" type="time" value="${esc(d.heure_debut)}" /></div>
@@ -925,7 +936,9 @@ async function renderRdv(id) {
         <div class="field"><label>Note / motif</label><textarea id="r-note">${esc(d.note)}</textarea></div>
       </div>
       <button class="btn btn-accent" id="btn-save-rdv" style="margin-top:14px;">${ICONS.check} ${isEdit ? "Enregistrer les modifications" : "Enregistrer le rendez-vous"}</button>
-      ${isEdit ? `<button class="btn btn-primary" data-nav="rdv-intervention" data-id="${d.id}" style="margin-top:9px;">${ICONS.wrench} Créer l'intervention →</button>` : ""}
+      ${isEdit ? (ficheLiee
+        ? `<button class="btn btn-primary" data-nav="rdv-open-intervention" data-id="${ficheLiee.id}" style="margin-top:9px;">${ICONS.file} ${ficheLiee.statut_dossier === "brouillon" ? "Reprendre la fiche" : "Voir la fiche"}</button>`
+        : `<button class="btn btn-primary" data-nav="rdv-intervention" data-id="${d.id}" style="margin-top:9px;">${ICONS.wrench} Créer l'intervention →</button>`) : ""}
       ${lienAppel ? `<button class="btn btn-ghost" data-nav="rdv-unlink" data-id="${d.id}" style="margin-top:9px;">Détacher de l'appel d'origine</button>` : ""}
     </main>
     <div class="toast" id="toast"></div>
@@ -997,6 +1010,26 @@ async function unlinkAppelFromIntervention(interventionId) {
   }
 }
 
+// Lien RDV → fiche : évite qu'un même rendez-vous produise plusieurs fiches
+// (anti-doublon — le bouton du RDV bascule vers « Voir / Reprendre la fiche »).
+async function linkRdvToIntervention(rdvId, interventionId) {
+  if (!rdvId || !interventionId) return;
+  const rdv = await DB.getRaw("rendezvous", rdvId);
+  if (!rdv || rdv._deleted) return;
+  rdv.intervention_id = interventionId;
+  await DB.saveRendezvous(rdv);
+}
+
+async function unlinkRdvFromIntervention(interventionId) {
+  if (!interventionId) return;
+  const rdvs = await DB.listRendezvous();
+  const linked = rdvs.find((r) => r.intervention_id === interventionId);
+  if (linked) {
+    linked.intervention_id = null;
+    await DB.saveRendezvous(linked);
+  }
+}
+
 // « Créer l'intervention » depuis un rendez-vous : la fiche s'ouvre pré-remplie
 // avec le client et le motif du RDV (ferme la chaîne Appel → RDV → Fiche).
 async function rdvToIntervention(id) {
@@ -1005,6 +1038,7 @@ async function rdvToIntervention(id) {
   const client = rdv.client_id ? await DB.getClient(rdv.client_id) : null;
   state.draft = emptyDraft("intervention");
   state.draftType = "intervention";
+  state.draft.rdv_id = rdv.id;
   state.draft.appel_id = rdv.appel_id || null;
   if (client) {
     state.draft.client_id = client.id;
@@ -1661,6 +1695,7 @@ async function finishWizard() {
   if (!readStepIntoDraft(state.step)) return;
   const d = state.draft;
   const appelId = d.appel_id || null;
+  const rdvId = d.rdv_id || null;
   const isEdit = !!d.id;
   const steps = wizardSteps();
 
@@ -1710,6 +1745,7 @@ async function finishWizard() {
 
   const saved = await DB.saveIntervention(itv);
   if (appelId) await linkAppelToIntervention(appelId, saved.id);
+  if (rdvId) await linkRdvToIntervention(rdvId, saved.id);
   toast(isEdit ? "Fiche mise à jour" : "Fiche enregistrée");
   state.draft = null;
   go(`#/detail/${saved.id}`);
@@ -1725,6 +1761,7 @@ async function saveBrouillon() {
   } catch (e) { /* brouillon tolérant */ }
   const d = state.draft;
   const appelId = d.appel_id || null;
+  const rdvId = d.rdv_id || null;
   const savedClient = d.client_id
     ? await DB.saveClient({ ...d.client })
     : await DB.findOrCreateClientByName({ ...d.client });
@@ -1734,6 +1771,7 @@ async function saveBrouillon() {
   itv.client = { nom: savedClient.nom, ville: savedClient.ville };
   const saved = await DB.saveIntervention(itv);
   if (appelId) await linkAppelToIntervention(appelId, saved.id);
+  if (rdvId) await linkRdvToIntervention(rdvId, saved.id);
   toast("Brouillon enregistré");
   state.draft = null;
   go(`#/detail/${saved.id}`);
@@ -2215,6 +2253,11 @@ document.addEventListener("click", async (e) => {
   }
   else if (action === "rdv-edit") go(`#/rdv/${nav.dataset.id}`);
   else if (action === "rdv-intervention") await rdvToIntervention(nav.dataset.id);
+  else if (action === "rdv-open-intervention") {
+    const itv = await DB.getRaw("interventions", nav.dataset.id);
+    if (itv && !itv._deleted && itv.statut_dossier === "brouillon") go(`#/edit/${nav.dataset.id}`);
+    else go(`#/detail/${nav.dataset.id}`);
+  }
   else if (action === "rdv-unlink") {
     const r = await DB.getRaw("rendezvous", nav.dataset.id);
     await unlinkAppelFromRdv(r);
@@ -2234,6 +2277,7 @@ document.addEventListener("click", async (e) => {
   else if (action === "delete") {
     if (confirm("Supprimer définitivement cette fiche ?")) {
       await unlinkAppelFromIntervention(nav.dataset.id);
+      await unlinkRdvFromIntervention(nav.dataset.id);
       await DB.deleteIntervention(nav.dataset.id);
       go("#/");
     }

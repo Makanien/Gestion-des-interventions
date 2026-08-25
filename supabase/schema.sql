@@ -189,6 +189,7 @@ create table if not exists public.rendezvous (
   type          text not null default '', -- 'depannage' | 'entretien' | 'rdv_devis'
   client_id     uuid references public.clients(id) on delete set null,
   appel_id      uuid references public.appels(id) on delete set null,
+  intervention_id uuid references public.interventions(id) on delete set null, -- fiche créée depuis ce RDV (anti-doublon)
   note          text not null default '',
   statut        text not null default 'planifie',
   created_at    timestamptz not null default now(),
@@ -197,6 +198,7 @@ create table if not exists public.rendezvous (
   created_by    uuid references auth.users(id) on delete set null,
   updated_by    uuid references auth.users(id) on delete set null
 );
+alter table public.rendezvous add column if not exists intervention_id uuid references public.interventions(id) on delete set null;
 create index if not exists rendezvous_date_idx on public.rendezvous(date);
 create index if not exists rendezvous_technicien_id_idx on public.rendezvous(technicien_id);
 
