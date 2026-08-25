@@ -347,6 +347,7 @@ async function loadDraftFromIntervention(id) {
 window.addEventListener("hashchange", route);
 
 function go(hash) { window.location.hash = hash; }
+function goReplace(hash) { window.location.replace(hash); }
 
 async function route() {
   const hash = window.location.hash || "#/";
@@ -362,8 +363,8 @@ async function route() {
     renderWizard();
   } else if (parts[0] === "edit" && parts[1]) {
     await loadDraftFromIntervention(parts[1]);
-    if (state.draftType === "intervention") go(`#/new/${state.step || 1}`);
-    else go(`#/entretien/${state.draftType}/${state.step || 1}`);
+    if (state.draftType === "intervention") goReplace(`#/new/${state.step || 1}`);
+    else goReplace(`#/entretien/${state.draftType}/${state.step || 1}`);
   } else if (parts[0] === "detail" && parts[1]) {
     await renderDetail(parts[1]);
   } else if (parts[0] === "appel") {
@@ -1748,7 +1749,7 @@ async function finishWizard() {
   if (rdvId) await linkRdvToIntervention(rdvId, saved.id);
   toast(isEdit ? "Fiche mise à jour" : "Fiche enregistrée");
   state.draft = null;
-  go(`#/detail/${saved.id}`);
+  goReplace(`#/detail/${saved.id}`);
 }
 
 async function saveBrouillon() {
@@ -1774,7 +1775,7 @@ async function saveBrouillon() {
   if (rdvId) await linkRdvToIntervention(rdvId, saved.id);
   toast("Brouillon enregistré");
   state.draft = null;
-  go(`#/detail/${saved.id}`);
+  goReplace(`#/detail/${saved.id}`);
 }
 
 // ---------------------------------------------------------
@@ -2196,7 +2197,7 @@ document.addEventListener("click", async (e) => {
   if (action === "detail") go(`#/detail/${nav.dataset.id}`);
   else if (action === "edit") {
     if (state.draft && state.draft.id !== nav.dataset.id) state.draft = null;
-    go(`#/edit/${nav.dataset.id}`);
+    goReplace(`#/edit/${nav.dataset.id}`);
   }
   else if (action === "duplicate") duplicateIntervention(nav.dataset.id);
   else if (action === "wf") {
@@ -2227,9 +2228,9 @@ document.addEventListener("click", async (e) => {
     if (confirm("Supprimer ce document ?")) { await DB.deleteDocument(nav.dataset.id); await renderDetail(state.draft?.id || location.hash.split("/")[2]); }
   }
   else if (action === "back") { if (window.history.length > 1) window.history.back(); else go("#/"); }
-  else if (action === "cancel") { state.draft = null; go("#/"); }
-  else if (action === "prev") { if (state.step > 1) { readStepIntoDraft(state.step); if (state.draftType === "intervention") go(`#/new/${state.step - 1}`); else go(`#/entretien/${state.draftType}/${state.step - 1}`); } }
-  else if (action === "next") { if (readStepIntoDraft(state.step)) { if (state.draftType === "intervention") go(`#/new/${state.step + 1}`); else go(`#/entretien/${state.draftType}/${state.step + 1}`); } }
+  else if (action === "cancel") { state.draft = null; goReplace("#/"); }
+  else if (action === "prev") { if (state.step > 1) { readStepIntoDraft(state.step); if (state.draftType === "intervention") goReplace(`#/new/${state.step - 1}`); else goReplace(`#/entretien/${state.draftType}/${state.step - 1}`); } }
+  else if (action === "next") { if (readStepIntoDraft(state.step)) { if (state.draftType === "intervention") goReplace(`#/new/${state.step + 1}`); else goReplace(`#/entretien/${state.draftType}/${state.step + 1}`); } }
   else if (action === "finish") finishWizard();
   else if (action === "brouillon") saveBrouillon();
   else if (action === "export") exportData();
@@ -2255,7 +2256,7 @@ document.addEventListener("click", async (e) => {
   else if (action === "rdv-intervention") await rdvToIntervention(nav.dataset.id);
   else if (action === "rdv-open-intervention") {
     const itv = await DB.getRaw("interventions", nav.dataset.id);
-    if (itv && !itv._deleted && itv.statut_dossier === "brouillon") go(`#/edit/${nav.dataset.id}`);
+    if (itv && !itv._deleted && itv.statut_dossier === "brouillon") goReplace(`#/edit/${nav.dataset.id}`);
     else go(`#/detail/${nav.dataset.id}`);
   }
   else if (action === "rdv-unlink") {
