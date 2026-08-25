@@ -253,6 +253,26 @@ function resolveTechId(name) {
   return match ? match.id : null;
 }
 
+// Résout le nom complet d'un technicien affecté à un rendez-vous
+// (via technicien_id, sinon via le prénom affiché), pour pré-remplir
+// le champ « Nom du technicien » de la fiche. Retourne le texte tel quel
+// si aucun profil ne correspond (fallback sur l'intervenant).
+function resolveTechFullName(technicienId, intervenant) {
+  if (technicienId) {
+    const p = (state.team || []).find((x) => x.id === technicienId);
+    if (p && p.full_name) return p.full_name;
+  }
+  if (!intervenant) return "";
+  const n = intervenant.trim().toLowerCase();
+  const match = (state.team || []).find((p) => {
+    const fn = (p.full_name || "").trim().toLowerCase();
+    if (!fn) return false;
+    const parts = fn.split(/\s+/).filter(Boolean);
+    return fn === n || (parts[0] || "") === n || parts.includes(n);
+  });
+  return match ? match.full_name : intervenant.trim();
+}
+
 function emptyClient() {
   return { nom: "", adresse: "", code_postal: "", ville: "", mail: "", tel: "", type_batiment: "" };
 }
@@ -284,7 +304,7 @@ function emptyDraft(type) {
     devis_souhaite: false,
     devis_commentaire: "",
     prochaine_intervention_prevue: false,
-    technicien_nom: localStorage.getItem("ce_technicien_nom") || "",
+    technicien_nom: localStorage.getItem("ce_technicien_nom") || state.auth?.profile?.full_name || "",
     client_present: true,
     client_signature_nom: "",
     client_signature_url: null,
@@ -873,6 +893,7 @@ async function saveAppelFromDraft(action) {
     state.draft.appel_id = appel.id;
     state.draft.client = { id: clientId, nom: d.nom, adresse: d.adresse, code_postal: d.code_postal, ville: d.ville, mail: d.mail, tel: d.tel, type_batiment: d.type_batiment };
     state.draft.client_id = clientId;
+    state.draft.client_signature_nom = d.nom || "";
     state.draft.type_intervention = ["Dépannage", "Garantie", "Diagnostic"].includes(d.type_intervention) ? d.type_intervention : "Dépannage";
     if (d.motif) state.draft.descriptif_demande = d.motif;
     clearAppelDraft();
@@ -1045,6 +1066,11 @@ async function rdvToIntervention(id) {
     state.draft.client_id = client.id;
     state.draft.client = { id: client.id, nom: client.nom || "", adresse: client.adresse || "", code_postal: client.code_postal || "", ville: client.ville || "", mail: client.mail || "", tel: client.tel || "", type_batiment: client.type_batiment || "" };
   }
+  // Pré-remplissage : technicien affecté au RDV (sinon la personne qui crée),
+  // et nom du client pour la signature.
+  const techName = resolveTechFullName(rdv.technicien_id, rdv.intervenant);
+  if (techName) state.draft.technicien_nom = techName;
+  if (client?.nom) state.draft.client_signature_nom = client.nom;
   state.draft.type_intervention = rdv.type === "depannage" ? "Dépannage" : "Diagnostic";
   if (rdv.note) state.draft.descriptif_demande = rdv.note;
   if (rdv.date) state.draft.date = rdv.date;
@@ -1209,7 +1235,11 @@ function wireClientCombo() {
 
 function captureClientFields() {
   const d = state.draft;
+  const prevNom = d.client.nom;
   d.client = { ...d.client, id: d.client_id || d.client.id, nom: $("#f-nom").value.trim(), adresse: $("#f-adresse").value.trim(), code_postal: $("#f-cp").value.trim(), ville: $("#f-ville").value.trim(), tel: $("#f-tel").value.trim(), mail: $("#f-mail").value.trim(), type_batiment: $("#f-type-bat").value };
+  // La signature client suit le nom du client tant qu'elle n'a pas été
+  // personnalisée manuellement (pré-remplissage automatique).
+  if (!d.client_signature_nom || d.client_signature_nom === prevNom) d.client_signature_nom = d.client.nom;
   if (state.draftType !== "intervention") {
     d.type_entretien = state.draftType;                          // clé machine (air_eau / air_air / chaudiere)
     d.type_entretien_detail = $("#f-type-entretien")?.value || "";
@@ -1603,7 +1633,7 @@ function stepSignHTML() {
     </div>
     <div class="field" style="margin-bottom:0;" id="wrap-client-sig">
       <label>Nom du client (signature)</label>
-      <input id="f-client-sig" type="text" value="${esc(d.client_signature_nom)}" placeholder="${d.client.nom ? esc(d.client.nom) : "Nom du client"}" />
+      <input id="f-client-sig" type="text" value="${esc(d.client_signature_nom || d.client.nom)}" placeholder="${d.client.nom ? esc(d.client.nom) : "Nom du client"}" />
       <div class="hint">La signature électronique tactile est disponible.</div>
     </div>
     <button type="button" class="add-line-btn" id="btn-client-sign" style="margin-top:10px;">${ICONS.pencil.replace('width="24" height="24"', 'width="15" height="15"')} Signer (client)</button>

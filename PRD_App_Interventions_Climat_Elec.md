@@ -1,7 +1,7 @@
 # PRD — Application de gestion des fiches d'intervention
 ## Climat Elec (Chazé-sur-Argos)
 
-**Version du document :** 1.22
+**Version du document :** 1.23
 **Date :** 25/08/2026
 **Auteur :** Rédigé avec Claude, sur la base des échanges avec le porteur de projet
 
@@ -354,6 +354,15 @@ Suite à l'arbitrage UX du 25/08/2026 (§3.2.5, §3.3.1, §5.2), le cycle de vie
 - **Dé-lien** : bouton « Détacher de l'appel d'origine » sur un RDV lié ; la suppression d'un RDV ou d'une fiche détache automatiquement l'appel lié (qui revient « À traiter ») (`unlinkAppelFromRdv`, `unlinkAppelFromIntervention`).
 - **Pré-remplissage enrichi** : le motif de l'appel est reporté dans le descriptif de la fiche créée depuis un appel.
 - **`appels_update` élargi** (`supabase/schema.sql`) : la politique de mise à jour passe à `using (true)` (comme l'insert) afin que le technicien puisse relier une fiche/un RDV à un appel enregistré par le responsable ; la lecture reste restreinte (managers ou créateur).
+
+### Pré-remplissage des signatures à la création d'une fiche (25/08/2026)
+
+Suite à une demande terrain, les champs de signature sont **pré-remplis automatiquement** lors de la création d'une fiche d'intervention, pour éviter toute ressaisie :
+
+- **Signature client** : le champ « Nom du client (signature) » est pré-rempli avec le **nom/prénom du client** sélectionné ou saisi (reprise depuis le RDV, l'appel, l'auto-complétion de la base clients ou la saisie libre du wizard). Le champ suit ensuite le nom du client tant qu'il n'a pas été **personnalisé manuellement** sur l'écran de signature (`captureClientFields` dans `app.js`).
+- **Technicien** : le champ « Nom du technicien » est pré-rempli avec le **nom/prénom du technicien affecté au rendez-vous** à l'origine de la fiche — résolution via `technicien_id` (profil) sinon via le prénom affiché (`intervenant`), complété en nom complet par `resolveTechFullName` (équipe chargée à l'authentification). **À défaut** (fiche créée directement, depuis un appel, ou RDV sans intervenant), le champ est pré-rempli avec la **personne qui crée la fiche** : dernier technicien utilisé (`ce_technicien_nom`) sinon `full_name` du profil connecté (`emptyDraft` dans `app.js`).
+- **Fiches créées depuis un appel** : le nom du client est également reporté dans le champ signature (`saveAppelFromDraft`).
+- Le pré-remplissage est **modifiable** à tout moment : il ne s'agit que d'une valeur initiale, l'utilisateur reste libre de la corriger sur l'écran « Devis & signature ».
 
 ---
 
