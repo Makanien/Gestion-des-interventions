@@ -694,7 +694,7 @@ function openCreateSheet() {
   $all("[data-create]").forEach((b) => b.addEventListener("click", () => {
     const k = b.dataset.create;
     closeSheet();
-    if (k === "appel") go("#/appel");
+    if (k === "appel") { clearAppelDraft(); go("#/appel"); }
     else if (k === "intervention") { state.draft = emptyDraft("intervention"); state.draftType = "intervention"; go("#/new/1"); }
     else if (k === "contrat") go("#/contrat");
     else { const t = k.replace("entretien_", ""); state.draft = emptyDraft(t); state.draftType = t; go(`#/entretien/${t}/1`); }
@@ -705,9 +705,40 @@ function openCreateSheet() {
 // ---------------------------------------------------------
 // Nouvel appel (US-01)
 // ---------------------------------------------------------
+// Brouillon « Nouvel appel » : synchronisé depuis le DOM à chaque saisie et
+// persisté dans localStorage. Sans cela, un re-rendu déclenché par la sync
+// (retour sur l'onglet, refresh de session Supabase, màj du service worker,
+// réveil du navigateur) remettait le formulaire à zéro et effaçait la saisie.
+function syncAppelDraft() {
+  const d = state.appelDraft;
+  if (!d) return;
+  d.nom = $("#a-nom").value.trim();
+  d.adresse = $("#a-adresse").value.trim();
+  d.code_postal = $("#a-cp").value.trim();
+  d.ville = $("#a-ville").value.trim();
+  d.tel = $("#a-tel").value.trim();
+  d.mail = $("#a-mail").value.trim();
+  d.motif = cleanText($("#a-motif").value);
+  d.type_batiment = $("#a-bat").value;
+  d.type_intervention = $("#a-type").value;
+  try { localStorage.setItem("ce_appel_draft", JSON.stringify(d)); } catch (e) {}
+}
+function clearAppelDraft() {
+  state.appelDraft = null;
+  try { localStorage.removeItem("ce_appel_draft"); } catch (e) {}
+}
+
 async function renderAppel(isEdit = false) {
   await ensureClientsCache();
-  const d = state.appelDraft || { client_id: null, nom: "", adresse: "", code_postal: "", ville: "", tel: "", mail: "", motif: "", type_batiment: "+ de 2 ans", type_intervention: "Dépannage" };
+  let d = state.appelDraft;
+  if (!d) {
+    try {
+      d = JSON.parse(localStorage.getItem("ce_appel_draft") || "null");
+      // Brouillon d'une édition abandonnée : ne pas le recharger dans un « Nouvel appel ».
+      if (d && d.id) d = null;
+    } catch (e) { d = null; }
+  }
+  if (!d) d = { client_id: null, nom: "", adresse: "", code_postal: "", ville: "", tel: "", mail: "", motif: "", type_batiment: "+ de 2 ans", type_intervention: "Dépannage" };
   state.appelDraft = d;
   setApp(`
     ${topbar({
@@ -796,6 +827,7 @@ function wireAppelCombo() {
       const bat = $("#a-bat");
       if (cl.type_batiment && [...bat.options].some((o) => o.value === cl.type_batiment)) bat.value = cl.type_batiment;
     }
+    syncAppelDraft();
     list.style.display = "none";
   });
   input.addEventListener("input", () => {
@@ -804,19 +836,16 @@ function wireAppelCombo() {
       if (cl && cl.nom !== input.value) state.appelDraft.client_id = null;
     }
   });
+  // Persiste le brouillon à chaque saisie (texte + sélecteurs).
+  [["a-nom", "input"], ["a-adresse", "input"], ["a-cp", "input"], ["a-ville", "input"], ["a-tel", "input"], ["a-mail", "input"], ["a-motif", "input"], ["a-bat", "change"], ["a-type", "change"]].forEach(([id, ev]) => {
+    const el = $("#" + id);
+    if (el) el.addEventListener(ev, syncAppelDraft);
+  });
 }
 
 function readAppelDraft() {
+  syncAppelDraft();
   const d = state.appelDraft;
-  d.nom = $("#a-nom").value.trim();
-  d.adresse = $("#a-adresse").value.trim();
-  d.code_postal = $("#a-cp").value.trim();
-  d.ville = $("#a-ville").value.trim();
-  d.tel = $("#a-tel").value.trim();
-  d.mail = $("#a-mail").value.trim();
-  d.motif = cleanText($("#a-motif").value);
-  d.type_batiment = $("#a-bat").value;
-  d.type_intervention = $("#a-type").value;
   if (!d.nom) { toast("Merci d'indiquer le nom du client", true); return false; }
   return true;
 }
@@ -834,12 +863,12 @@ async function saveAppelFromDraft(action) {
   await DB.saveAppel(appel);
 
   if (action === "save") {
-    state.appelDraft = null;
+    clearAppelDraft();
     toast("Appel enregistré");
     go("#/");
   } else if (action === "rdv") {
     state.rdvPrefill = { client_id: clientId, nom: d.nom, note: d.motif, type: d.type_intervention === "Devis" ? "rdv_devis" : (d.type_intervention === "Entretien" ? "entretien" : "depannage") };
-    state.appelDraft = null;
+    clearAppelDraft();
     go("#/rdv");
   } else if (action === "intervention") {
     // pré-remplit une nouvelle intervention
@@ -848,10 +877,10 @@ async function saveAppelFromDraft(action) {
     state.draft.client = { id: clientId, nom: d.nom, adresse: d.adresse, code_postal: d.code_postal, ville: d.ville, mail: d.mail, tel: d.tel, type_batiment: d.type_batiment };
     state.draft.client_id = clientId;
     state.draft.type_intervention = ["Dépannage", "Garantie", "Diagnostic"].includes(d.type_intervention) ? d.type_intervention : "Dépannage";
-    state.appelDraft = null;
+    clearAppelDraft();
     go("#/new/2");
   } else {
-    state.appelDraft = null;
+    clearAppelDraft();
     toast("Appel enregistré");
     go("#/");
   }

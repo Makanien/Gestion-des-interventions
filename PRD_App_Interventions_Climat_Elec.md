@@ -1,8 +1,8 @@
 # PRD — Application de gestion des fiches d'intervention
 ## Climat Elec (Chazé-sur-Argos)
 
-**Version du document :** 1.19
-**Date :** 24/08/2026
+**Version du document :** 1.20
+**Date :** 25/08/2026
 **Auteur :** Rédigé avec Claude, sur la base des échanges avec le porteur de projet
 
 ---
@@ -331,6 +331,14 @@ Suite aux retours d'usage, le statut d'intervention et la gestion des brouillons
 - **Performance (points P1/P2 de la revue `synchro-supabase`)** : les lectures des enfants d'une fiche (équipements, pièces utilisées, mesures, photos, documents) et `replaceChildren` passent par les **index IndexedDB** (`intervention_id`, `client_id`) via un helper `listByIndex` — suppression des scans complets de table (`getAll()` + filtre en mémoire). Index `intervention_id` créé sur `equipements` (bump `DB_VERSION` 3 → 4, migration automatique via `ensureIndex` sans perte de données). En complément, `getIntervention` est réécrite en **une seule transaction readonly** (multi-get : intervention + client + 5 collections d'enfants par index) — le N+1 structurel est éliminé.
 - **Factorisation des listes (point D8 de la revue `synchro-supabase`)** : le motif « lecture complète + filtre des supprimés » répété dans toutes les fonctions de liste est centralisé dans deux helpers `DB.listActive` / `DB.listActiveByIndex` (`idb.js`) — une seule définition du filtre de tombstone `_deleted`, utilisée par toutes les listes (clients, interventions, équipements, pièces, mesures, photos, documents, appels, rendez-vous, contrats, base pièces) et l'export.
 - **Temps d'intervention renseigné (point D4 de la revue `synchro-supabase`)** : le champ `temps_intervention` est désormais calculé à partir des heures d'arrivée/départ à la saisie (calcul auto déjà annoncé au §4, réutilise la même fonction que le PDF), persisté localement et synchronisé — il ne restait qu'une colonne vide déclarée dans le schéma.
+
+### Correction — Persistance du brouillon « Nouvel appel » (25/08/2026)
+
+Suite à un retour terrain : lors de la saisie d'un nouvel appel, réduire le navigateur (ou passer à une autre application) puis revenir sur la page déclenchait une synchronisation (rafraîchissement de session Supabase au retour sur l'onglet, ou rechargement complet de la page via la mise à jour du service worker / le réveil du navigateur) qui **effaçait le contenu des champs** déjà saisis.
+
+- **Cause :** le brouillon « Nouvel appel » (`state.appelDraft`) ne vivait qu'en mémoire et n'était relu depuis le DOM qu'à l'enregistrement. Tout re-rendu de la page (`route()` remettait le brouillon à `null` sur `#/appel`) ou tout rechargement réinitialisait donc le formulaire à vide.
+- **Correctif (`app.js`)** : le brouillon est désormais **synchronisé depuis le DOM à chaque saisie** (`syncAppelDraft` — champs texte + sélecteurs) et **persisté dans `localStorage`** (clé `ce_appel_draft`). `renderAppel` le restaure automatiquement au re-rendu ou après rechargement ; les brouillons issus d'une édition abandonnée (portant un `id`) ne sont pas rechargés dans un « Nouvel appel ». Le brouillon est effacé après enregistrement réussi et au clic sur « + » pour repartir sur un formulaire vierge.
+- **Périmètre :** écran « Nouvel appel » (US-01). Le même principe de sauvegarde de la saisie pourrait être étendu au wizard d'intervention/entretien si le besoin se confirme sur le terrain.
 
 ---
 
@@ -663,4 +671,5 @@ Points restant ouverts (hors V3) :
 - Aucune perte de données lors du passage de la V1 (local) à la V2 (Supabase).
 - (V3) Les 3 fiches d'entretien dédiées couvrent les types d'équipement avec leur bloc de mesures spécifique, et le CERFA n°15497 tient sur une seule page.
 - (V3) Un dossier est suivi de bout en bout (brouillon → clôturée) avec import PDF du devis/facture produit par le logiciel externe, et génération d'un dossier final fusionné (fiche + facture).
+- (V3) La saisie d'un nouvel appel n'est jamais perdue lors d'une synchronisation automatique ou d'un rechargement de la page (brouillon persistant).
 - (V3) Le classement automatique par statut remplace le classement manuel OneDrive.
