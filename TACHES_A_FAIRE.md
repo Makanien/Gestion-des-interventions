@@ -1,6 +1,6 @@
 # Tâches à faire — V3 (compléments identifiés)
 
-> Dernière mise à jour : 22/08/2026 — sur la base de la comparaison spec V3 (§3.3 du PRD)
+> Dernière mise à jour : 25/08/2026 — sur la base de la comparaison spec V3 (§3.3 du PRD)
 > vs implémentation réelle (branche `application-v3`).
 >
 > Légende :
@@ -113,6 +113,23 @@
 
 ---
 
+## 8. Cycle de vie de l'appel & RDV → intervention (arbitré le 25/08/2026)
+
+**Objectif :** appliquer l'arbitrage UX documenté dans le PRD (§3.2.5, §3.3.1, §5.2) —
+l'appel est l'origine du flux (relié puis masqué) ; un RDV peut produire une intervention.
+
+- [x] Renseigner `appels.rendezvous_id` / `rendezvous.appel_id` à la création d'un RDV depuis un appel — `app.js` (`saveAppelFromDraft("rdv")`, `renderRdv`)
+- [x] Renseigner `appels.intervention_id` à la création d'une fiche depuis un appel — `app.js` (`saveAppelFromDraft("intervention")`)
+- [x] Masquer de l'onglet Dossiers (bloc « Appels ») les appels reliés (`action_sortie` = `rdv` / `intervention`) ; étiqueter les appels en attente « À traiter » — `app.js` (`dossiersHTML`, `appelHTML`)
+- [x] Bouton « Créer l'intervention » sur le détail d'un RDV (fiche pré-remplie client + motif) — `app.js` (`rdvToIntervention`, `renderRdv`)
+- [x] Possibilité de « dé-relier » un appel (en cas d'erreur) — `app.js` (`unlinkAppelFromRdv`, `unlinkAppelFromIntervention`, action `rdv-unlink`)
+- [x] Élargir `appels_update` (RLS) pour permettre au technicien de relier un appel créé par un manager — `supabase/schema.sql`
+- [x] Incrémenter `CACHE_VERSION` dans `sw.js` (→ `climatelec-v13`)
+
+**Fichiers :** `app.js`, `idb.js`, `supabase/schema.sql`, `sw.js`
+
+---
+
 ## Résumé des prochaines étapes prioritaires
 
 | Priorité | Tâche |
@@ -122,3 +139,4 @@
 | 3 | ~~Réutilisation historique équipement dans le wizard (point 5)~~ ✅ |
 | 4 | ~~Upload photos/documents en fin de wizard + import (point 6)~~ ✅ |
 | 5 | ~~Vérification finale + `sw.js` + PRD (point 7)~~ ✅ |
+| 6 | ~~Cycle de vie de l'appel & RDV → intervention (point 8)~~ ✅ |

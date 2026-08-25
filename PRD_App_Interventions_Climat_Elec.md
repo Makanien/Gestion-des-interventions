@@ -1,7 +1,7 @@
 # PRD — Application de gestion des fiches d'intervention
 ## Climat Elec (Chazé-sur-Argos)
 
-**Version du document :** 1.20
+**Version du document :** 1.21
 **Date :** 25/08/2026
 **Auteur :** Rédigé avec Claude, sur la base des échanges avec le porteur de projet
 
@@ -153,6 +153,8 @@ Trois actions possibles en sortie d'écran :
 - **Créer l'intervention** → **saute directement dans le flux "Nouvelle intervention"**, avec les champs déjà saisis (nom, adresse, CP, ville, tél, mail, type de bâtiment) repris en pré-remplissage. Le technicien continue alors le parcours normal (équipement, descriptif, etc.).
 - **Enregistrer sans planifier** → conserve la fiche d'appel sans action de suite immédiate.
 
+> **Cycle de vie de l'appel (arbitré et implémenté le 25/08/2026, cf. §3.4) :** l'appel est l'**origine** d'un flux, pas un dossier autonome. Dès qu'une action de sortie est réalisée, l'appel est **relié** à l'élément créé (`rendezvous_id` pour un RDV, `intervention_id` pour une fiche) puis **retiré de la liste active** de l'onglet Dossiers : le bloc « Appels » ne montre que les appels en attente, étiquetés « **À traiter** » (libellé remplaçant « Sans suite », jugé ambigu — un appel enregistré sans planifier n'est pas classé mais en attente de traitement). Les coordonnées et le motif étant déjà reportés dans le RDV ou la fiche, rien n'est perdu et **aucune suppression manuelle n'est nécessaire** ; l'appel reste en base pour la traçabilité et un « dé-lien » reste possible en cas d'erreur.
+
 > Ce nouvel écran répond en même temps à l'un des points ouverts du §11 (V1.5) : le champ "Type de bâtiment" est désormais une **liste fermée à 3 valeurs** (Professionnel / - de 2 ans / + de 2 ans), et non un texte libre.
 
 ### 3.2.6 Évolutions du formulaire "Nouvelle intervention" — US-21 · US-22
@@ -207,7 +209,8 @@ En examinant les fiches papier fournies, deux documents supplémentaires sont ap
 > **Statut : arbitré.** Les décisions ci-dessous ont été prises le 19/08/2026 avec le porteur de projet. Elles intègrent en V3 : toutes les user stories du backlog §10 (épopées 1 à 5 + transverses), les nouvelles demandes §3.2 (US-16 → US-25) et les pistes V3, **à l'exception** des éléments explicitement reportés (§3.3.6). La plupart de ces fonctionnalités sont désormais **développées** (branche `application-v3`) : voir le récapitulatif des livraisons au **§3.4**.
 
 ### 3.3.1 Prise de contact & planification (épopée 1)
-- **Écran « Nouvel appel »** (US-01, §3.2.5) : enregistrement du contexte d'un appel client, avec 3 actions de sortie (créer le RDV / créer l'intervention avec pré-remplissage / enregistrer sans planifier).
+- **Écran « Nouvel appel »** (US-01, §3.2.5) : enregistrement du contexte d'un appel client, avec 3 actions de sortie (créer le RDV / créer l'intervention avec pré-remplissage / enregistrer sans planifier). L'appel est l'origine du flux : dès qu'un RDV ou une fiche est créé depuis lui, il est **relié puis retiré de la liste active** (cycle de vie, §3.2.5).
+- **Rendez-vous** (US-02) : CRUD complet, avec bouton « **Créer l'intervention** » sur le détail d'un rendez-vous — la fiche s'ouvre pré-remplie avec le client et le motif du RDV, ce qui ferme la chaîne **Appel → RDV → Fiche** sans ressaisie.
 - **Planning = écran d'accueil** (US-17, §3.2.2) : planning journalier par intervenant, triable par type (Dépannage, Entretien, Rdv devis) ; Jérémy ne voit que son planning, Régis/Delphine voient toute l'équipe.
 - **Compte Delphine** (US-16) : compte à part entière, mêmes droits de vue que Régis, valide la facturation.
 - **Bouton « + »** (US-18) : point d'entrée unique (appel, intervention, 3 types d'entretien).
@@ -339,6 +342,17 @@ Suite à un retour terrain : lors de la saisie d'un nouvel appel, réduire le na
 - **Cause :** le brouillon « Nouvel appel » (`state.appelDraft`) ne vivait qu'en mémoire et n'était relu depuis le DOM qu'à l'enregistrement. Tout re-rendu de la page (`route()` remettait le brouillon à `null` sur `#/appel`) ou tout rechargement réinitialisait donc le formulaire à vide.
 - **Correctif (`app.js`)** : le brouillon est désormais **synchronisé depuis le DOM à chaque saisie** (`syncAppelDraft` — champs texte + sélecteurs) et **persisté dans `localStorage`** (clé `ce_appel_draft`). `renderAppel` le restaure automatiquement au re-rendu ou après rechargement ; les brouillons issus d'une édition abandonnée (portant un `id`) ne sont pas rechargés dans un « Nouvel appel ». Le brouillon est effacé après enregistrement réussi et au clic sur « + » pour repartir sur un formulaire vierge.
 - **Périmètre :** écran « Nouvel appel » (US-01). Le même principe de sauvegarde de la saisie pourrait être étendu au wizard d'intervention/entretien si le besoin se confirme sur le terrain.
+
+### Cycle de vie de l'appel & RDV → intervention (25/08/2026)
+
+Suite à l'arbitrage UX du 25/08/2026 (§3.2.5, §3.3.1, §5.2), le cycle de vie de l'appel est implémenté :
+
+- **Reliage des appels** : un RDV créé depuis un appel renseigne `rendezvous.appel_id` et `appels.rendezvous_id` ; une fiche créée depuis un appel (bouton « Créer l'intervention → ») ou depuis un RDV renseigne `appels.intervention_id` (`linkAppelToRdv`, `linkAppelToIntervention`, `rdvToIntervention` dans `app.js`).
+- **Masquage des appels traités** : le bloc « Appels » de l'onglet Dossiers ne montre plus que les appels en attente (sans `rendezvous_id` ni `intervention_id`), étiquetés « **À traiter** » (l'étiquette « Sans suite », jugée ambiguë, est abandonnée). Plus aucune suppression manuelle nécessaire dans le flux normal.
+- **RDV → intervention** : bouton « **Créer l'intervention →** » sur le détail d'un rendez-vous — la fiche s'ouvre pré-remplie avec le client, le motif (note) et la date du RDV ; si le RDV est issu d'un appel, le lien est reporté sur la fiche.
+- **Dé-lien** : bouton « Détacher de l'appel d'origine » sur un RDV lié ; la suppression d'un RDV ou d'une fiche détache automatiquement l'appel lié (qui revient « À traiter ») (`unlinkAppelFromRdv`, `unlinkAppelFromIntervention`).
+- **Pré-remplissage enrichi** : le motif de l'appel est reporté dans le descriptif de la fiche créée depuis un appel.
+- **`appels_update` élargi** (`supabase/schema.sql`) : la politique de mise à jour passe à `using (true)` (comme l'insert) afin que le technicien puisse relier une fiche/un RDV à un appel enregistré par le responsable ; la lecture reste restreinte (managers ou créateur).
 
 ---
 
@@ -499,6 +513,8 @@ ContratEntretien {
 }
 ```
 
+> **Cycle de vie de l'appel :** `action_sortie` enregistre la sortie (`rdv` / `intervention` / `sans_suite` — ce dernier signifie « en attente », étiquette « À traiter »). Les champs de lien `rendezvous_id` / `intervention_id` (et `rendezvous.appel_id`) sont renseignés lorsque le RDV ou la fiche est créé depuis l'appel ; l'appel est alors retiré de la liste active du bloc « Appels » mais reste en base (traçabilité). Un rendez-vous peut à son tour produire une intervention via « Créer l'intervention » sur son détail (reprise du client et du motif).
+>
 > **Numérotation :** un compteur par type de document (fiche d'intervention/entretien, dossier) génère les références uniques (ex. `FIC-2026-001`). Le format exact reste à valider (§11).
 >
 > **CERFA n°15497 :** le formulaire est intégré aux fiches d'entretien PAC avec ses champs réglementaires (contrôle d'étanchéité, quantités de fluide, déchets ADR/RID), sur une seule page ; les données sont stockées dans le bloc `Mesure` / des colonnes dédiées.

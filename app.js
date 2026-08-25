@@ -79,13 +79,6 @@ const WORKFLOW_NEXT = {
   cloturee: [{ statut: "a_envoyer", label: "Rouvrir (à envoyer)" }],
 };
 
-// Actions de sortie d'un appel (US-01).
-const ACTION_SORTIE = {
-  rdv: { label: "RDV créé", cls: "blue" },
-  intervention: { label: "Intervention créée", cls: "violet" },
-  sans_suite: { label: "Sans suite", cls: "pending" },
-};
-
 // ---------------------------------------------------------
 // Modèles de fiches d'entretien (US-19)
 // ---------------------------------------------------------
@@ -621,6 +614,9 @@ function itemHTML(itv) {
 
 async function dossiersHTML() {
   const [interventions, appels] = await Promise.all([DB.listInterventions(), DB.listAppels()]);
+  // Cycle de vie de l'appel : les appels ayant déjà produit un RDV ou une fiche
+  // sont reliés puis retirés de la liste active (bloc « Appels »).
+  const appelsEnAttente = appels.filter((a) => !a.rendezvous_id && !a.intervention_id);
   const order = Object.keys(WORKFLOW_NEXT);
   const byStatut = {};
   for (const itv of interventions) {
@@ -631,13 +627,13 @@ async function dossiersHTML() {
   // ajouter les statuts inconnus
   for (const k of Object.keys(byStatut)) if (!keys.includes(k)) keys.push(k);
 
-  const appelsBlock = appels.length ? `
+  const appelsBlock = appelsEnAttente.length ? `
     <div class="status-block">
-      <div class="status-head"><span class="sw sw-appel"></span><h3>Appels</h3><span class="n">${appels.length}</span></div>
-      ${appels.map(appelHTML).join("")}
+      <div class="status-head"><span class="sw sw-appel"></span><h3>Appels</h3><span class="n">${appelsEnAttente.length}</span></div>
+      ${appelsEnAttente.map(appelHTML).join("")}
     </div>` : "";
 
-  if (!keys.length && !appels.length) return `<div class="empty-state"><div class="glyph">${ICONS.file}</div><h3>Aucun dossier</h3><p>Les fiches terminées apparaissent ici, classées par statut.</p></div>`;
+  if (!keys.length && !appelsEnAttente.length) return `<div class="empty-state"><div class="glyph">${ICONS.file}</div><h3>Aucun dossier</h3><p>Les fiches terminées apparaissent ici, classées par statut.</p></div>`;
   return appelsBlock + keys.map((k) => `
     <div class="status-block">
       <div class="status-head"><span class="sw sw-${statutDossierCls(k)}"></span><h3>${statutDossierLabel(k)}</h3><span class="n">${byStatut[k].length}</span></div>
@@ -646,7 +642,6 @@ async function dossiersHTML() {
 }
 
 function appelHTML(a) {
-  const sortie = ACTION_SORTIE[a.action_sortie];
   return `
   <button class="intervention-item" data-nav="appel-edit" data-id="${a.id}">
     <span class="status-dot">${ICONS.phone}</span>
@@ -658,7 +653,7 @@ function appelHTML(a) {
       <span class="ii-type">${esc(a.motif || "")}</span>
       <span class="ii-tags">
         <span class="tag">${esc(a.type_intervention || "")}</span>
-        ${sortie ? `<span class="tag ${sortie.cls}">${esc(sortie.label)}</span>` : ""}
+        <span class="tag pending">À traiter</span>
       </span>
     </span>
     ${ICONS.chevron}
@@ -867,16 +862,18 @@ async function saveAppelFromDraft(action) {
     toast("Appel enregistré");
     go("#/");
   } else if (action === "rdv") {
-    state.rdvPrefill = { client_id: clientId, nom: d.nom, note: d.motif, type: d.type_intervention === "Devis" ? "rdv_devis" : (d.type_intervention === "Entretien" ? "entretien" : "depannage") };
+    state.rdvPrefill = { appel_id: appel.id, client_id: clientId, nom: d.nom, note: d.motif, type: d.type_intervention === "Devis" ? "rdv_devis" : (d.type_intervention === "Entretien" ? "entretien" : "depannage") };
     clearAppelDraft();
     go("#/rdv");
   } else if (action === "intervention") {
-    // pré-remplit une nouvelle intervention
+    // pré-remplit une nouvelle intervention ; le motif de l'appel devient le descriptif.
     state.draft = emptyDraft("intervention");
     state.draftType = "intervention";
+    state.draft.appel_id = appel.id;
     state.draft.client = { id: clientId, nom: d.nom, adresse: d.adresse, code_postal: d.code_postal, ville: d.ville, mail: d.mail, tel: d.tel, type_batiment: d.type_batiment };
     state.draft.client_id = clientId;
     state.draft.type_intervention = ["Dépannage", "Garantie", "Diagnostic"].includes(d.type_intervention) ? d.type_intervention : "Dépannage";
+    if (d.motif) state.draft.descriptif_demande = d.motif;
     clearAppelDraft();
     go("#/new/2");
   } else {
@@ -896,15 +893,20 @@ async function renderRdv(id) {
     d = state.rdvDraft = await DB.getRaw("rendezvous", id);
   } else {
     d = state.rdvDraft || { date: todayISO(), heure_debut: "09:00", heure_fin: "10:00", type: "depannage", intervenant: "", note: p.note || "" };
+    // Un brouillon d'édition abandonné garde un `id` : on repart d'un formulaire
+    // vierge (nouveau RDV) en conservant la saisie en cours le cas échéant.
+    if (d.id) { d = { ...d, id: undefined, created_at: undefined }; }
     state.rdvDraft = d;
   }
   const isEdit = !!id && !!d;
   if (!d) { go("#/"); return; }
+  const lienAppel = isEdit && d.appel_id ? await DB.getRaw("appels", d.appel_id) : null;
   setApp(`
     ${topbar({ title: isEdit ? "Modifier le rendez-vous" : "Nouveau rendez-vous", subtitle: "Planning", back: true, actions: isEdit ? `<button class="icon-btn" data-nav="rdv-delete" data-id="${d.id}" title="Supprimer">${ICONS.trash}</button>` : "" })}
     <main>
       <div class="card" style="padding:14px;">
         ${p.nom ? `<div class="note blue">Client : <strong>${esc(p.nom)}</strong></div>` : ""}
+        ${lienAppel ? `<div class="note">Issu de l'appel client du ${fmtStampShort(lienAppel.created_at)}.</div>` : ""}
         <div class="field"><label>Date *</label><input id="r-date" type="date" value="${esc(d.date)}" /></div>
         <div class="row2">
           <div class="field"><label>Heure début</label><input id="r-hdeb" type="time" value="${esc(d.heure_debut)}" /></div>
@@ -923,6 +925,8 @@ async function renderRdv(id) {
         <div class="field"><label>Note / motif</label><textarea id="r-note">${esc(d.note)}</textarea></div>
       </div>
       <button class="btn btn-accent" id="btn-save-rdv" style="margin-top:14px;">${ICONS.check} ${isEdit ? "Enregistrer les modifications" : "Enregistrer le rendez-vous"}</button>
+      ${isEdit ? `<button class="btn btn-primary" data-nav="rdv-intervention" data-id="${d.id}" style="margin-top:9px;">${ICONS.wrench} Créer l'intervention →</button>` : ""}
+      ${lienAppel ? `<button class="btn btn-ghost" data-nav="rdv-unlink" data-id="${d.id}" style="margin-top:9px;">Détacher de l'appel d'origine</button>` : ""}
     </main>
     <div class="toast" id="toast"></div>
   `);
@@ -935,13 +939,81 @@ async function renderRdv(id) {
     d.intervenant = $("#r-intervenant").value;
     d.technicien_id = resolveTechId(d.intervenant);
     d.note = cleanText($("#r-note").value);
-    if (state.rdvPrefill?.client_id) d.client_id = state.rdvPrefill.client_id;
+    if (!isEdit) {
+      if (state.rdvPrefill?.client_id) d.client_id = state.rdvPrefill.client_id;
+      if (state.rdvPrefill?.appel_id) d.appel_id = state.rdvPrefill.appel_id;
+    }
     await DB.saveRendezvous(d);
+    if (d.appel_id) await linkAppelToRdv(d.appel_id, d.id);
     state.rdvDraft = null; state.rdvPrefill = null;
     toast(isEdit ? "Rendez-vous modifié" : "Rendez-vous enregistré");
     state.tab = "planning";
     go("#/");
   });
+}
+
+// ---------------------------------------------------------
+// Cycle de vie de l'appel (arbitré le 25/08/2026)
+// L'appel est l'origine du flux : dès qu'un RDV ou une fiche est créé depuis
+// lui, il est relié (`appels.rendezvous_id` / `appels.intervention_id`) puis
+// masqué de la liste active (bloc « Appels »). Un « dé-lien » est possible.
+// ---------------------------------------------------------
+async function linkAppelToRdv(appelId, rdvId) {
+  if (!appelId || !rdvId) return;
+  const appel = await DB.getRaw("appels", appelId);
+  if (!appel || appel._deleted) return;
+  appel.rendezvous_id = rdvId;
+  appel.action_sortie = "rdv";
+  await DB.saveAppel(appel);
+}
+
+async function linkAppelToIntervention(appelId, interventionId) {
+  if (!appelId || !interventionId) return;
+  const appel = await DB.getRaw("appels", appelId);
+  if (!appel || appel._deleted) return;
+  appel.intervention_id = interventionId;
+  appel.action_sortie = "intervention";
+  await DB.saveAppel(appel);
+}
+
+async function unlinkAppelFromRdv(rdv) {
+  if (!rdv || !rdv.appel_id) return;
+  const appel = await DB.getRaw("appels", rdv.appel_id);
+  if (appel && !appel._deleted) {
+    appel.rendezvous_id = null;
+    appel.action_sortie = "sans_suite";
+    await DB.saveAppel(appel);
+  }
+}
+
+async function unlinkAppelFromIntervention(interventionId) {
+  if (!interventionId) return;
+  const appels = await DB.listAppels();
+  const linked = appels.find((a) => a.intervention_id === interventionId);
+  if (linked) {
+    linked.intervention_id = null;
+    linked.action_sortie = "sans_suite";
+    await DB.saveAppel(linked);
+  }
+}
+
+// « Créer l'intervention » depuis un rendez-vous : la fiche s'ouvre pré-remplie
+// avec le client et le motif du RDV (ferme la chaîne Appel → RDV → Fiche).
+async function rdvToIntervention(id) {
+  const rdv = await DB.getRaw("rendezvous", id);
+  if (!rdv || rdv._deleted) return;
+  const client = rdv.client_id ? await DB.getClient(rdv.client_id) : null;
+  state.draft = emptyDraft("intervention");
+  state.draftType = "intervention";
+  state.draft.appel_id = rdv.appel_id || null;
+  if (client) {
+    state.draft.client_id = client.id;
+    state.draft.client = { id: client.id, nom: client.nom || "", adresse: client.adresse || "", code_postal: client.code_postal || "", ville: client.ville || "", mail: client.mail || "", tel: client.tel || "", type_batiment: client.type_batiment || "" };
+  }
+  state.draft.type_intervention = rdv.type === "depannage" ? "Dépannage" : "Diagnostic";
+  if (rdv.note) state.draft.descriptif_demande = rdv.note;
+  if (rdv.date) state.draft.date = rdv.date;
+  go(client ? "#/new/2" : "#/new/1");
 }
 
 // ---------------------------------------------------------
@@ -1588,6 +1660,7 @@ function readStepIntoDraft(step) {
 async function finishWizard() {
   if (!readStepIntoDraft(state.step)) return;
   const d = state.draft;
+  const appelId = d.appel_id || null;
   const isEdit = !!d.id;
   const steps = wizardSteps();
 
@@ -1636,6 +1709,7 @@ async function finishWizard() {
   itv.client = { nom: savedClient.nom, ville: savedClient.ville };
 
   const saved = await DB.saveIntervention(itv);
+  if (appelId) await linkAppelToIntervention(appelId, saved.id);
   toast(isEdit ? "Fiche mise à jour" : "Fiche enregistrée");
   state.draft = null;
   go(`#/detail/${saved.id}`);
@@ -1650,6 +1724,7 @@ async function saveBrouillon() {
     else if (s.read) s.read();
   } catch (e) { /* brouillon tolérant */ }
   const d = state.draft;
+  const appelId = d.appel_id || null;
   const savedClient = d.client_id
     ? await DB.saveClient({ ...d.client })
     : await DB.findOrCreateClientByName({ ...d.client });
@@ -1658,6 +1733,7 @@ async function saveBrouillon() {
   const itv = { ...d, _brouillon: true };
   itv.client = { nom: savedClient.nom, ville: savedClient.ville };
   const saved = await DB.saveIntervention(itv);
+  if (appelId) await linkAppelToIntervention(appelId, saved.id);
   toast("Brouillon enregistré");
   state.draft = null;
   go(`#/detail/${saved.id}`);
@@ -2138,11 +2214,29 @@ document.addEventListener("click", async (e) => {
     if (confirm("Supprimer ce contrat ?")) { await DB.deleteContrat(nav.dataset.id); toast("Contrat supprimé"); go("#/contrats"); }
   }
   else if (action === "rdv-edit") go(`#/rdv/${nav.dataset.id}`);
+  else if (action === "rdv-intervention") await rdvToIntervention(nav.dataset.id);
+  else if (action === "rdv-unlink") {
+    const r = await DB.getRaw("rendezvous", nav.dataset.id);
+    await unlinkAppelFromRdv(r);
+    if (r && r.appel_id) { r.appel_id = null; await DB.saveRendezvous(r); }
+    toast("Rendez-vous détaché de l'appel");
+    go(`#/rdv/${nav.dataset.id}`);
+  }
   else if (action === "rdv-delete") {
-    if (confirm("Supprimer ce rendez-vous ?")) { await DB.deleteRendezvous(nav.dataset.id); toast("Rendez-vous supprimé"); state.tab = "planning"; go("#/"); }
+    if (confirm("Supprimer ce rendez-vous ?")) {
+      await unlinkAppelFromRdv(await DB.getRaw("rendezvous", nav.dataset.id));
+      await DB.deleteRendezvous(nav.dataset.id);
+      toast("Rendez-vous supprimé");
+      state.tab = "planning";
+      go("#/");
+    }
   }
   else if (action === "delete") {
-    if (confirm("Supprimer définitivement cette fiche ?")) { await DB.deleteIntervention(nav.dataset.id); go("#/"); }
+    if (confirm("Supprimer définitivement cette fiche ?")) {
+      await unlinkAppelFromIntervention(nav.dataset.id);
+      await DB.deleteIntervention(nav.dataset.id);
+      go("#/");
+    }
   }
 });
 

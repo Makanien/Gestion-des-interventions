@@ -689,6 +689,10 @@ create policy profiles_update on public.profiles
   for update to authenticated using (auth.uid() = id);
 
 -- appels : managers voient tout, technicien ses propres appels.
+-- `appels_update` est ouvert à tous les authentifiés (comme l'insert) : c'est ce
+-- qui permet au technicien de RELIER une fiche / un RDV à un appel enregistré
+-- par le responsable (cycle de vie de l'appel — `rendezvous_id`/`intervention_id`,
+-- arbitré le 25/08/2026). La lecture reste restreinte (managers ou créateur).
 drop policy if exists appels_select on public.appels;
 create policy appels_select on public.appels for select to authenticated
   using (public.is_manager() or created_by = auth.uid());
@@ -696,7 +700,7 @@ drop policy if exists appels_insert on public.appels;
 create policy appels_insert on public.appels for insert to authenticated with check (true);
 drop policy if exists appels_update on public.appels;
 create policy appels_update on public.appels for update to authenticated
-  using (public.is_manager() or created_by = auth.uid());
+  using (true);
 drop policy if exists appels_delete on public.appels;
 create policy appels_delete on public.appels for delete to authenticated
   using (public.is_manager() or created_by = auth.uid());

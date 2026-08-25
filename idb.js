@@ -424,6 +424,7 @@ const DB = {
     delete itv._brouillon;          // champs transitoires : non persistés
     delete itv._client_sig_blob;
     delete itv._technicien_sig_blob;
+    delete itv.appel_id;            // lien transitoire vers l'appel d'origine (appels.intervention_id)
 
     await this.putRaw("interventions", itv);
 
