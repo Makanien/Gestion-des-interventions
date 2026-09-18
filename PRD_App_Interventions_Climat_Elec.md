@@ -145,7 +145,7 @@ Nouvel écran (n'existe pas en V1), utilisé par Régis/Delphine pour enregistre
 | Téléphone | | Oui |
 | Mail | | Oui |
 | Motif de l'appel | texte libre | Oui |
-| Type de bâtiment | liste fermée : Professionnel / - de 2 ans / + de 2 ans | Oui |
+| Type de bâtiment | liste fermée : Professionnel / - de 2 ans / + de 2 ans / + de 15 ans | Oui |
 | Type d'intervention | liste fermée : Devis, Dépannage, Garantie, Entretien, Diagnostic | Oui |
 
 Trois actions possibles en sortie d'écran :
@@ -155,7 +155,7 @@ Trois actions possibles en sortie d'écran :
 
 > **Cycle de vie de l'appel (arbitré et implémenté le 25/08/2026, cf. §3.4) :** l'appel est l'**origine** d'un flux, pas un dossier autonome. Dès qu'une action de sortie est réalisée, l'appel est **relié** à l'élément créé (`rendezvous_id` pour un RDV, `intervention_id` pour une fiche) puis **retiré de la liste active** de l'onglet Dossiers : le bloc « Appels » ne montre que les appels en attente, étiquetés « **À traiter** » (libellé remplaçant « Sans suite », jugé ambigu — un appel enregistré sans planifier n'est pas classé mais en attente de traitement). Les coordonnées et le motif étant déjà reportés dans le RDV ou la fiche, rien n'est perdu et **aucune suppression manuelle n'est nécessaire** ; l'appel reste en base pour la traçabilité et un « dé-lien » reste possible en cas d'erreur.
 
-> Ce nouvel écran répond en même temps à l'un des points ouverts du §11 (V1.5) : le champ "Type de bâtiment" est désormais une **liste fermée à 3 valeurs** (Professionnel / - de 2 ans / + de 2 ans), et non un texte libre.
+> Ce nouvel écran répond en même temps à l'un des points ouverts du §11 (V1.5) : le champ "Type de bâtiment" est désormais une **liste fermée à 4 valeurs** (Professionnel / - de 2 ans / + de 2 ans / + de 15 ans), et non un texte libre.
 
 ### 3.2.6 Évolutions du formulaire "Nouvelle intervention" — US-21 · US-22
 - **Liste "Type d'intervention" modifiée** (US-22) : retrait de "Entretien" et "Rendez-vous" (qui ont désormais leurs propres flux dédiés, cf. §3.2.4 et §3.2.7) ; ajout de "Garantie". Liste cible : Dépannage, Garantie, Diagnostic.

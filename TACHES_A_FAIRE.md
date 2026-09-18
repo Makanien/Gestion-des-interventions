@@ -141,3 +141,22 @@ l'appel est l'origine du flux (relié puis masqué) ; un RDV peut produire une i
 | 4 | ~~Upload photos/documents en fin de wizard + import (point 6)~~ ✅ |
 | 5 | ~~Vérification finale + `sw.js` + PRD (point 7)~~ ✅ |
 | 6 | ~~Cycle de vie de l'appel & RDV → intervention (point 8)~~ ✅ |
+
+---
+
+## 9. Ajout option "+ de 15 ans" dans Type de bâtiment (18/09/2026)
+
+**Objectif :** ajouter une quatrième option "+ de 15 ans" à la liste déroulante "Type de bâtiment" sur tous les formulaires.
+
+**Liste actuelle :** Professionnel / - de 2 ans / + de 2 ans  
+**Liste cible :** Professionnel / - de 2 ans / + de 2 ans / **+ de 15 ans**
+
+### Formulaires concernés
+- [ ] Écran « Nouvel appel» (`renderAppel`) — `app.js` ligne ~783
+- [ ] Wizard intervention/entretien étape Client — `app.js` ligne ~1162
+- [ ] PDF généré (affichage type de bâtiment) — `pdf.js` lignes ~102 et ~453
+- [ ] Maquettes HTML (documentation) — `Maquettes.html` lignes ~293, ~435, ~925, ~960, ~995
+
+**Fichiers :** `app.js`, `pdf.js`, `Maquettes.html`
+
+**Note :** Le PRD a été mis à jour (§3.2.5) pour refléter cette évolution.
