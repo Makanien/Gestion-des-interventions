@@ -1486,6 +1486,9 @@ function readRemarquePiecesStep() {
   state.draft.action_realisee = cleanText($("#f-action").value);
   return true;
 }
+function wireRemarquePiecesStep() {
+  wirePiecesStep();
+}
 
 // ---- Étape Mesures (entretiens) ----
 function stepMesuresHTML() {
