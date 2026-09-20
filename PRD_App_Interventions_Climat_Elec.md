@@ -1,8 +1,8 @@
 # PRD — Application de gestion des fiches d'intervention
 ## Climat Elec (Chazé-sur-Argos)
 
-**Version du document :** 1.23
-**Date :** 25/08/2026
+**Version du document :** 1.24
+**Date :** 20/09/2026
 **Auteur :** Rédigé avec Claude, sur la base des échanges avec le porteur de projet
 
 ---
@@ -167,6 +167,9 @@ Trois actions possibles en sortie d'écran :
 Trois nouveaux flux de création (accessibles depuis le bouton "+"), chacun démarrant par un écran d'identification client identique à "Nouvelle intervention" (nom, adresse, CP, ville, tél, mail, type de bâtiment obligatoires), suivi d'un champ "Type d'entretien" spécifique, puis d'une **fiche d'entretien dédiée** dont le contenu (mesures) diffère de la fiche d'intervention générique. Contenu détaillé fourni par le client via les fiches papier existantes :
 
 **a) Entretien Air/Eau - Sol/Eau (PAC géothermie / aérothermie)**
+
+> **⚠️ Spécification remplacée le 18/09/2026** par la feuille « Entretien Air.Eau Sol.E » du classeur `Application - 20260918.xlsx` (voir **§3.2.12**). Contenu historique conservé ci-dessous.
+
 - Type d'entretien : Air/Eau ou Sol/Eau
 - Équipement : année d'installation + jusqu'à 3 lignes (intitulé, marque, modèle, n° série)
 - Mesures — Groupe extérieur : tension d'alimentation, ampérage de fonctionnement, tension intercommunication, pression fluide frigo, type de fluide, charge d'usine, débit eau primaire, T° entrée/sortie d'air groupe extérieur
@@ -183,6 +186,9 @@ Trois nouveaux flux de création (accessibles depuis le bouton "+"), chacun dém
 - Remarque/Observation, pièces utilisées, devis souhaité, signatures — identique au modèle (a)
 
 **c) Entretien Chaudière bois**
+
+> **⚠️ Spécification remplacée le 18/09/2026** par la feuille « Entretien Chaudière Bois » du classeur `Application - 20260918.xlsx` : la fiche s'aligne désormais sur la structure de la fiche Air/Eau-Sol/Eau (voir **§3.2.11**). Contenu historique conservé ci-dessous.
+
 - Type d'entretien : Granulés, Bûches ou Pellets
 - Équipement : année d'installation + jusqu'à 3 lignes (intitulé, marque, modèle, n° série)
 - Champ supplémentaire par rapport aux autres fiches : **"Prochaine intervention prévue"** (en plus du statut « Effectuée, suite à prévoir »)
@@ -202,6 +208,66 @@ En examinant les fiches papier fournies, deux documents supplémentaires sont ap
 - **Contrat d'entretien annuel** (US-24) (choix du nombre de passages, tarification par zone/km, conditions générales, signatures) — **digitalisé** en V3 (PDF généré).
 - **CERFA n°15497 (fluides frigorigènes)** (US-25) — déclaration réglementaire obligatoire pour les interventions sur PAC (contrôle d'étanchéité, quantités de fluide manipulées, déchets ADR/RID), prévue par le code de l'environnement (art. R.543-79 et R.543-82). **Intégré** aux fiches d'entretien PAC (Air/Eau-Sol/Eau et Air/Air), avec un formulaire tenant sur **une seule page** (document officiel).
 
+### 3.2.11 Refonte du formulaire « Entretien Chaudière bois » — évolution 18/09/2026
+
+> **Source :** classeur `documentation/Application - 20260918.xlsx`, feuille « Entretien Chaudière Bois » (mention « A FAIRE »). La fiche chaudière bois, jusqu'ici dotée d'un bloc de mesures qui lui était propre (combustion, WOS, creuset…), est **réalignée sur la structure de la fiche Air/Eau-Sol/Eau** : pages « Vérification Groupe extérieur » et « Vérification Module hydraulique », pagination en 7 pages, et fin d'intervention commune à la fiche générique (page 6/6 « Devis & signature »). La spécification historique (§3.2.7 c) est remplacée par celle-ci.
+
+**Structure cible (7 pages + fin d'intervention) :**
+
+| Page | Contenu | Obligatoire |
+|---|---|---|
+| 1 | Client — nom, adresse, code postal, ville, téléphone, mail, type de bâtiment (Professionnel / - de 2 ans / + de 2 ans / + de 15 ans) | Nom, adresse, CP, ville, type de bâtiment |
+| 2 | Entretien — type d'entretien (Aérothermie / Géothermie / Aquathermie *), date, heure d'arrivée, heure de départ, forfait déplacement (Z0 Chazé-sur-Argos / Z1 5-10 km / Z2 11-30 km / Z3 31-50 km) | Tous (feuille) |
+| 3 | Équipement — « comme page 3/6 de Nouvelle intervention » (année d'installation + lignes intitulé/marque/modèle/n° série, max 3) | Oui |
+| 4 | Vérification Groupe extérieur (détail ci-dessous) | |
+| 5 | Vérification Module hydraulique (détail ci-dessous) | |
+| 6 | Observation / Photos | |
+| 7 | Pièces utilisées | |
+| Fin | Fin d'intervention — « comme page 6/6 de Nouvelle intervention » | Oui |
+
+**Page 4 — Vérification Groupe extérieur** (valeurs de la feuille) :
+Tension d'alimentation (Absente / Vérifiée / Non vérifiée / Non vérifiable) · Ampérage de fonctionnement (Absente / Vérifié / Non vérifié / Non vérifiable) · Tension intercommunication (idem) · Resserrage des bornes électrique (Oui / Non) · Pression fluide (Vérifiée / Non vérifiée / Non vérifiable) · Type de fluide (R410A / R407C / R32 / R290) · Charge d'usine · Sécurité anti-gel (Présent / Absent / Non concerné) · Valeur anti-gel · Différence Entrée / Sortie d'air · Nettoyage du groupe extérieur (Oui / Non) · État visuel du groupe extérieur (Bon / Moyen / Très moyen) · Vérification de fuite frigorigène (Vérifié / Non vérifié / Non vérifiable).
+
+**Page 5 — Vérification Module hydraulique** :
+Tension d'alimentation (Absente / Vérifiée / Non vérifiée / Non vérifiable) · Tension intercommunication (idem) · Resserrage des bornes électrique (Oui / Non) · Delta T° d'eau Primaire (Vérifié / Non vérifié / Non vérifiable) · Delta T° d'eau Secondaire 1 et 2 (Vérifié / Non vérifié / Non vérifiable / Non concerné) · Débit d'eau Primaire (Vérifié / Non vérifié / Non vérifiable) · Débit d'eau Secondaire 1 et 2 (Vérifié / Non vérifié / Non vérifiable / Non concerné) · Pression d'eau · Nettoyage filtre à tamis (Oui / Non) · État filtre à tamis (Bon / Moyen / A remplacer) · Nettoyage filtre à boue (Oui / Non) · État filtre à boue (Bon / Moyen / A remplacer) · Disconnecteur (Présent / Absent) · Mitigeur ECS (Présent / Absent / Non concerné) · Aquastat de sécurité circuit 1 et circuit 2 (Présent / Absent / Non concerné) · Nettoyage du module hydraulique (Oui / Non) · État visuel du module hydraulique (Bon / Moyen / Très moyen) · Vanne d'équilibrage zone 1 et zone 2 (Présent / Absent / Non concerné) · Émetteur zone 1 et zone 2 (P. Chauffant / Radiateurs).
+
+**Fin d'intervention (page 6/6 de « Nouvelle intervention »)** — règles ajoutées par la feuille, applicables à la page finale partagée (fiche générique + entretiens) :
+- le **statut d'intervention** est saisi/affiché **avant les signatures** ;
+- les **signatures ne sont possibles que si le statut de la fiche est « terminée »** ;
+- **signature technicien** obligatoire ; **signature client obligatoire si le client est présent** ;
+- « Enregistrer comme brouillon » conservé ;
+- **« Soumettre pour validation » possible seulement si la fiche est signée** ;
+- champ « Page ok » (case de confirmation de page — libellé à clarifier avec le client).
+
+> **(*) Points à confirmer avec le client avant implémentation** (résidus probables du copier-coller de la feuille Air/Eau-Sol/Eau) :
+> - **Liste « Type d'entretien »** : la feuille indique *Aérothermie / Géothermie / Aquathermie* au lieu de *Granulés / Bûches / Pellets* — incohérent avec une chaudière bois.
+> - **Champs fluides frigorigènes** (pression/type de fluide, vérification de fuite) sans objet pour une chaudière bois — le bloc CERFA n°15497 reste **non applicable**.
+> - **Disparition des mesures spécifiques chaudière bois** (étalonnage granulés, WOS/échangeur, creuset/cendrier, sonde lambda, chambre de combustion, nettoyage chaudière/silo, test de combustion, clapet coupe-feu, bougie d'allumage, état visuel chaudière/silo) — perte d'informations utiles au suivi de l'entretien.
+> - **Champ « Prochaine intervention prévue »** absent de la nouvelle feuille : à conserver ou retirer (les fiches existantes portent déjà la donnée).
+> - Les valeurs de mesure passent de **saisies libres (avec unités)** à des **listes fermées** — le rendu partagé avec la fiche Air/Eau-Sol/Eau évolue de la même façon (cf. §3.2.12).
+
+> **Remarque :** la feuille « Entretien Air.Air » du même classeur porte la même mention « A FAIRE » et un contenu identique à la feuille Air.Eau-Sol.Eau — une évolution analogue de la fiche Air/Air est probable ; à faire confirmer et à traiter séparément.
+
+### 3.2.12 Refonte du formulaire « Entretien Air/Eau-Sol/Eau » — évolution 18/09/2026
+
+> **Source :** classeur `documentation/Application - 20260918.xlsx`, feuille « Entretien Air.Eau Sol.E » (non marquée « A FAIRE » : c'est la **feuille de référence** du classeur — les fiches « Entretien Chaudière Bois » (§3.2.11) et « Entretien Air.Air » y sont alignées). La spécification historique (§3.2.7 a) est remplacée par celle-ci.
+
+**Structure cible :** identique à celle décrite au §3.2.11 — 7 pages + fin d'intervention « comme page 6/6 de Nouvelle intervention » (règles énumérées au §3.2.11, applicables à la page finale partagée). Les pages 4 (« Vérification Groupe extérieur ») et 5 (« Vérification Module hydraulique ») portent **exactement les mêmes champs et listes de valeurs** que ceux déjà détaillés au §3.2.11.
+
+**Évolutions par rapport à l'implémentation actuelle (`ENTRETIEN_META.air_eau`) :**
+- **Type d'entretien** : ajout de « Aquathermie » → liste Aérothermie / Géothermie / Aquathermie (remplace « Air/Eau (aérothermie) » / « Sol/Eau (géothermie) »). Contrairement à la chaudière bois, cette liste est ici cohérente avec le type d'équipement.
+- **Pages de mesures restructurées** : les sections « Groupe extérieur » / « Circuit eau & divers » deviennent « Vérification Groupe extérieur » / « Vérification Module hydraulique », avec passage des saisies libres (V, A, bar, °C, m³/h, kg) aux **listes fermées** de la feuille.
+- **Champs ajoutés** : nettoyage du groupe extérieur, état visuel du groupe extérieur, vérification de fuite frigorigène, nettoyage filtre à tamis + état, nettoyage filtre à boue + état, aquastat de sécurité circuit 1 et circuit 2 (2 champs distincts), nettoyage du module hydraulique, état visuel du module hydraulique, Delta T° d'eau (primaire / secondaires 1 et 2), débits d'eau primaire / secondaires 1 et 2.
+- **Champs supprimés ou reformulés** : T° eau aller/retour (primaire et secondaires) remplacées par les Delta T° ; T° entrée/sortie d'air groupe extérieur remplacées par « Différence Entrée / Sortie d'air » ; « débit eau primaire » et « débits eau secondaires » remplacés par les débits détaillés en page 5 ; « Nettoyage / état visuel GE & unité int. » scindé (état visuel GE en page 4, état visuel module hydraulique en page 5) ; « T° d'air extérieur » absente de la feuille (à confirmer avant retrait).
+- **CERFA n°15497** : maintenu (`cerfa: true`) — cohérent avec la feuille, qui conserve les champs fluides frigorigènes.
+- **Modèle de données** : pas de changement de schéma (table `mesures` typée, colonne `type_entretien_detail` en texte libre) ; les mesures existantes saisies avec unités restent en base sans conversion.
+
+> **Points à confirmer avec le client :**
+> - **« T° d'air extérieur »** : présente dans la fiche actuelle, absente des pages 4-5 de la feuille — retrait ou conservation ?
+> - **Champs sans liste de valeurs** (« Charge d'usine », « Valeur anti-gel », « Différence Entrée / Sortie d'air », « Pression d'eau ») : saisie libre conservée, avec quelles unités ?
+> - **« Année d'installation »** et **« Descriptif »** (l'étape Équipement renvoie à la page 3/6 de « Nouvelle intervention ») : maintien de l'année d'installation et ajout éventuel du descriptif sur les fiches d'entretien ?
+> - La pagination, les listes fermées et la fin d'intervention sont **partagées** avec les autres fiches (voir point 11 de `TACHES_A_FAIRE.md`, à traiter avant/avec le point 10).
+
 ---
 
 ## 3.3 V3 — Définition (arbitrée le 19/08/2026)
@@ -217,7 +283,7 @@ En examinant les fiches papier fournies, deux documents supplémentaires sont ap
 - **Sans synchronisation Google Agenda** (US-14 reporté, cf. §11).
 
 ### 3.3.2 Intervention terrain (évolutions)
-- Fiches d'entretien dédiées (US-19, §3.2.7) : Air/Eau-Sol/Eau, Air/Air, Chaudière bois.
+- Fiches d'entretien dédiées (US-19, §3.2.7) : Air/Eau-Sol/Eau, Air/Air, Chaudière bois — fiches réalignées le 18/09/2026 sur la feuille « Entretien Air.Eau Sol.E » du classeur `Application - 20260918.xlsx` (fiche Air/Eau-Sol/Eau : §3.2.12 ; chaudière bois : §3.2.11 ; Air/Air : même marqueur « A FAIRE », à confirmer).
 - Duplication d'une fiche (US-20, §3.2.8).
 - Étape « Photos avec légende » (US-21, §3.2.6).
 - Liste type d'intervention modifiée (US-22) : Dépannage, Garantie, Diagnostic.
@@ -482,7 +548,7 @@ Intervention (extensions V3) {
   + statut: "brouillon" | "a_valider" | "validee" | "a_facturer" | "facture_importee" | "facture_a_verifier" | "facture_verifiee" | "a_envoyer" | "cloturee"
   + type_intervention (restreint): "depannage" | "garantie" | "diagnostic"
   + type_entretien (fiches dédiées): "air_eau" | "sol_eau" | "air_air" | "granules" | "buches" | "pellets"
-  + prochaine_intervention_prevue: bool (fiche chaudière bois)
+  + prochaine_intervention_prevue: bool (fiche chaudière bois — sort à arbitrer, cf. §3.2.11)
 }
 
 Mesure {
@@ -685,6 +751,8 @@ Points restant ouverts (hors V3) :
 - **Envoi automatique d'email au client** — reporté : envoi manuel conservé (partage natif).
 - **Génération de devis/factures dans l'application** — non retenue : réalisée par un logiciel externe, l'appli importe le PDF. À reconsidérer éventuellement plus tard.
 - **Extension de la base pièces** — désignation seule pour l'instant ; référence/prix, disponibilité par technicien et import initial restent possibles ultérieurement (porte non fermée).
+- **Refonte de la fiche « Entretien Chaudière bois » (18/09/2026, cf. §3.2.11)** — à confirmer avec le client : liste « Type d'entretien » (Aérothermie/Géothermie/Aquathermie au lieu de Granulés/Bûches/Pellets ?), disparition des mesures spécifiques chaudière bois (combustion, WOS, creuset, silo…), sort du champ « Prochaine intervention prévue ».
+- **Refonte de la fiche « Entretien Air/Eau-Sol/Eau » (18/09/2026, cf. §3.2.12)** — à confirmer avec le client : retrait éventuel de la « T° d'air extérieur » (absente des pages 4-5 de la feuille), maintien des champs sans liste de valeurs (« Charge d'usine », « Valeur anti-gel », « Différence Entrée/Sortie d'air », « Pression d'eau »), sort de l'« Année d'installation » et du « Descriptif » à l'étape Équipement.
 - **Format exact de la numérotation** — à valider (proposition : préfixe type + année + séquence, ex. `FIC-2026-001`).
 - **Faut-il interfacer ou remplacer les outils existants (Google Agenda, OneDrive) ?** — OneDrive remplacé par le classement par statut dans l'appli (§3.3) ; Google Agenda en suspens (ci-dessus).
 

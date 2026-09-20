@@ -1,7 +1,9 @@
 # Tâches à faire — V3 (compléments identifiés)
 
-> Dernière mise à jour : 18/09/2026 (ajout du point 9) — sur la base de la comparaison spec V3 (§3.3 du PRD)
-> vs implémentation réelle (branche `application-v3`, revue du 25/08/2026).
+> Dernière mise à jour : 20/09/2026 (ajout des points 10 et 11 — feuilles « Entretien Chaudière Bois » et
+> « Entretien Air.Eau Sol.E » du classeur `documentation/Application - 20260918.xlsx`, détails aux §3.2.11
+> et §3.2.12 du PRD). Base historique : comparaison spec V3 (§3.3 du PRD) vs implémentation réelle
+> (branche `application-v3`, revue du 25/08/2026).
 >
 > Légende :
 > - [x] = terminé
@@ -142,6 +144,8 @@ l'appel est l'origine du flux (relié puis masqué) ; un RDV peut produire une i
 | 5 | ~~Vérification finale + `sw.js` + PRD (point 7)~~ ✅ |
 | 6 | ~~Cycle de vie de l'appel & RDV → intervention (point 8)~~ ✅ |
 | 7 | ~~Option « + de 15 ans » Type de bâtiment (point 9)~~ ✅ |
+| 8 | Refonte fiche « Entretien Chaudière bois » (point 10) — après confirmation client (cf. §3.2.11 du PRD) |
+| 9 | Refonte fiche « Entretien Air/Eau-Sol/Eau » (point 11) — feuille de référence du classeur, à traiter avant/avec le point 10 |
 
 ---
 
@@ -164,3 +168,82 @@ PDF (`pdf.js` ~102, ~453) et détail de fiche (`app.js` ~1854).
 **Fichiers :** `app.js`, `Maquettes.html`, `sw.js`
 
 **Note :** Le PRD a été mis à jour (§3.2.5) pour refléter cette évolution.
+
+---
+
+## 10. Refonte du formulaire « Entretien Chaudière bois » (18/09/2026)
+
+**Objectif :** appliquer la nouvelle demande client (classeur `documentation/Application - 20260918.xlsx`,
+feuille « Entretien Chaudière Bois », mention « A FAIRE ») : la fiche chaudière bois abandonne son bloc de
+mesures spécifique (combustion, WOS, creuset…) et s'aligne sur la structure de la fiche Air/Eau-Sol/Eau —
+pages « Vérification Groupe extérieur » et « Vérification Module hydraulique », pagination en 7 pages,
+fin d'intervention alignée sur la page 6/6 de « Nouvelle intervention ». Détail complet au **§3.2.11 du PRD**
+(dont les points à confirmer avec le client).
+
+- [ ] Reprendre la structure cible dans `ENTRETIEN_META.chaudiere` : remplacer les sections
+      « Électrique / hydraulique » + « Combustion & nettoyage » par « Vérification Groupe extérieur » et
+      « Vérification Module hydraulique » (mêmes champs que la fiche Air/Eau-Sol/Eau, listes de valeurs de la feuille) — `app.js` lignes 157-191
+- [ ] Passer les champs de mesure de **saisies libres (avec unités)** à des **listes fermées** conformes à la
+      feuille (Absente/Vérifiée/Non vérifiée/Non vérifiable · Oui/Non · R410A/R407C/R32/R290 ·
+      Présent/Absent/Non concerné · Bon/Moyen/Très moyen · Bon/Moyen/A remplacer · P. Chauffant/Radiateurs) —
+      le rendu « Mesures » étant partagé, la fiche Air/Eau-Sol/Eau évolue de la même façon — `app.js` (`stepMesuresHTML` / `wireMesuresStep`)
+- [ ] Aligner la pagination du wizard sur la feuille : séparer « Client » / « Entretien » (actuellement fusionnés
+      dans « Client & entretien ») et « Observation / Photos » / « Pièces utilisées » (actuellement fusionnées dans
+      « Remarque & pièces ») → 7 pages + fin d'intervention — `app.js` (`wizardSteps` lignes 1094-1100, `stepRemarquePiecesHTML` ligne ~1421)
+- [ ] Liste « Type d'entretien » : la feuille indique Aérothermie / Géothermie / Aquathermie à la place de
+      Granulés / Bûches / Pellets — **à confirmer avant modification** (incohérent avec une chaudière bois) — `app.js` ligne 160
+- [ ] Fin d'intervention (étape « Devis & signature », partagée) : saisir/afficher le **statut d'intervention avant
+      les signatures**, n'autoriser les signatures que si le statut de la fiche est « Effectuée » (ou « suite à
+      prévoir »), rendre la **signature client obligatoire si le client est présent**, et n'autoriser « Soumettre
+      pour validation » que si la fiche est signée — `app.js` (`stepSignHTML` ligne ~1609, `finishWizard` ligne ~1728)
+- [ ] Arbitrer le sort du champ « Prochaine intervention prévue » (absent de la nouvelle feuille ; fiches existantes
+      déjà renseignées) — `app.js` lignes 1621-1625 et 1845, `supabase/schema.sql` ligne 83
+- [ ] Maintenir le bloc CERFA n°15497 non applicable (`cerfa: false`) — les champs fluides frigorigènes hérités de la
+      feuille Air/Eau n'ont pas de sens pour une chaudière bois (à confirmer)
+- [ ] PDF : rendu des nouvelles sections de mesures et retrait des anciennes sections chaudière — `pdf.js` (bloc « Mesures » lignes 176-193)
+- [ ] Maquette de documentation : écran « Nouvel entretien Chaudière bois » + note d'étape suivante — `Maquettes.html` lignes ~970-1002
+- [ ] Incrémenter `CACHE_VERSION` dans `sw.js` (→ `climatelec-v16`)
+
+**Fichiers :** `app.js`, `pdf.js`, `Maquettes.html`, `sw.js` (+ `supabase/schema.sql` si retrait du champ « Prochaine intervention prévue »)
+
+**Points de vigilance (à confirmer avec le client, cf. PRD §3.2.11) :**
+- « Type d'entretien » Aérothermie/Géothermie/Aquathermie : semble copié de la feuille Air.Eau.
+- Perte des mesures spécifiques chaudière bois (combustion, WOS, creuset, sonde lambda, silo…).
+- Champ « Prochaine intervention prévue » non repris dans la feuille.
+- La feuille « Entretien Air.Air » du même classeur porte la même mention « A FAIRE » (contenu identique à
+  Air.Eau) : évolution analogue de la fiche Air/Air à prévoir si confirmée — hors périmètre du présent point.
+
+---
+
+## 11. Refonte du formulaire « Entretien Air/Eau-Sol/Eau » (18/09/2026)
+
+**Objectif :** appliquer la feuille « Entretien Air.Eau Sol.E » du classeur `documentation/Application - 20260918.xlsx`
+(feuille **de référence** du classeur — non marquée « A FAIRE » ; les fiches Chaudière bois et Air.Air y sont
+alignées) : pages « Vérification Groupe extérieur » et « Vérification Module hydraulique » avec listes de valeurs
+fermées, pagination en 7 pages, fin d'intervention alignée sur la page 6/6 de « Nouvelle intervention ».
+Détail complet au **§3.2.12 du PRD**. À traiter **avant ou avec le point 10** : la fiche Air/Eau-Sol/Eau sert
+de référence aux pages 4-5 partagées.
+
+- [ ] `ENTRETIEN_META.air_eau` : renommer les sections « Groupe extérieur » / « Circuit eau & divers » en
+      « Vérification Groupe extérieur » / « Vérification Module hydraulique » et y porter les champs et listes de
+      valeurs de la feuille (détail des évolutions de champs au §3.2.12 du PRD) — `app.js` lignes 86-126
+- [ ] Types d'entretien : ajouter « Aquathermie » (liste cible Aérothermie / Géothermie / Aquathermie,
+      remplace « Air/Eau (aérothermie) » / « Sol/Eau (géothermie) ») — `app.js` ligne 89
+- [ ] Mesures en listes fermées + pagination 7 pages + fin d'intervention : travaux **partagés** déjà listés au
+      point 10 (un seul chantier pour les 3 fiches d'entretien + page finale commune avec la fiche générique)
+- [ ] CERFA n°15497 : maintenu (`cerfa: true`), cohérent avec la feuille (champs fluides frigorigènes présents)
+- [ ] PDF : rendu des nouvelles sections de mesures — `pdf.js` (bloc « Mesures » lignes 176-193)
+- [ ] Maquette de documentation : écran « Nouvel entretien Air/Eau-Sol/Eau » — `Maquettes.html`
+- [ ] Incrémenter `CACHE_VERSION` dans `sw.js` (→ `climatelec-v16`, cumulé avec le point 10)
+
+**Fichiers :** `app.js`, `pdf.js`, `Maquettes.html`, `sw.js`
+
+**Points de vigilance (à confirmer avec le client, cf. PRD §3.2.12) :**
+- « T° d'air extérieur » : présente dans la fiche actuelle (`t_air_ext`), absente des pages 4-5 de la feuille.
+- Champs sans liste de valeurs (« Charge d'usine », « Valeur anti-gel », « Différence Entrée/Sortie d'air »,
+  « Pression d'eau ») : saisie libre conservée ? Unités à réafficher ?
+- « Année d'installation » (affichée à l'étape Équipement des fiches d'entretien) absente de la feuille :
+  conserver ou retirer ? « Descriptif » (obligatoire en page 3/6 de Nouvelle intervention) : à ajouter ?
+- Données existantes saisies avec unités (V, bar, °C…) : conservées en base, pas de conversion prévue
+  (table `mesures` typée, aucun changement de schéma).
+- La feuille « Entretien Air.Air » (contenu identique) : même évolution à confirmer — cf. point 10.
