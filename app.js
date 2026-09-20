@@ -781,7 +781,7 @@ async function renderAppel(isEdit = false) {
         </div>
         <div class="field"><label>Motif de l'appel *</label><textarea id="a-motif">${esc(d.motif)}</textarea></div>
         <div class="field"><label>Type de bâtiment *</label>
-          <select id="a-bat">${["Professionnel", "- de 2 ans", "+ de 2 ans"].map((t) => `<option ${d.type_batiment === t ? "selected" : ""}>${t}</option>`).join("")}</select>
+          <select id="a-bat">${["Professionnel", "- de 2 ans", "+ de 2 ans", "+ de 15 ans"].map((t) => `<option ${d.type_batiment === t ? "selected" : ""}>${t}</option>`).join("")}</select>
         </div>
         <div class="field"><label>Type d'intervention *</label>
           <select id="a-type">${["Devis", "Dépannage", "Garantie", "Entretien", "Diagnostic"].map((t) => `<option ${d.type_intervention === t ? "selected" : ""}>${t}</option>`).join("")}</select>
@@ -1161,7 +1161,7 @@ function clientFieldsHTML(c) {
     <div class="field">
       <label>Type de bâtiment</label>
       <select id="f-type-bat">
-        ${["", "Professionnel", "- de 2 ans", "+ de 2 ans"].map((t) => `<option value="${esc(t)}" ${c.type_batiment === t ? "selected" : ""}>${t || "Non précisé"}</option>`).join("")}
+        ${["", "Professionnel", "- de 2 ans", "+ de 2 ans", "+ de 15 ans"].map((t) => `<option value="${esc(t)}" ${c.type_batiment === t ? "selected" : ""}>${t || "Non précisé"}</option>`).join("")}
       </select>
     </div>`;
 }

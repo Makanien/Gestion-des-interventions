@@ -1,7 +1,7 @@
 # Tâches à faire — V3 (compléments identifiés)
 
-> Dernière mise à jour : 25/08/2026 — sur la base de la comparaison spec V3 (§3.3 du PRD)
-> vs implémentation réelle (branche `application-v3`).
+> Dernière mise à jour : 18/09/2026 (ajout du point 9) — sur la base de la comparaison spec V3 (§3.3 du PRD)
+> vs implémentation réelle (branche `application-v3`, revue du 25/08/2026).
 >
 > Légende :
 > - [x] = terminé
@@ -141,6 +141,7 @@ l'appel est l'origine du flux (relié puis masqué) ; un RDV peut produire une i
 | 4 | ~~Upload photos/documents en fin de wizard + import (point 6)~~ ✅ |
 | 5 | ~~Vérification finale + `sw.js` + PRD (point 7)~~ ✅ |
 | 6 | ~~Cycle de vie de l'appel & RDV → intervention (point 8)~~ ✅ |
+| 7 | ~~Option « + de 15 ans » Type de bâtiment (point 9)~~ ✅ |
 
 ---
 
@@ -152,11 +153,14 @@ l'appel est l'origine du flux (relié puis masqué) ; un RDV peut produire une i
 **Liste cible :** Professionnel / - de 2 ans / + de 2 ans / **+ de 15 ans**
 
 ### Formulaires concernés
-- [ ] Écran « Nouvel appel» (`renderAppel`) — `app.js` ligne ~783
-- [ ] Wizard intervention/entretien étape Client — `app.js` ligne ~1162
-- [ ] PDF généré (affichage type de bâtiment) — `pdf.js` lignes ~102 et ~453
-- [ ] Maquettes HTML (documentation) — `Maquettes.html` lignes ~293, ~435, ~925, ~960, ~995
+- [x] Écran « Nouvel appel » (`renderAppel`) — `app.js` ligne ~783
+- [x] Wizard intervention/entretien étape Client — `app.js` ligne ~1162
+- [x] Maquettes HTML (documentation) — `Maquettes.html` lignes ~293, ~435, ~925, ~960, ~995
+- [x] Incrémenter `CACHE_VERSION` dans `sw.js` (→ `climatelec-v15`)
 
-**Fichiers :** `app.js`, `pdf.js`, `Maquettes.html`
+**Sans modification** (affichent la valeur stockée `client.type_batiment`, vérification seulement) :
+PDF (`pdf.js` ~102, ~453) et détail de fiche (`app.js` ~1854).
+
+**Fichiers :** `app.js`, `Maquettes.html`, `sw.js`
 
 **Note :** Le PRD a été mis à jour (§3.2.5) pour refléter cette évolution.
