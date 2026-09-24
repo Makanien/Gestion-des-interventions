@@ -1,8 +1,8 @@
 # PRD — Application de gestion des fiches d'intervention
 ## Climat Elec (Chazé-sur-Argos)
 
-**Version du document :** 1.24
-**Date :** 20/09/2026
+**Version du document :** 1.25
+**Date :** 24/09/2026
 **Auteur :** Rédigé avec Claude, sur la base des échanges avec le porteur de projet
 
 ---
@@ -180,6 +180,9 @@ Trois nouveaux flux de création (accessibles depuis le bouton "+"), chacun dém
 - Signatures technicien / client (comme la fiche générique V1)
 
 **b) Entretien Air/Air (PAC air/air, mono ou multi-split)**
+
+> **⚠️ Spécification remplacée le 18/09/2026** par la feuille « Entretien Air.Air » du classeur `Application - 20260918.xlsx` (voir **§3.2.13**). Contenu historique conservé ci-dessous.
+
 - Type d'entretien : Air/Air
 - Équipement : année d'installation + jusqu'à 5 lignes (1 unité extérieure + jusqu'à 4 unités intérieures — intitulé, marque, modèle, n° série)
 - Mesures : tension d'alimentation, ampérage, tension intercommunication, resserrage des bornes, T° d'échange groupe extérieur + jusqu'à 4 unités intérieures, T° d'air extérieur, nettoyage/état des filtres intérieurs, nettoyage pompe de relevage, pression et type de fluide frigo, charge usine, GWP fluide, nettoyage/état visuel groupe extérieur et unités intérieures
@@ -246,11 +249,11 @@ Tension d'alimentation (Absente / Vérifiée / Non vérifiée / Non vérifiable)
 > - **Champ « Prochaine intervention prévue »** absent de la nouvelle feuille : à conserver ou retirer (les fiches existantes portent déjà la donnée).
 > - Les valeurs de mesure passent de **saisies libres (avec unités)** à des **listes fermées** — le rendu partagé avec la fiche Air/Eau-Sol/Eau évolue de la même façon (cf. §3.2.12).
 
-> **Remarque :** la feuille « Entretien Air.Air » du même classeur porte la même mention « A FAIRE » et un contenu identique à la feuille Air.Eau-Sol.Eau — une évolution analogue de la fiche Air/Air est probable ; à faire confirmer et à traiter séparément.
+> **Remarque :** la feuille « Entretien Air.Air » du même classeur porte la même mention « A FAIRE » et un contenu identique à la feuille Air.Eau-Sol.Eau — la fiche Air/Air est désormais réalignée sur la même structure (spécification au **§3.2.13**).
 
 ### 3.2.12 Refonte du formulaire « Entretien Air/Eau-Sol/Eau » — évolution 18/09/2026
 
-> **Source :** classeur `documentation/Application - 20260918.xlsx`, feuille « Entretien Air.Eau Sol.E » (non marquée « A FAIRE » : c'est la **feuille de référence** du classeur — les fiches « Entretien Chaudière Bois » (§3.2.11) et « Entretien Air.Air » y sont alignées). La spécification historique (§3.2.7 a) est remplacée par celle-ci.
+> **Source :** classeur `documentation/Application - 20260918.xlsx`, feuille « Entretien Air.Eau Sol.E » (non marquée « A FAIRE » : c'est la **feuille de référence** du classeur — les fiches « Entretien Chaudière Bois » (§3.2.11) et « Entretien Air.Air » (§3.2.13) y sont alignées). La spécification historique (§3.2.7 a) est remplacée par celle-ci.
 
 **Structure cible :** identique à celle décrite au §3.2.11 — 7 pages + fin d'intervention « comme page 6/6 de Nouvelle intervention » (règles énumérées au §3.2.11, applicables à la page finale partagée). Les pages 4 (« Vérification Groupe extérieur ») et 5 (« Vérification Module hydraulique ») portent **exactement les mêmes champs et listes de valeurs** que ceux déjà détaillés au §3.2.11.
 
@@ -268,6 +271,41 @@ Tension d'alimentation (Absente / Vérifiée / Non vérifiée / Non vérifiable)
 > - **« Année d'installation »** et **« Descriptif »** (l'étape Équipement renvoie à la page 3/6 de « Nouvelle intervention ») : maintien de l'année d'installation et ajout éventuel du descriptif sur les fiches d'entretien ?
 > - La pagination, les listes fermées et la fin d'intervention sont **partagées** avec les autres fiches (voir point 11 de `TACHES_A_FAIRE.md`, à traiter avant/avec le point 10).
 
+### 3.2.13 Refonte du formulaire « Entretien Air/Air » — évolution 18/09/2026
+
+> **Source :** classeur `documentation/Application - 20260918.xlsx`, feuille « Entretien Air.Air » (mention « A FAIRE »). La feuille reprend **mot pour mot** le contenu de la feuille de référence « Entretien Air.Eau Sol.E » (§3.2.12), y compris les pages « Vérification Groupe extérieur » et « Vérification Module hydraulique » — très probablement par copier-coller (voir les points ⚠️ ci-dessous). La fiche Air/Air est donc **réalignée sur la même structure** que les fiches Air/Eau-Sol/Eau (§3.2.12) et Chaudière bois (§3.2.11). La spécification historique (§3.2.7 b) est remplacée par celle-ci.
+
+**Structure cible (7 pages + fin d'intervention) :**
+
+| Page | Contenu | Obligatoire |
+|---|---|---|
+| 1 | Client — nom, adresse, code postal, ville, téléphone, mail, type de bâtiment (Professionnel / - de 2 ans / + de 2 ans / + de 15 ans) | Nom, adresse, CP, ville, type de bâtiment |
+| 2 | Entretien — type d'entretien (Aérothermie / Géothermie / Aquathermie *), date, heure d'arrivée, heure de départ, forfait déplacement (Z0 Chazé-sur-Argos / Z1 5-10 km / Z2 11-30 km / Z3 31-50 km) | Tous (feuille) |
+| 3 | Équipement — « comme page 3/6 de Nouvelle intervention » (année d'installation + lignes intitulé/marque/modèle/n° série, max 3 *) | Oui |
+| 4 | Vérification Groupe extérieur — mêmes champs et listes de valeurs que la feuille de référence (détail au §3.2.11) | |
+| 5 | Vérification Module hydraulique — mêmes champs et listes de valeurs que la feuille de référence (détail au §3.2.11) | |
+| 6 | Observation / Photos | |
+| 7 | Pièces utilisées | |
+| Fin | Fin d'intervention — « comme page 6/6 de Nouvelle intervention » (règles du §3.2.11 : statut d'intervention avant les signatures, signatures possibles seulement si la fiche est terminée, signature technicien obligatoire, signature client obligatoire si présent, « Enregistrer comme brouillon » conservé, « Soumettre pour validation » seulement si la fiche est signée) | Oui |
+
+**Évolutions par rapport à l'implémentation actuelle (`ENTRETIEN_META.air_air`) :**
+- **Type d'entretien** : la feuille indique *Aérothermie / Géothermie / Aquathermie* (copie de la feuille Air/Eau-Sol/Eau) au lieu de « Air/Air » — incohérent avec une PAC air/air (⚠️ à confirmer, voir ci-dessous).
+- **Pages de mesures restructurées** : les sections « Groupe extérieur » / « Unités intérieures » deviennent « Vérification Groupe extérieur » / « Vérification Module hydraulique », avec passage des saisies libres (V, A, bar, °C, kg) aux **listes fermées** de la feuille — les champs et valeurs des pages 4 et 5 sont **strictement identiques** à ceux détaillés au §3.2.11 (partagés avec les deux autres fiches).
+- **Champs ajoutés** (issus de la feuille, absents de la fiche actuelle) : sécurité anti-gel (Présent / Absent / Non concerné) + valeur anti-gel, différence Entrée / Sortie d'air, nettoyage du groupe extérieur (Oui / Non), état visuel du groupe extérieur (Bon / Moyen / Très moyen), vérification de fuite frigorigène (Vérifié / Non vérifié / Non vérifiable), et l'intégralité du bloc « Module hydraulique » (Delta T° d'eau primaire / secondaires 1 et 2, débits d'eau primaire / secondaires 1 et 2, nettoyage et état des filtres à tamis et à boue, disconnecteur, mitigeur ECS, aquastats de sécurité circuits 1 et 2, nettoyage et état visuel du module hydraulique, vannes d'équilibrage zones 1 et 2, émetteurs zones 1 et 2).
+- **Champs supprimés ou remplacés** : T° d'échange groupe extérieur → « Différence Entrée / Sortie d'air » ; les 4 « T° échange unité 1 à 4 » (aucun équivalent dans la feuille) ; T° d'air extérieur (absente de la feuille — à confirmer avant retrait, même point que §3.2.12) ; « Nettoyage / état filtres intérieurs » et « Nettoyage pompe de relevage » remplacés par les filtres à tamis / à boue du bloc hydraulique (sans objet en air/air) ; « GWP fluide » supprimé.
+- **CERFA n°15497** : maintenu (`cerfa: true`) — une PAC air/air contient bien du fluide frigorigène ; cohérent avec la feuille, qui conserve les champs fluides (pression, type de fluide, vérification de fuite) en page 4.
+- **Équipement** : la feuille renvoie à la page 3/6 de « Nouvelle intervention » (max **3** lignes) au lieu de la structure actuelle **5 lignes** (1 unité extérieure + jusqu'à 4 unités intérieures) — la distinction unités extérieures/intérieures disparaît (⚠️ à confirmer).
+- **Modèle de données** : pas de changement de schéma (table `mesures` typée, colonne `type_entretien_detail` en texte libre) ; les mesures existantes saisies avec unités restent en base sans conversion.
+
+> **⚠️ Points à confirmer avec le client avant implémentation** (plus critiques que pour les fiches Air/Eau-Sol/Eau et Chaudière bois, car la feuille ne semble pas adaptée au type d'équipement) :
+> - **Page 5 « Vérification Module hydraulique » sans objet en air/air** : un système air/air n'a pas de circuit d'eau — ni filtre à tamis/boue, ni disconnecteur, ni aquastat, ni vannes d'équilibrage, ni émetteurs, ni Delta T° / débits / pression d'eau. Signature d'un copier-coller de la feuille Air/Eau-Sol/Eau. À arbitrer : appliquer la feuille telle quelle, ou remplacer cette page par un équivalent « **Unités intérieures** » reprenant les mesures air/air utiles (nettoyage filtres intérieurs, pompe de relevage des condensats, T° d'échange par unité) ?
+> - **Liste « Type d'entretien »** : Aérothermie / Géothermie / Aquathermie — sans rapport avec une PAC air/air (seule « Aérothermie » s'y rapporterait).
+> - **Disparition des mesures propres à l'air/air** : nettoyage des filtres intérieurs (essentiel en air/air), pompe de relevage des condensats, T° d'échange par unité intérieure (1 à 4), T° d'air extérieur, GWP du fluide.
+> - **Nombre de lignes d'équipement** : 3 (page 3/6) au lieu de 5 (1 unité extérieure + 4 unités intérieures) — limite la description d'un multi-split.
+> - **Champs sans liste de valeurs** (« Charge d'usine », « Valeur anti-gel », « Différence Entrée / Sortie d'air », « Pression d'eau ») : saisie libre conservée, avec quelles unités ? (même question que §3.2.12).
+
+> **Recommandation pour le développement :** le réalignement **structurel** (pagination en 7 pages + fin d'intervention commune, listes fermées de la page 4, règles de signature/fin d'intervention) est **partagé** avec les fiches Air/Eau-Sol/Eau (§3.2.12) et Chaudière bois (§3.2.11) et peut être implémenté tel quel (même chantier, point 11 de `TACHES_A_FAIRE.md`). En revanche, le **contenu** de la page 5 (bloc hydraulique vs équivalent « Unités intérieures ») et les points ⚠️ ci-dessus doivent être **validés avec le client avant** la refonte du bloc de mesures air/air.
+
 ---
 
 ## 3.3 V3 — Définition (arbitrée le 19/08/2026)
@@ -283,7 +321,7 @@ Tension d'alimentation (Absente / Vérifiée / Non vérifiée / Non vérifiable)
 - **Sans synchronisation Google Agenda** (US-14 reporté, cf. §11).
 
 ### 3.3.2 Intervention terrain (évolutions)
-- Fiches d'entretien dédiées (US-19, §3.2.7) : Air/Eau-Sol/Eau, Air/Air, Chaudière bois — fiches réalignées le 18/09/2026 sur la feuille « Entretien Air.Eau Sol.E » du classeur `Application - 20260918.xlsx` (fiche Air/Eau-Sol/Eau : §3.2.12 ; chaudière bois : §3.2.11 ; Air/Air : même marqueur « A FAIRE », à confirmer).
+- Fiches d'entretien dédiées (US-19, §3.2.7) : Air/Eau-Sol/Eau, Air/Air, Chaudière bois — fiches réalignées le 18/09/2026 sur la feuille « Entretien Air.Eau Sol.E » du classeur `Application - 20260918.xlsx` (fiche Air/Eau-Sol/Eau : §3.2.12 ; chaudière bois : §3.2.11 ; Air/Air : §3.2.13).
 - Duplication d'une fiche (US-20, §3.2.8).
 - Étape « Photos avec légende » (US-21, §3.2.6).
 - Liste type d'intervention modifiée (US-22) : Dépannage, Garantie, Diagnostic.
@@ -753,6 +791,7 @@ Points restant ouverts (hors V3) :
 - **Extension de la base pièces** — désignation seule pour l'instant ; référence/prix, disponibilité par technicien et import initial restent possibles ultérieurement (porte non fermée).
 - **Refonte de la fiche « Entretien Chaudière bois » (18/09/2026, cf. §3.2.11)** — à confirmer avec le client : liste « Type d'entretien » (Aérothermie/Géothermie/Aquathermie au lieu de Granulés/Bûches/Pellets ?), disparition des mesures spécifiques chaudière bois (combustion, WOS, creuset, silo…), sort du champ « Prochaine intervention prévue ».
 - **Refonte de la fiche « Entretien Air/Eau-Sol/Eau » (18/09/2026, cf. §3.2.12)** — à confirmer avec le client : retrait éventuel de la « T° d'air extérieur » (absente des pages 4-5 de la feuille), maintien des champs sans liste de valeurs (« Charge d'usine », « Valeur anti-gel », « Différence Entrée/Sortie d'air », « Pression d'eau »), sort de l'« Année d'installation » et du « Descriptif » à l'étape Équipement.
+- **Refonte de la fiche « Entretien Air/Air » (18/09/2026, cf. §3.2.13)** — à confirmer avec le client avant implémentation : la feuille reprend mot pour mot celle d'Air/Eau-Sol/Eau, dont la page 5 « Vérification Module hydraulique » (filtres tamis/boue, disconnecteur, aquastat, vannes, émetteurs…) est sans objet pour un système air/air ; sort de la liste « Type d'entretien » (Aérothermie/Géothermie/Aquathermie), des mesures spécifiques air/air (filtres intérieurs, pompe de relevage, T° d'échange par unité, T° d'air extérieur, GWP) et du nombre de lignes d'équipement (3 au lieu de 5).
 - **Format exact de la numérotation** — à valider (proposition : préfixe type + année + séquence, ex. `FIC-2026-001`).
 - **Faut-il interfacer ou remplacer les outils existants (Google Agenda, OneDrive) ?** — OneDrive remplacé par le classement par statut dans l'appli (§3.3) ; Google Agenda en suspens (ci-dessus).
 
