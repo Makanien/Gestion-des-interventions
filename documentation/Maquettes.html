@@ -160,7 +160,7 @@ main.content{padding:14px 14px 34px;}
       <img src="" alt="Climat Elec"/>
       <div><strong>Climat Elec</strong><span>Maquettes — backlog</span></div>
     </div>
-    <div class="nav-warn">✅ V3 développée (cf. PRD §3.3) : planning, nouvel appel, entretiens dédiés + CERFA, workflow validation/facturation (import PDF), photos, brouillon, numérotation, statistiques. Reportés : Google Agenda (US-14) et envoi automatique d'email.</div>
+    <div class="nav-warn">✅ V3 développée (cf. PRD §3.3). 🔎 Groupe « Refonte 18/09 — à valider » : propositions à valider visuellement à partir du classeur <em>Application - 20260918.xlsx</em> (fiches d'entretien réalignées en 7 pages + fin d'intervention commune avec listes fermées, règles signatures/statut, Tableau de bord = accueil). Reportés : Google Agenda (US-14) et envoi automatique d'email.</div>
     <div class="nav-group"><div class="nav-group-label">Transverses</div><button class="nav-btn" data-screen="dashboard" onclick="showScreen('dashboard')">
           <span class="dot"></span><span>Tableau de bord <small>US-13 · US-15</small></span>
         </button></div><div class="nav-group"><div class="nav-group-label">Épopée 1 — Contact & planification</div><button class="nav-btn" data-screen="bouton_plus" onclick="showScreen('bouton_plus')">
@@ -184,13 +184,15 @@ main.content{padding:14px 14px 34px;}
         </button><button class="nav-btn" data-screen="duplication" onclick="showScreen('duplication')">
           <span class="dot"></span><span>Dupliquer une fiche</span>
         </button><button class="nav-btn" data-screen="pieces_autocomplete" onclick="showScreen('pieces_autocomplete')">
-          <span class="dot"></span><span>Pièces — autocomplétion <small>US-23 · en suspens</small></span>
-        </button></div><div class="nav-group"><div class="nav-group-label">Entretiens dédiés (nouveau 16/08)</div><button class="nav-btn" data-screen="entretien_air_eau" onclick="showScreen('entretien_air_eau')">
-          <span class="dot"></span><span>Entretien Air/Eau - Sol/Eau</span>
+          <span class="dot"></span><span>Pièces — autocomplétion <small>US-23 · arbitré</small></span>
+        </button></div><div class="nav-group"><div class="nav-group-label">Entretiens dédiés — refonte 18/09</div><button class="nav-btn" data-screen="entretien_air_eau" onclick="showScreen('entretien_air_eau')">
+          <span class="dot"></span><span>Entretien Air/Eau - Sol/Eau <small>feuille de référence</small></span>
         </button><button class="nav-btn" data-screen="entretien_air_air" onclick="showScreen('entretien_air_air')">
-          <span class="dot"></span><span>Entretien Air/Air</span>
+          <span class="dot"></span><span>Entretien Air/Air <small>proposition métier ⚠️</small></span>
         </button><button class="nav-btn" data-screen="entretien_chaudiere_bois" onclick="showScreen('entretien_chaudiere_bois')">
-          <span class="dot"></span><span>Entretien Chaudière bois</span>
+          <span class="dot"></span><span>Entretien Chaudière bois <small>proposition métier ⚠️</small></span>
+        </button></div><div class="nav-group"><div class="nav-group-label">Refonte 18/09 — à valider</div><button class="nav-btn" data-screen="fin_intervention" onclick="showScreen('fin_intervention')">
+          <span class="dot"></span><span>Fin d'intervention <small>règles statut & signatures · 6/6</small></span>
         </button></div><div class="nav-group"><div class="nav-group-label">Épopée 3 — Validation & devis</div><button class="nav-btn" data-screen="fiches_valider" onclick="showScreen('fiches_valider')">
           <span class="dot"></span><span>Fiches à valider <small>US-05</small></span>
         </button><button class="nav-btn" data-screen="validation" onclick="showScreen('validation')">
@@ -299,19 +301,32 @@ const SCREENS = {
   </main>`
   },
   "dashboard": {
-    title: 'Tableau de bord des dossiers',
-    sub: "Vue partagée entre Régis et Delphine : chaque dossier montre son statut en un coup d'œil, pour savoir qui doit agir ensuite — sans se téléphoner.",
-    epic: 'Transverses',
+    title: "Tableau de bord — accueil de l'application",
+    sub: "Retour du 18/09 : « Page d'accueil = Tableau de bord » (en remplacement de « accueil = planning » du 16/08, à faire valider). Onglets conservés : Planning / Tâches / Dossiers ; vue équipe pour Régis et Delphine, propres lignes pour Jérémy.",
+    epic: 'Transverses · 18/09',
     us: 'US-13 · US-15',
     developed: false,
     html: `<div class="topbar"><div class="topbar-row">
       <img class="logo" data-logo src="" alt="Climat Elec"/>
-      <div><h2>Dossiers</h2><div class="sub">8 dossiers en cours</div></div>
+      <div><h2>Tableau de bord</h2><div class="sub">Accueil · 8 dossiers en cours</div></div>
       <div class="spacer"></div>
       <div class="avatar">RC</div>
     </div></div>
   <main class="content">
     <div class="search-wrap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input placeholder="Rechercher un client…"/></div>
+
+    <div class="status-block">
+      <div class="status-head"><span class="sw" style="background:#6a5fc1"></span><h3>Appels — À traiter</h3><span class="n">1</span></div>
+      <div class="list-item">
+        <span class="li-dot" style="background:#6a5fc1">📞</span>
+        <span class="li-body">
+          <span class="li-top"><span class="li-name">Julien Da Silva</span><span class="li-meta">Aujourd'hui 09h12</span></span>
+          <span class="li-sub">Dépannage chaudière — « Enregistrer sans planifier »</span>
+          <span class="li-tags"><span class="tag violet">À traiter</span><span class="tag blue">Nouvel appel</span></span>
+        </span>
+      </div>
+    </div>
+    <div class="note">Les appels « Enregistrer sans planifier » (écran Nouvel appel) arrivent ici, étiquetés « À traiter », jusqu'à ce qu'un RDV ou une fiche soit créé depuis eux.</div>
 
     <div class="status-block">
       <div class="status-head"><span class="sw" style="background:#c85f16"></span><h3>À valider</h3><span class="n">3</span></div>
@@ -403,6 +418,11 @@ const SCREENS = {
       <span class="li-dot" style="background:#c85f16">🔥</span>
       <span class="li-body"><span class="li-name">Nouvel entretien Chaudière bois</span><span class="li-sub">Granulés, bûches, déchiqueté</span></span>
     </div>
+    <div class="list-item" style="cursor:pointer;">
+      <span class="li-dot" style="background:#2f9e5b">📋</span>
+      <span class="li-body"><span class="li-name">Contrat d'entretien annuel</span><span class="li-sub">Nombre de passages, tarification par zone, signatures (livré V3)</span></span>
+    </div>
+    <div class="note blue">Options issues du classeur du 18/09 (Bouton +), complétées du Contrat d'entretien annuel (livré V3, cf. PRD §3.4).</div>
   </main>`
   },
   "appel": {
@@ -443,11 +463,12 @@ const SCREENS = {
     <button class="btn btn-accent">Créer le rendez-vous →</button>
     <button class="btn btn-primary">Créer l'intervention →</button>
     <button class="btn btn-ghost">Enregistrer sans planifier</button>
+    <div class="note">« Enregistrer sans planifier » : l'appel est conservé et apparaît dans le <strong>Tableau de bord</strong>, rubrique Appels — « À traiter » (retour du 18/09). ⚠️ Divergences de la feuille 18/09 à confirmer : le <strong>Motif de l'appel</strong> n'y figure plus et Téléphone / Mail ne sont plus marqués « Obligatoire » — le PRD les conserve obligatoires.</div>
   </main>`
   },
   "planning_equipe": {
     title: 'Planning — équipe (Régis/Delphine)',
-    sub: "Régis et Delphine voient le planning de toute l'équipe, triable par intervenant ou par type d'intervention. Reste synchronisé avec Google Agenda (différé, cf. PRD §3.2.3).",
+    sub: "Planning journalier — l'équipe entière, triable par intervenant ou par type d'intervention. Feuille 18/09 : mentionne « Régis » seul ; Delphine (secrétaire) conserve la vue équipe (arbitrage 19/08) — à confirmer. Google Agenda : différé (cf. PRD §11).",
     epic: 'Épopée 1 — Prise de contact',
     us: 'US-02 · US-14',
     developed: false,
@@ -788,16 +809,17 @@ const SCREENS = {
   <button class="fab" onclick="showScreen('bouton_plus')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg></button>`
   },
   "nouvelle_intervention_maj": {
-    title: "Nouvelle intervention — mises à jour",
-    sub: "Type d'intervention resserré (Entretien et Rendez-vous retirés, Garantie ajouté), statut affiché dès l'étape 5/5, et nouvelle étape Photos avant la fin.",
+    title: "Nouvelle intervention — 6 pages (18/09)",
+    sub: "Structure du classeur du 18/09 : 6 pages — Client · Intervention (type : Dépannage / Garantie / Diagnostic) · Équipement · Action & Pièces · Photos · Devis & Signature (statut avant signatures — cf. écran « Fin d'intervention »).",
     epic: 'Épopée 2 — Intervention terrain',
-    us: '16/08',
+    us: 'US-21 · US-22',
     developed: false,
     html: `<div class="topbar"><div class="topbar-row">
       <button style="background:rgba(255,255,255,.1);border:none;color:#fff;width:26px;height:26px;border-radius:7px;">‹</button>
-      <div><h2>Nouvelle intervention</h2></div>
+      <div><h2>Nouvelle intervention</h2><div class="sub">Dépannage · Garantie · Diagnostic</div></div>
     </div>
     <div style="display:flex;gap:4px;padding:10px 16px 0;">
+      <span style="flex:1;height:3px;border-radius:100px;background:#3a5468;"></span>
       <span style="flex:1;height:3px;border-radius:100px;background:#3a5468;"></span>
       <span style="flex:1;height:3px;border-radius:100px;background:#3a5468;"></span>
       <span style="flex:1;height:3px;border-radius:100px;background:#3a5468;"></span>
@@ -805,8 +827,8 @@ const SCREENS = {
       <span style="flex:1;height:3px;border-radius:100px;background:#3a5468;"></span>
     </div></div>
   <div style="padding:14px 14px 0;">
-    <div style="font-size:10px;font-family:var(--mono);color:#c85f16;text-transform:uppercase;">Étape 4 / 5 — nouveau</div>
-    <h2 style="font-size:17px;color:var(--navy);margin:2px 0 12px;">Photos</h2>
+    <div style="font-size:10px;font-family:var(--mono);color:#c85f16;text-transform:uppercase;">Page 5 / 6</div>
+    <h2 style="font-size:17px;color:var(--navy);margin:2px 0 12px;">Photos (avec légende)</h2>
   </div>
   <main class="content" style="padding-top:0;">
     <div class="row2" style="margin-bottom:12px;">
@@ -814,13 +836,10 @@ const SCREENS = {
       <div class="card" style="padding:0;aspect-ratio:1;display:flex;align-items:center;justify-content:center;color:#9aa7ad;font-size:24px;">＋</div>
     </div>
     <div class="field"><label>Légende de la photo</label><input placeholder="Ex : fuite constatée sous le ballon"/></div>
-    <div class="note">Champ "Type d'intervention" mis à jour : Dépannage, Garantie, Diagnostic (Entretien et Rendez-vous retirés — ils ont leurs propres flux).</div>
-    <div class="section-label">Statut de l'intervention <span class="count-pill">visible dès l'étape 5/5</span></div>
-    <div class="toggle-row">
-      <div class="t-label">Intervention terminée avec succès</div>
-      <div class="switch on"></div>
-    </div>
-    <button class="btn btn-primary">Continuer →</button>
+    <div class="note">Structure 18/09 : <strong>1/6</strong> Client (Nom, Adresse, CP, Ville et Type de bâtiment obligatoires) · <strong>2/6</strong> Intervention (Type, Date, Heures d'arrivée et de départ, Forfait déplacement Z0→Z3) · <strong>3/6</strong> Équipement · <strong>4/6</strong> Action réalisée & Pièces utilisées · <strong>5/6</strong> Photos · <strong>6/6</strong> Devis & Signature.</div>
+    <div class="note">Champ "Type d'intervention" : Dépannage, Garantie, Diagnostic (Entretien et Rendez-vous retirés — ils ont leurs propres flux).</div>
+    <div class="note blue">Page 6/6 : statut de l'intervention (<strong>À effectuer</strong> / Effectuée / Effectuée, suite à prévoir) saisi <strong>avant les signatures</strong> ; signatures possibles seulement si la fiche est terminée ; brouillon possible ; « Soumettre pour validation » seulement si signée — cf. écran <strong>Fin d'intervention</strong>.</div>
+    <button class="btn btn-primary">Continuer vers la page 6/6 →</button>
   </main>`
   },
   "duplication": {
@@ -861,7 +880,7 @@ const SCREENS = {
     <h2 style="font-size:17px;color:var(--navy);margin:2px 0 4px;">Désignation, référence, quantité</h2>
   </div>
   <main class="content" style="padding-top:6px;">
-    <div class="note" style="background:rgba(200,95,22,.08);border-color:rgba(200,95,22,.25);color:#8a3d0d;">⚠️ Point en suspens (US-23) — base de pièces à confirmer avec le client avant développement. Ce parcours illustre le comportement envisagé.</div>
+    <div class="note blue">✅ Arbitré le 19/08 (US-23) : base « désignation seule », alimentée par saisie manuelle — référence / prix / disponibilité réservés à un import ultérieur. Ce parcours illustre le comportement retenu (re-demandé dans la feuille 18/09, rubrique Général).</div>
 
     <div class="field" style="position:relative;">
       <label>Désignation *</label>
@@ -899,108 +918,285 @@ const SCREENS = {
   </main>`
   },
   "entretien_air_eau": {
-    title: "Nouvel entretien Air/Eau - Sol/Eau",
-    sub: "Fiche dédiée aux PAC géothermie et aérothermie — mesures propres à l'équipement (fluide frigorigène, températures eau, filtres…), distinctes de la fiche d'intervention générique.",
-    epic: 'Entretiens dédiés',
-    us: '16/08',
+    title: "Entretien Air/Eau - Sol/Eau — refonte 18/09",
+    sub: "Réaligné sur la feuille « Entretien Air.Eau Sol.E » (feuille de référence du classeur du 18/09) : 7 pages + fin d'intervention commune, passage des saisies libres aux listes fermées. Remplace la spécification du 16/08.",
+    epic: 'Entretiens dédiés — 18/09',
+    us: 'US-19',
     developed: false,
     html: `<div class="topbar"><div class="topbar-row">
-      <img class="logo" data-logo src="" alt="Climat Elec"/>
-      <div><h2>Entretien Air/Eau - Sol/Eau</h2><div class="sub">Identification client</div></div>
+      <button style="background:rgba(255,255,255,.1);border:none;color:#fff;width:26px;height:26px;border-radius:7px;">‹</button>
+      <div><h2>Entretien Air/Eau - Sol/Eau</h2><div class="sub">PAC géothermie / aérothermie</div></div>
       <div class="spacer"></div>
       <div class="avatar">JG</div>
-    </div></div>
-  <main class="content">
-    <div class="card" style="padding:14px;">
-      <div class="field"><label>Nom du client *</label><input value="Petit"/></div>
-      <div class="field"><label>Adresse *</label><input value="8 impasse des Tilleuls"/></div>
-      <div class="row2">
-        <div class="field"><label>Code postal *</label><input value="49500"/></div>
-        <div class="field"><label>Ville *</label><input value="Bécon-les-Granits"/></div>
-      </div>
-      <div class="row2">
-        <div class="field"><label>Téléphone *</label><input value="06 12 34 56 78"/></div>
-        <div class="field"><label>Mail *</label><input value="petit@mail.fr"/></div>
-      </div>
-      <div class="field"><label>Type de bâtiment *</label>
-        <select><option>Professionnel</option><option selected>- de 2 ans</option><option>+ de 2 ans</option><option>+ de 15 ans</option></select>
-      </div>
-      <div class="field"><label>Type d'entretien *</label>
-        <select><option selected>Air/Eau (aérothermie)</option><option>Sol/Eau (géothermie)</option></select>
-      </div>
     </div>
-    <div class="note blue">Étape suivante : fiche d'entretien Air/Eau - Sol/Eau (équipement, mesures groupe extérieur et circuit eau, pièces, devis, signatures).</div>
-    <button class="btn btn-primary">Continuer vers la fiche d'entretien →</button>
+    <div style="display:flex;gap:4px;padding:10px 16px 0;">
+      <span style="flex:1;height:3px;border-radius:100px;background:#3a5468;"></span>
+      <span style="flex:1;height:3px;border-radius:100px;background:#3a5468;"></span>
+      <span style="flex:1;height:3px;border-radius:100px;background:#3a5468;"></span>
+      <span style="flex:1;height:3px;border-radius:100px;background:linear-gradient(135deg,#2f86b4,#e8792a);"></span>
+      <span style="flex:1;height:3px;border-radius:100px;background:#3a5468;"></span>
+      <span style="flex:1;height:3px;border-radius:100px;background:#3a5468;"></span>
+      <span style="flex:1;height:3px;border-radius:100px;background:#3a5468;"></span>
+      <span style="flex:1;height:3px;border-radius:100px;background:#3a5468;"></span>
+    </div></div>
+  <div style="padding:14px 14px 0;">
+    <div style="font-size:10px;font-family:var(--mono);color:#c85f16;text-transform:uppercase;">Page 4 / 7</div>
+    <h2 style="font-size:17px;color:var(--navy);margin:2px 0 12px;">Vérification — Groupe extérieur</h2>
+  </div>
+  <main class="content" style="padding-top:0;">
+    <div class="note">Nouvelle structure (18/09) : <strong>1/7</strong> Client · <strong>2/7</strong> Entretien (Aérothermie / Géothermie / Aquathermie · date · heures d'arrivée et de départ · forfait déplacement Z0→Z3) · <strong>3/7</strong> Équipement (année d'installation, comme la fiche générique) · <strong>4/7</strong> Groupe extérieur · <strong>5/7</strong> Module hydraulique · <strong>6/7</strong> Observation / Photos · <strong>7/7</strong> Pièces utilisées · <strong>Fin</strong> Devis & Signature (règles communes).</div>
+
+    <div class="section-label">Groupe extérieur</div>
+    <div class="row2">
+      <div class="field"><label>Tension d'alimentation</label><select><option>Vérifiée</option><option>Absente</option><option>Non vérifiée</option><option>Non vérifiable</option></select></div>
+      <div class="field"><label>Ampérage de fonctionnement</label><select><option>Vérifié</option><option>Absente</option><option>Non vérifié</option><option>Non vérifiable</option></select></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label>Tension intercommunication</label><select><option>Vérifiée</option><option>Absente</option><option>Non vérifiée</option><option>Non vérifiable</option></select></div>
+      <div class="field"><label>Resserrage des bornes électriques</label><select><option selected>Oui</option><option>Non</option></select></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label>Pression fluide</label><select><option>Vérifiée</option><option>Non vérifiée</option><option>Non vérifiable</option></select></div>
+      <div class="field"><label>Type de fluide</label><select><option>R410A</option><option>R407C</option><option selected>R32</option><option>R290</option></select></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label>Charge d'usine</label><input value="1,85 kg"/></div>
+      <div class="field"><label>Sécurité anti-gel</label><select><option selected>Présent</option><option>Absent</option><option>Non concerné</option></select></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label>Valeur anti-gel</label><input value="-5 °C"/></div>
+      <div class="field"><label>Différence Entrée / Sortie d'air</label><input value="8 °C"/></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label>Nettoyage du groupe extérieur</label><select><option selected>Oui</option><option>Non</option></select></div>
+      <div class="field"><label>État visuel du groupe extérieur</label><select><option selected>Bon</option><option>Moyen</option><option>Très moyen</option></select></div>
+    </div>
+    <div class="field"><label>Vérification de fuite frigorigène</label><select><option selected>Vérifié</option><option>Non vérifié</option><option>Non vérifiable</option></select></div>
+
+    <div class="section-label">Page 5 / 7 — Vérification Module hydraulique</div>
+    <div class="row2">
+      <div class="field"><label>Tension d'alimentation</label><select><option>Vérifiée</option><option>Absente</option><option>Non vérifiée</option><option>Non vérifiable</option></select></div>
+      <div class="field"><label>Tension intercommunication</label><select><option>Vérifiée</option><option>Absente</option><option>Non vérifiée</option><option>Non vérifiable</option></select></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label>Resserrage des bornes électriques</label><select><option>Oui</option><option selected>Non</option></select></div>
+      <div class="field"><label>Delta T° d'eau Primaire</label><select><option>Vérifié</option><option>Non vérifié</option><option>Non vérifiable</option></select></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label>Delta T° Secondaire 1</label><select><option>Vérifié</option><option>Non vérifié</option><option>Non vérifiable</option><option selected>Non concerné</option></select></div>
+      <div class="field"><label>Delta T° Secondaire 2</label><select><option>Vérifié</option><option>Non vérifié</option><option>Non vérifiable</option><option>Non concerné</option></select></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label>Débit d'eau Primaire</label><select><option>Vérifié</option><option>Non vérifié</option><option>Non vérifiable</option></select></div>
+      <div class="field"><label>Débit d'eau Secondaire 1</label><select><option>Vérifié</option><option>Non vérifié</option><option>Non vérifiable</option><option selected>Non concerné</option></select></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label>Débit d'eau Secondaire 2</label><select><option>Vérifié</option><option>Non vérifié</option><option>Non vérifiable</option><option>Non concerné</option></select></div>
+      <div class="field"><label>Pression d'eau</label><input value="1,4 bar"/></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label>Nettoyage filtre à tamis</label><select><option selected>Oui</option><option>Non</option></select></div>
+      <div class="field"><label>État filtre à tamis</label><select><option selected>Bon</option><option>Moyen</option><option>A remplacer</option></select></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label>Nettoyage filtre à boue</label><select><option selected>Oui</option><option>Non</option></select></div>
+      <div class="field"><label>État filtre à boue</label><select><option>Bon</option><option>Moyen</option><option selected>A remplacer</option></select></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label>Disconnecteur</label><select><option selected>Présent</option><option>Absent</option></select></div>
+      <div class="field"><label>Mitigeur ECS</label><select><option selected>Présent</option><option>Absent</option><option>Non concerné</option></select></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label>Aquastat sécurité circuit 1</label><select><option selected>Présent</option><option>Absent</option><option>Non concerné</option></select></div>
+      <div class="field"><label>Aquastat sécurité circuit 2</label><select><option>Présent</option><option>Absent</option><option selected>Non concerné</option></select></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label>Nettoyage du module hydraulique</label><select><option selected>Oui</option><option>Non</option></select></div>
+      <div class="field"><label>État visuel du module hydraulique</label><select><option selected>Bon</option><option>Moyen</option><option>Très moyen</option></select></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label>Vanne d'équilibrage zone 1</label><select><option selected>Présent</option><option>Absent</option><option>Non concerné</option></select></div>
+      <div class="field"><label>Vanne d'équilibrage zone 2</label><select><option>Présent</option><option>Absent</option><option selected>Non concerné</option></select></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label>Émetteur zone 1</label><select><option selected>P. Chauffant</option><option>Radiateurs</option></select></div>
+      <div class="field"><label>Émetteur zone 2</label><select><option>P. Chauffant</option><option selected>Radiateurs</option></select></div>
+    </div>
+
+    <div class="note">⚠️ À confirmer : <strong>T° d'air extérieur</strong> (présente dans la fiche actuelle, absente de la feuille — retrait ou conservation ?) · champs sans liste de valeurs (« Charge d'usine », « Valeur anti-gel », « Différence Entrée / Sortie d'air », « Pression d'eau ») : saisie libre conservée, avec quelles unités ?</div>
+    <div class="note blue">Bloc CERFA n°15497 (une seule page) maintenu — cohérent avec la feuille, qui conserve les champs fluides frigorigènes en page 4. Pages 6/7 (Observation / Photos), 7/7 (Pièces avec autocomplétion) puis fin d'intervention commune (règles signatures, cf. écran dédié).</div>
+    <button class="btn btn-primary">Continuer vers la page 5/7 →</button>
   </main>`
   },
   "entretien_air_air": {
-    title: "Nouvel entretien Air/Air",
-    sub: "Fiche dédiée aux PAC air/air mono ou multi-split — jusqu'à 4 unités intérieures, mesures de température d'échange par unité.",
-    epic: 'Entretiens dédiés',
-    us: '16/08',
+    title: "Entretien Air/Air — refonte 18/09 · proposition métier",
+    sub: "La feuille « Entretien Air.Air » (« A FAIRE ») copie mot pour mot la fiche hydraulique Air/Eau-Sol/Eau : page 5 « Module hydraulique » sans objet pour une PAC air/air. Maquette = proposition métier ci-dessous, à arbitrer avec le client.",
+    epic: 'Entretiens dédiés — 18/09',
+    us: 'US-19',
     developed: false,
     html: `<div class="topbar"><div class="topbar-row">
-      <img class="logo" data-logo src="" alt="Climat Elec"/>
-      <div><h2>Entretien Air/Air</h2><div class="sub">Identification client</div></div>
+      <button style="background:rgba(255,255,255,.1);border:none;color:#fff;width:26px;height:26px;border-radius:7px;">‹</button>
+      <div><h2>Entretien Air/Air</h2><div class="sub">Mono ou multi-split</div></div>
       <div class="spacer"></div>
       <div class="avatar">JG</div>
-    </div></div>
-  <main class="content">
-    <div class="card" style="padding:14px;">
-      <div class="field"><label>Nom du client *</label><input value="Roy"/></div>
-      <div class="field"><label>Adresse *</label><input value="12 rue de la Mairie"/></div>
-      <div class="row2">
-        <div class="field"><label>Code postal *</label><input value="49440"/></div>
-        <div class="field"><label>Ville *</label><input value="Candé"/></div>
-      </div>
-      <div class="row2">
-        <div class="field"><label>Téléphone *</label><input value="06 98 76 54 32"/></div>
-        <div class="field"><label>Mail *</label><input value="roy@mail.fr"/></div>
-      </div>
-      <div class="field"><label>Type de bâtiment *</label>
-        <select><option selected>Professionnel</option><option>- de 2 ans</option><option>+ de 2 ans</option><option>+ de 15 ans</option></select>
-      </div>
-      <div class="field"><label>Type d'entretien *</label>
-        <select><option selected>Air/Air</option></select>
-      </div>
     </div>
-    <div class="note blue">Étape suivante : fiche d'entretien Air/Air (jusqu'à 4 unités intérieures, T° d'échange par unité, pièces, devis, signatures).</div>
-    <button class="btn btn-primary">Continuer vers la fiche d'entretien →</button>
+    <div style="display:flex;gap:4px;padding:10px 16px 0;">
+      <span style="flex:1;height:3px;border-radius:100px;background:#3a5468;"></span>
+      <span style="flex:1;height:3px;border-radius:100px;background:#3a5468;"></span>
+      <span style="flex:1;height:3px;border-radius:100px;background:#3a5468;"></span>
+      <span style="flex:1;height:3px;border-radius:100px;background:#3a5468;"></span>
+      <span style="flex:1;height:3px;border-radius:100px;background:linear-gradient(135deg,#2f86b4,#e8792a);"></span>
+      <span style="flex:1;height:3px;border-radius:100px;background:#3a5468;"></span>
+      <span style="flex:1;height:3px;border-radius:100px;background:#3a5468;"></span>
+      <span style="flex:1;height:3px;border-radius:100px;background:#3a5468;"></span>
+    </div></div>
+  <div style="padding:14px 14px 0;">
+    <div style="font-size:10px;font-family:var(--mono);color:#c85f16;text-transform:uppercase;">Page 5 / 7 — proposition</div>
+    <h2 style="font-size:17px;color:var(--navy);margin:2px 0 12px;">Unités intérieures</h2>
+  </div>
+  <main class="content" style="padding-top:0;">
+    <div class="note">⚠️ La feuille 18/09 reprend la feuille Air/Eau-Sol/Eau : page 5 « Module hydraulique » (filtres à tamis/boue, disconnecteur, aquastats, vannes d'équilibrage, émetteurs, Delta T°, débits, pression d'eau), liste « Aérothermie / Géothermie / Aquathermie », 3 lignes d'équipement — sans objet pour une PAC air/air (pas de circuit d'eau). <strong>Proposition métier</strong> : remplacer la page 5 par « Unités intérieures » et conserver le reste de la structure commune (pagination, listes fermées page 4, fin d'intervention).</div>
+
+    <div class="section-label">Unités intérieures</div>
+    <div class="row2">
+      <div class="field"><label>Nettoyage des filtres intérieurs</label><select><option selected>Oui</option><option>Non</option><option>Non concerné</option></select></div>
+      <div class="field"><label>État des filtres</label><select><option selected>Bon</option><option>Moyen</option><option>A remplacer</option></select></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label>Nettoyage pompe de relevage condensats</label><select><option selected>Oui</option><option>Non</option><option>Non concerné</option></select></div>
+      <div class="field"><label>T° d'échange groupe extérieur</label><input value="52 °C"/></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label>T° d'échange unité intérieure 1</label><input value="19 °C"/></div>
+      <div class="field"><label>T° d'échange unité intérieure 2</label><input value="21 °C"/></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label>T° d'échange unité intérieure 3</label><input placeholder="— non concerné —"/></div>
+      <div class="field"><label>T° d'échange unité intérieure 4</label><input placeholder="— non concerné —"/></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label>État visuel des unités intérieures</label><select><option selected>Bon</option><option>Moyen</option><option>Très moyen</option></select></div>
+      <div class="field"><label>T° d'air extérieur</label><input value="14 °C"/></div>
+    </div>
+
+    <div class="note blue">Page 4 « Vérification Groupe extérieur » : identique à la fiche Air/Eau-Sol/Eau (fluides frigorigènes conservés — CERFA n°15497 maintenu). « GWP du fluide » : retiré par la feuille — à confirmer (utile au CERFA).</div>
+    <div class="note">Équipement : proposition — conserver <strong>5 lignes</strong> (1 unité extérieure + jusqu'à 4 unités intérieures) au lieu de 3 (feuille), afin de décrire un multi-split. Option feuille : appliquer la page hydraulique telle quelle — déconseillé.</div>
+    <button class="btn btn-primary">Continuer vers la page 6/7 →</button>
   </main>`
   },
   "entretien_chaudiere_bois": {
-    title: "Nouvel entretien Chaudière bois",
-    sub: "Fiche dédiée chaudière granulés/bûches/déchiqueté — champ supplémentaire « Prochaine intervention prévue » en plus du statut habituel.",
-    epic: 'Entretiens dédiés',
-    us: '16/08',
+    title: "Entretien Chaudière bois — refonte 18/09 · proposition métier",
+    sub: "Réaligné sur la structure commune (7 pages + fin d'intervention) : page « Groupe extérieur » remplacée par « Vérification chaudière bois » (mesures combustion réintégrées, perdues dans la feuille) ; page « Module hydraulique » conservée (circuit d'eau réel).",
+    epic: 'Entretiens dédiés — 18/09',
+    us: 'US-19',
     developed: false,
     html: `<div class="topbar"><div class="topbar-row">
-      <img class="logo" data-logo src="" alt="Climat Elec"/>
-      <div><h2>Entretien Chaudière bois</h2><div class="sub">Identification client</div></div>
+      <button style="background:rgba(255,255,255,.1);border:none;color:#fff;width:26px;height:26px;border-radius:7px;">‹</button>
+      <div><h2>Entretien Chaudière bois</h2><div class="sub">Granulés / Bûches / Pellets</div></div>
       <div class="spacer"></div>
       <div class="avatar">JG</div>
-    </div></div>
-  <main class="content">
-    <div class="card" style="padding:14px;">
-      <div class="field"><label>Nom du client *</label><input value="Blanchard"/></div>
-      <div class="field"><label>Adresse *</label><input value="2 chemin du Moulin"/></div>
-      <div class="row2">
-        <div class="field"><label>Code postal *</label><input value="49500"/></div>
-        <div class="field"><label>Ville *</label><input value="Chazé-sur-Argos"/></div>
-      </div>
-      <div class="row2">
-        <div class="field"><label>Téléphone *</label><input value="06 11 22 33 44"/></div>
-        <div class="field"><label>Mail *</label><input value="blanchard@mail.fr"/></div>
-      </div>
-      <div class="field"><label>Type de bâtiment *</label>
-        <select><option>Professionnel</option><option>- de 2 ans</option><option selected>+ de 2 ans</option><option>+ de 15 ans</option></select>
-      </div>
-      <div class="field"><label>Type d'entretien *</label>
-        <select><option selected>Granulés</option><option>Bûches</option><option>Déchiqueté</option></select>
-      </div>
     </div>
-    <div class="note blue">Étape suivante : fiche d'entretien Chaudière bois (combustion, silo, chambre de combustion, pièces, devis, signatures + « Prochaine intervention prévue »).</div>
-    <button class="btn btn-primary">Continuer vers la fiche d'entretien →</button>
+    <div style="display:flex;gap:4px;padding:10px 16px 0;">
+      <span style="flex:1;height:3px;border-radius:100px;background:#3a5468;"></span>
+      <span style="flex:1;height:3px;border-radius:100px;background:#3a5468;"></span>
+      <span style="flex:1;height:3px;border-radius:100px;background:#3a5468;"></span>
+      <span style="flex:1;height:3px;border-radius:100px;background:linear-gradient(135deg,#2f86b4,#e8792a);"></span>
+      <span style="flex:1;height:3px;border-radius:100px;background:#3a5468;"></span>
+      <span style="flex:1;height:3px;border-radius:100px;background:#3a5468;"></span>
+      <span style="flex:1;height:3px;border-radius:100px;background:#3a5468;"></span>
+      <span style="flex:1;height:3px;border-radius:100px;background:#3a5468;"></span>
+    </div></div>
+  <div style="padding:14px 14px 0;">
+    <div style="font-size:10px;font-family:var(--mono);color:#c85f16;text-transform:uppercase;">Page 4 / 7 — proposition</div>
+    <h2 style="font-size:17px;color:var(--navy);margin:2px 0 12px;">Vérification chaudière bois</h2>
+  </div>
+  <main class="content" style="padding-top:0;">
+    <div class="note">⚠️ La feuille 18/09 copie la fiche Air/Eau-Sol/Eau : liste « Aérothermie / Géothermie / Aquathermie » (sans objet — proposition : <strong>Granulés / Bûches / Pellets</strong>, liste d'origine) et bloc fluides frigorigènes (sans objet). <strong>Proposition métier</strong> : réintégrer les mesures spécifiques chaudière bois disparues de la feuille, sans perdre le suivi de l'entretien.</div>
+
+    <div class="section-label">Combustion & granulés</div>
+    <div class="row2">
+      <div class="field"><label>Étalonnage granulés</label><select><option selected>Oui</option><option>Non</option></select></div>
+      <div class="field"><label>Test remplissage granulés</label><select><option selected>Oui</option><option>Non</option></select></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label>Test de combustion</label><select><option selected>Effectué</option><option>À revoir</option><option>Non effectué</option></select></div>
+      <div class="field"><label>Test bougie d'allumage</label><select><option selected>Fonctionne</option><option>À remplacer</option><option>Non concerné</option></select></div>
+    </div>
+    <div class="field"><label>Test clapet coupe-feu</label><select><option selected>Fonctionne</option><option>À revoir</option><option>Non concerné</option></select></div>
+
+    <div class="section-label">Nettoyage & état</div>
+    <div class="row2">
+      <div class="field"><label>Nettoyage WOS (échangeur)</label><select><option selected>Oui</option><option>Non</option></select></div>
+      <div class="field"><label>État du WOS</label><select><option selected>Bon</option><option>Moyen</option><option>A remplacer</option></select></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label>Nettoyage creuset</label><select><option selected>Oui</option><option>Non</option></select></div>
+      <div class="field"><label>État du creuset</label><select><option selected>Bon</option><option>Moyen</option><option>A remplacer</option></select></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label>Nettoyage cendrier</label><select><option selected>Oui</option><option>Non</option></select></div>
+      <div class="field"><label>Nettoyage sonde lambda</label><select><option selected>Oui</option><option>Non</option></select></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label>Nettoyage chambre de combustion</label><select><option selected>Oui</option><option>Non</option></select></div>
+      <div class="field"><label>Nettoyage chaudière</label><select><option selected>Oui</option><option>Non</option></select></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label>Nettoyage silo interne</label><select><option>Oui</option><option selected>Non</option></select></div>
+      <div class="field"><label>État visuel chaudière</label><select><option selected>Bon</option><option>Moyen</option><option>Très moyen</option></select></div>
+    </div>
+    <div class="field"><label>État visuel silo interne</label><select><option selected>Bon</option><option>Moyen</option><option>Très moyen</option></select></div>
+
+    <div class="note blue">Page 5 « Vérification Module hydraulique » : conservée — la chaudière bois a un circuit d'eau réel ; champs identiques à la page 5 de la fiche Air/Eau-Sol/Eau (feuille). Blocs fluides frigorigènes retirés → CERFA n°15497 non applicable.</div>
+    <div class="note">« Prochaine intervention prévue » conservé en fin de fiche (donnée déjà portée par les fiches existantes) ; signatures & sortie de fiche : règles communes (cf. écran « Fin d'intervention »).</div>
+    <button class="btn btn-primary">Continuer vers la page 5/7 →</button>
+  </main>`
+  },
+  "fin_intervention": {
+    title: "Fin d'intervention — règles statut & signatures (18/09)",
+    sub: "Page finale commune à « Nouvelle intervention » et aux 3 fiches d'entretien : statut saisi avant les signatures, signatures débloquées uniquement si la fiche est terminée, « Soumettre pour validation » seulement si signée.",
+    epic: 'Refonte 18/09 — à valider',
+    us: '18/09',
+    developed: false,
+    html: `<div class="topbar"><div class="topbar-row">
+      <button style="background:rgba(255,255,255,.1);border:none;color:#fff;width:26px;height:26px;border-radius:7px;">‹</button>
+      <div><h2>Devis & Signature</h2><div class="sub">Fiche générique & entretiens</div></div>
+      <div class="spacer"></div>
+      <div class="avatar">JG</div>
+    </div>
+    <div style="display:flex;gap:4px;padding:10px 16px 0;">
+      <span style="flex:1;height:3px;border-radius:100px;background:#3a5468;"></span>
+      <span style="flex:1;height:3px;border-radius:100px;background:#3a5468;"></span>
+      <span style="flex:1;height:3px;border-radius:100px;background:#3a5468;"></span>
+      <span style="flex:1;height:3px;border-radius:100px;background:#3a5468;"></span>
+      <span style="flex:1;height:3px;border-radius:100px;background:#3a5468;"></span>
+      <span style="flex:1;height:3px;border-radius:100px;background:linear-gradient(135deg,#2f86b4,#e8792a);"></span>
+    </div></div>
+  <div style="padding:14px 14px 0;">
+    <div style="font-size:10px;font-family:var(--mono);color:#c85f16;text-transform:uppercase;">Page 6 / 6 — commune à toutes les fiches</div>
+    <h2 style="font-size:17px;color:var(--navy);margin:2px 0 12px;">Devis & Signature</h2>
+  </div>
+  <main class="content" style="padding-top:0;">
+    <div class="note blue">Règles issues de la feuille du 18/09, partagées par « Nouvelle intervention » ET les 3 fiches d'entretien : le statut est saisi/affiché <strong>avant les signatures</strong> ; les signatures ne sont possibles que si le statut est « terminée » ; « Soumettre pour validation » seulement si la fiche est signée ; « Enregistrer comme brouillon » conservé.</div>
+
+    <div class="section-label">Statut de la fiche — avant les signatures</div>
+    <div class="field"><label>Statut de l'intervention</label><select><option>À effectuer</option><option selected>Effectuée</option><option>Effectuée, suite à prévoir</option></select></div>
+    <div class="note">Ici, statut « Effectuée » = fiche terminée → les signatures sont <strong>débloquées</strong>. Si « À effectuer » : zones signatures verrouillées ci-dessous.</div>
+
+    <div class="row2">
+      <div class="card" style="padding:16px 10px;text-align:center;font-size:11.5px;color:var(--muted);border-style:dashed;background:#f4f6f7;">✍️ <strong>Signature technicien</strong><br/>Obligatoire</div>
+      <div class="card" style="padding:16px 10px;text-align:center;font-size:11.5px;color:var(--muted);border-style:dashed;background:#f4f6f7;">✍️ <strong>Signature client</strong><br/>Obligatoire si présent</div>
+    </div>
+
+    <div class="section-label">Devis & confirmation</div>
+    <div class="toggle-row"><div><div class="t-label">Devis souhaité</div><div class="t-hint">PDF importé plus tard depuis le logiciel externe — ne bloque jamais la facturation</div></div><div class="switch on"></div></div>
+    <div class="toggle-row"><div><div class="t-label">Page ok — fiche complète et vérifiée</div><div class="t-hint">Case de confirmation de page (libellé à clarifier avec le client)</div></div><div class="switch on"></div></div>
+
+    <div class="section-label">Sortie de fiche</div>
+    <button class="btn btn-ghost">Enregistrer comme brouillon</button>
+    <button class="btn btn-primary">Soumettre pour validation</button>
+    <div class="note">« Soumettre pour validation » : possible <strong>seulement si la fiche est signée</strong> (bouton désactivé sinon). Le brouillon reste modifiable à chaque étape et apparaît dans l'onglet Tâches.</div>
+    <button class="btn btn-accent">Générer & partager le PDF</button>
   </main>`
   },
 };
