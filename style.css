@@ -417,6 +417,18 @@ main{flex:1;padding:14px 14px calc(90px + var(--safe-bottom));}
 .block-title{font-weight:700;font-size:13px;color:var(--ce-navy-2);padding:12px 14px 6px;}
 .block-text{padding:0 14px 14px;font-size:14px;line-height:1.55;color:var(--ce-text);white-space:pre-wrap;}
 
+/* ---------- Mesures des fiches d'entretien (refonte 18/09) ---------- */
+.mesure-field{
+  width:100%;
+  padding:8px 9px;
+  border:1px solid var(--ce-border);
+  border-radius:8px;
+  font-size:13.5px;
+  color:var(--ce-text);
+  background:#fff;
+}
+.kv .k .hint{font-size:10.5px;color:var(--ce-text-muted);margin-top:0;}
+
 /* ---------- Toast ---------- */
 .toast{
   position:fixed;left:50%;bottom:calc(30px + var(--safe-bottom));transform:translateX(-50%) translateY(20px);

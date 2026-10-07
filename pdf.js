@@ -35,16 +35,30 @@ function loadImage(src) {
   });
 }
 
+// Format jsPDF déduit du type mime du dataURL (sinon JPEG par défaut).
+function imageFormat(url) {
+  return String(url || "").startsWith("data:image/png") ? "PNG" : "JPEG";
+}
+
 async function generateInterventionPDF(itv, client) {
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit: "pt", format: "a4" });
   const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
   const margin = 40;
+  const pageBottom = pageH - 46; // zone du pied de page réservée (815 pt)
   let y = 34;
 
   const NAVY = [22, 48, 63];
   const GREY = [110, 122, 130];
   const LIGHT = [244, 246, 247];
+
+  // Saut de page automatique : chaque section / ligne vérifie la place
+  // disponible avant de dessiner, pour qu'aucune donnée ne passe sous le
+  // bord bas de la page (fiches d'entretien longues).
+  const ensureSpace = (h) => {
+    if (y + h > pageBottom) { doc.addPage(); y = 50; }
+  };
 
   // ---- Bannière logo (image réelle extraite du PDF d'origine) ----
   const logoH = 75;
@@ -70,6 +84,7 @@ async function generateInterventionPDF(itv, client) {
   y += 10;
 
   const sectionTitle = (label) => {
+    ensureSpace(34);
     doc.setFillColor(...LIGHT);
     doc.rect(margin, y, pageW - margin * 2, 16, "F");
     doc.setFont("helvetica", "bold");
@@ -79,6 +94,8 @@ async function generateInterventionPDF(itv, client) {
     y += 14 + 10;
   };
 
+  // Dessine un couple label (gris) / valeur (gras, retournée à la ligne dans
+  // la largeur w) et retourne le nombre de lignes de valeur.
   const kv = (label, value, x, w) => {
     doc.setFont("helvetica", "normal");
     doc.setFontSize(7.5);
@@ -88,40 +105,74 @@ async function generateInterventionPDF(itv, client) {
     doc.setFontSize(9.5);
     doc.setTextColor(...NAVY);
     const text = value && String(value).trim() ? String(value) : "-";
-    doc.text(doc.splitTextToSize(text, w), x, y + 11);
+    const lines = doc.splitTextToSize(text, w);
+    doc.text(lines, x, y + 11);
+    return lines.length;
+  };
+
+  // Ligne de couples [label, valeur, x, largeur] : avance de la hauteur max.
+  const kvRows = (...items) => {
+    const counts = items.map(([label, value, x, w]) => kv(label, value, x, w));
+    y += Math.max(...counts) * 12 + 11;
   };
 
   const colW = (pageW - margin * 2 - 20) / 2;
 
+  // Modèle d'entretien (refonte 18/09) si la fiche porte un type d'entretien.
+  const metaITV = itv.type_entretien
+    ? (typeof ENTRETIEN_META !== "undefined" ? (ENTRETIEN_META[itv.type_entretien] || null) : null)
+    : null;
+
   // ---- Client ----
   sectionTitle("Client");
-  kv("Nom", client?.nom, margin, colW);
-  kv("Ville", client ? `${client.code_postal || ""} ${client.ville || ""}`.trim() : "", margin + colW + 20, colW);
-  y += 24;
-  kv("Adresse", client?.adresse, margin, colW);
-  kv("Type de bâtiment", client?.type_batiment, margin + colW + 20, colW);
-  y += 24;
-  kv("Téléphone", client?.tel, margin, colW);
-  kv("Mail", client?.mail, margin + colW + 20, colW);
-  y += 20;
+  kvRows(
+    ["Nom", client?.nom, margin, colW],
+    ["Ville", client ? `${client.code_postal || ""} ${client.ville || ""}`.trim() : "", margin + colW + 20, colW],
+  );
+  kvRows(
+    ["Adresse", client?.adresse, margin, colW],
+    ["Type de bâtiment", client?.type_batiment, margin + colW + 20, colW],
+  );
+  kvRows(
+    ["Téléphone", client?.tel, margin, colW],
+    ["Mail", client?.mail, margin + colW + 20, colW],
+  );
 
   // ---- Intervention ----
   sectionTitle("Intervention");
-  kv("Type", itv.type_intervention, margin, colW);
-  kv("Date", fmtDate(itv.date), margin + colW + 20, colW);
-  y += 24;
-  kv("Heure d'arrivée", itv.heure_arrivee, margin, colW / 2 - 5);
-  kv("Heure de départ", itv.heure_depart, margin + colW / 2 + 15, colW / 2 - 5);
-  kv("Temps d'intervention", computeDuration(itv.heure_arrivee, itv.heure_depart), margin + colW + 20, colW);
-  y += 24;
-  kv("Forfait déplacement", itv.forfait_deplacement, margin, colW);
-  kv("Statut", itv.statut === "terminee" ? "Effectuée" : itv.statut === "terminee_suite" ? "Effectuée, suite à prévoir" : "À effectuer", margin + colW + 20, colW);
-  y += 20;
+  if (metaITV) {
+    // Libellé + type d'entretien détaillé (ex. « Entretien Air/Eau - Sol/Eau — Géothermie »).
+    kvRows(["Type d'entretien", `${metaITV.label}${itv.type_entretien_detail ? ` — ${itv.type_entretien_detail}` : ""}`, margin, pageW - margin * 2]);
+  }
+  kvRows(
+    ["Type", itv.type_intervention, margin, colW],
+    ["Date", fmtDate(itv.date), margin + colW + 20, colW],
+  );
+  kvRows(
+    ["Heure d'arrivée", itv.heure_arrivee, margin, colW / 2 - 5],
+    ["Heure de départ", itv.heure_depart, margin + colW / 2 + 15, colW / 2 - 5],
+    ["Temps d'intervention", computeDuration(itv.heure_arrivee, itv.heure_depart), margin + colW + 20, colW],
+  );
+  kvRows(
+    ["Forfait déplacement", itv.forfait_deplacement, margin, colW],
+    ["Statut", itv.statut === "terminee" ? "Effectuée" : itv.statut === "terminee_suite" ? "Effectuée, suite à prévoir" : "À effectuer", margin + colW + 20, colW],
+  );
 
   // ---- Équipement ----
-  if (itv.equipements && itv.equipements.length) {
+  if ((itv.equipements && itv.equipements.length) || itv.annee_installation) {
     sectionTitle("Équipement");
+    if (itv.annee_installation) {
+      kvRows(["Année d'installation", itv.annee_installation, margin, colW / 2 - 5]);
+    }
     itv.equipements.forEach((eq) => {
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8.5);
+      doc.setTextColor(...GREY);
+      const detail = doc.splitTextToSize(
+        `Marque : ${eq.marque || "-"}    Modèle : ${eq.modele || "-"}    N° série : ${eq.numero_serie || "-"}`,
+        pageW - margin * 2,
+      );
+      ensureSpace(14 + detail.length * 11 + 4);
       doc.setFont("helvetica", "bold");
       doc.setFontSize(9.5);
       doc.setTextColor(...NAVY);
@@ -129,8 +180,8 @@ async function generateInterventionPDF(itv, client) {
       doc.setFont("helvetica", "normal");
       doc.setFontSize(8.5);
       doc.setTextColor(...GREY);
-      doc.text(`Marque : ${eq.marque || "-"}    Modèle : ${eq.modele || "-"}    N° série : ${eq.numero_serie || "-"}`, margin, y + 12);
-      y += 24;
+      doc.text(detail, margin, y + 12);
+      y += 14 + detail.length * 11 + 4;
     });
     y += 4;
   }
@@ -142,11 +193,18 @@ async function generateInterventionPDF(itv, client) {
     doc.setFontSize(9.5);
     doc.setTextColor(...NAVY);
     const lines = doc.splitTextToSize(content && content.trim() ? content : "-", pageW - margin * 2 - 10);
-    doc.text(lines, margin + 5, y);
-    y += lines.length * 12 + 16;
+    lines.forEach((ln) => {
+      ensureSpace(14);
+      doc.text(ln, margin + 5, y);
+      y += 12;
+    });
+    y += 6;
   };
-  textBlock("Descriptif de la demande", itv.descriptif_demande);
-  textBlock("Action réalisée", itv.action_realisee);
+  // Les fiches d'entretien n'ont pas descriptif : bloc masqué si vide.
+  if (!metaITV || (itv.descriptif_demande || "").trim()) {
+    textBlock("Descriptif de la demande", itv.descriptif_demande);
+  }
+  textBlock(metaITV ? "Remarque / Observation" : "Action réalisée", itv.action_realisee);
 
   // ---- Pièces utilisées ----
   if (itv.pieces && itv.pieces.length) {
@@ -165,78 +223,132 @@ async function generateInterventionPDF(itv, client) {
     doc.setFontSize(9);
     doc.setTextColor(...NAVY);
     itv.pieces.forEach((p) => {
-      doc.text(p.designation || "-", margin, y);
-      doc.text(p.reference || "-", margin + colW * 0.9, y);
+      const dLines = doc.splitTextToSize(p.designation || "-", colW * 0.85);
+      const rLines = doc.splitTextToSize(p.reference || "-", colW * 0.9);
+      ensureSpace(Math.max(dLines.length, rLines.length) * 12 + 4);
+      doc.text(dLines, margin, y);
+      doc.text(rLines, margin + colW * 0.9, y);
       doc.text(String(p.quantite ?? "-"), pageW - margin - 20, y, { align: "right" });
-      y += 16;
+      y += Math.max(dLines.length, rLines.length) * 12 + 4;
     });
-    y += 10;
+    y += 8;
   }
 
-  // ---- Mesures (fiches d'entretien) ----
+  // ---- Mesures (fiches d'entretien — refonte 18/09 : une section par page 4/5) ----
   const mesures = (itv.mesures || []).filter((m) => !String(m.code).startsWith("cerfa_"));
+  // Colonnes partagées mesure / CERFA : libellé à gauche, valeur alignée à droite.
+  const valueW = 140;
+  const labelW = pageW - margin * 2 - valueW - 10;
+  const rowMesureWith = (m) => {
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(...GREY);
+    const libLines = doc.splitTextToSize(m.libelle || "-", labelW);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(...NAVY);
+    const valLines = doc.splitTextToSize(`${m.valeur || ""} ${m.unite || ""}`.trim() || "-", valueW);
+    ensureSpace(Math.max(libLines.length, valLines.length) * 12 + 4);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.setTextColor(...GREY);
+    doc.text(libLines, margin, y);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(...NAVY);
+    doc.text(valLines, pageW - margin, y, { align: "right" });
+    y += Math.max(libLines.length, valLines.length) * 12 + 4;
+  };
   if (mesures.length) {
-    if (y > 620) { doc.addPage(); y = 50; }
     sectionTitle("Mesures");
-    mesures.forEach((m) => {
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(9);
-      doc.setTextColor(...GREY);
-      doc.text(m.libelle || "-", margin, y);
+    const rowMesure = rowMesureWith;
+    const subHeader = (label) => {
+      ensureSpace(30);
       doc.setFont("helvetica", "bold");
+      doc.setFontSize(9);
       doc.setTextColor(...NAVY);
-      doc.text(`${m.valeur || "-"} ${m.unite || ""}`.trim(), pageW - margin - 120, y);
+      doc.text(label, margin, y);
       y += 16;
-    });
+    };
+    if (metaITV) {
+      // Regroupement par page du modèle (Vérification Groupe extérieur / Module
+      // hydraulique / Vérification chaudière bois…), puis mesures orphelines
+      // (anciens codes) sous « Autres mesures ».
+      const used = new Set();
+      for (const s of metaITV.mesures) {
+        const items = mesures.filter((m) => s.items.some((i) => i.code === m.code));
+        if (!items.length) continue;
+        items.forEach((m) => used.add(m.code));
+        subHeader(s.section);
+        items.forEach(rowMesure);
+      }
+      const others = mesures.filter((m) => !used.has(m.code));
+      if (others.length) {
+        subHeader("Autres mesures");
+        others.forEach(rowMesure);
+      }
+    } else {
+      mesures.forEach(rowMesure);
+    }
     y += 10;
   }
 
   // ---- CERFA n°15497 ----
-  const cerfa = (itv.mesures || []).filter((m) => String(m.code).startsWith("cerfa_"));
+  const cerfa = (itv.mesures || [])
+    .filter((m) => String(m.code).startsWith("cerfa_"))
+    // l'unité « Oui / Non » est une indication de saisie, pas une unité à imprimer
+    .map((m) => ({ ...m, unite: (m.unite || "").includes("/") ? "" : (m.unite || "") }));
   if (cerfa.length) {
-    if (y > 640) { doc.addPage(); y = 50; }
     sectionTitle("CERFA n°15497 — Fluides frigorigènes");
-    cerfa.forEach((m) => {
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(9);
-      doc.setTextColor(...GREY);
-      doc.text(m.libelle || "-", margin, y);
-      doc.setFont("helvetica", "bold");
-      doc.setTextColor(...NAVY);
-      doc.text(m.valeur || "-", pageW - margin - 120, y);
-      y += 16;
-    });
+    cerfa.forEach(rowMesureWith);
     y += 10;
   }
 
-  // ---- Photos ----
+  // ---- Photos (page dédiée, grille 2 colonnes, ratio préservé) ----
   if (itv.photos && itv.photos.length) {
     doc.addPage();
     y = 50;
     sectionTitle("Photos");
     const photoW = (pageW - margin * 2 - 20) / 2;
-    const photoH = 160;
-    let col = 0;
-    for (const ph of itv.photos) {
-      if (!ph.data_url) continue;
-      const img = await loadImage(ph.data_url);
-      const x = margin + (col === 0 ? 0 : photoW + 20);
-      if (img) doc.addImage(img, "JPEG", x, y, photoW, photoH);
-      else { doc.setDrawColor(...LIGHT); doc.rect(x, y, photoW, photoH); }
-      if (ph.legende) {
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(8.5);
-        doc.setTextColor(...GREY);
-        doc.text(doc.splitTextToSize(ph.legende, photoW), x, y + photoH + 12);
+    const photoMaxH = 180;
+    for (let i = 0; i < itv.photos.length; i += 2) {
+      const els = [];
+      for (let j = i; j < Math.min(i + 2, itv.photos.length); j++) {
+        const ph = itv.photos[j];
+        if (!ph.data_url) continue;
+        const img = await loadImage(ph.data_url);
+        // Ajuste au cadre sans déformation (largeur photoW, hauteur bornée).
+        let drawH = photoMaxH, drawW = photoW, offsetW = 0;
+        if (img) {
+          const s = Math.min(photoW / img.width, photoMaxH / img.height);
+          drawW = img.width * s;
+          drawH = img.height * s;
+          offsetW = (photoW - drawW) / 2;
+        }
+        const caps = ph.legende
+          ? doc.splitTextToSize(ph.legende, photoW).slice(0, 3)
+          : [];
+        els.push({ ph, img, drawW, drawH, offsetW, caps });
       }
-      col++;
-      if (col === 2) { col = 0; y += photoH + 34; }
+      if (!els.length) continue;
+      const rowH = Math.max(...els.map((e) => e.drawH + (e.caps.length ? e.caps.length * 10 + 8 : 0)));
+      ensureSpace(rowH + 20);
+      els.forEach((e, j) => {
+        const x = margin + j * (photoW + 20) + e.offsetW;
+        if (e.img) doc.addImage(e.img, imageFormat(e.ph.data_url), x, y, e.drawW, e.drawH);
+        else { doc.setDrawColor(...LIGHT); doc.rect(margin + j * (photoW + 20), y, photoW, e.drawH); }
+        if (e.caps.length) {
+          doc.setFont("helvetica", "normal");
+          doc.setFontSize(8.5);
+          doc.setTextColor(...GREY);
+          doc.text(e.caps, margin + j * (photoW + 20), y + e.drawH + 12);
+        }
+      });
+      y += rowH + 18;
     }
-    if (col !== 0) y += photoH + 20;
-    y += 10;
+    y += 8;
   }
 
   // ---- Devis ----
+  ensureSpace(46);
   sectionTitle("Devis");
   doc.setFont("helvetica", "bold");
   doc.setFontSize(9.5);
@@ -247,14 +359,25 @@ async function generateInterventionPDF(itv, client) {
     doc.setFont("helvetica", "normal");
     doc.setFontSize(9);
     doc.setTextColor(...GREY);
-    const lines = doc.splitTextToSize(itv.devis_commentaire, pageW - margin * 2 - 10);
-    doc.text(lines, margin + 5, y);
-    y += lines.length * 12;
+    doc.splitTextToSize(itv.devis_commentaire, pageW - margin * 2 - 10).forEach((ln) => {
+      ensureSpace(14);
+      doc.text(ln, margin + 5, y);
+      y += 12;
+    });
   }
-  y += 20;
+  // Chaudière bois : mention « Prochaine intervention prévue » (page finale).
+  if (metaITV?.prochaine) {
+    ensureSpace(22);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9.5);
+    doc.setTextColor(...NAVY);
+    doc.text(`Prochaine intervention prévue : ${itv.prochaine_intervention_prevue ? "Oui" : "Non"}`, margin, y);
+    y += 18;
+  }
+  y += 6;
 
   // ---- Signatures ----
-  if (y > 680) { doc.addPage(); y = 50; }
+  ensureSpace(118);
   sectionTitle("Signatures");
   const sigColW = (pageW - margin * 2 - 20) / 2;
   doc.setDrawColor(...LIGHT);
@@ -275,7 +398,7 @@ async function generateInterventionPDF(itv, client) {
     if (!url) return false;
     try {
       const img = await loadImage(url);
-      if (img) { doc.addImage(img, "PNG", x, y, w, h); return true; }
+      if (img) { doc.addImage(img, imageFormat(url), x, y, w, h); return true; }
     } catch (e) { console.warn("Signature non chargée", e); }
     return false;
   };

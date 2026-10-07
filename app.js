@@ -80,48 +80,106 @@ const WORKFLOW_NEXT = {
 };
 
 // ---------------------------------------------------------
-// Modèles de fiches d'entretien (US-19)
+// Modèles de fiches d'entretien (US-19) — refonte 18/09 (§3.2.11 / §3.2.12)
+// Chaque champ de mesure porte soit une liste fermée (`options`, feuille 18/09),
+// soit une saisie libre avec unité (`unite`). Les blocs des pages 4-5
+// (« Vérification Groupe extérieur » / « Vérification Module hydraulique »)
+// sont partagés entre les fiches ; la chaudière bois applique la proposition
+// métier du 05/10/2026 (page 4 « Vérification chaudière bois »).
 // ---------------------------------------------------------
+const LISTES_MESURES = {
+  verifFem: ["Absente", "Vérifiée", "Non vérifiée", "Non vérifiable"],
+  verifMasc: ["Absent", "Vérifié", "Non vérifié", "Non vérifiable"],
+  verifNC: ["Vérifié", "Non vérifié", "Non vérifiable", "Non concerné"],
+  ouiNon: ["Oui", "Non"],
+  typeFluide: ["R410A", "R407C", "R32", "R290"],
+  presentAbsent: ["Présent", "Absent"],
+  presentAbsentNC: ["Présent", "Absent", "Non concerné"],
+  etatVisuel: ["Bon", "Moyen", "Très moyen"],
+  etatRemplacer: ["Bon", "Moyen", "A remplacer"],
+  emetteur: ["P. Chauffant", "Radiateurs"],
+  combustion: ["Effectué", "À revoir", "Non effectué"],
+  bougie: ["Fonctionne", "À remplacer", "Non concerné"],
+  clapet: ["Fonctionne", "À revoir", "Non concerné"],
+};
+
+// Page 4 — « Vérification Groupe extérieur » (valeurs de la feuille Air.Eau Sol.E).
+const BLOC_GROUPE_EXTERIEUR = [
+  { code: "ge_tension_alim", libelle: "Tension d'alimentation", options: LISTES_MESURES.verifFem },
+  { code: "ge_amperage", libelle: "Ampérage de fonctionnement", options: LISTES_MESURES.verifMasc },
+  { code: "ge_tension_intercom", libelle: "Tension intercommunication", options: LISTES_MESURES.verifFem },
+  { code: "ge_resserrage_bornes", libelle: "Resserrage des bornes électrique", options: LISTES_MESURES.ouiNon },
+  { code: "ge_pression_fluide", libelle: "Pression fluide", options: LISTES_MESURES.verifFem },
+  { code: "ge_type_fluide", libelle: "Type de fluide", options: LISTES_MESURES.typeFluide },
+  { code: "ge_charge_usine", libelle: "Charge d'usine", unite: "kg" },
+  { code: "ge_antigel", libelle: "Sécurité anti-gel", options: LISTES_MESURES.presentAbsentNC },
+  { code: "ge_valeur_antigel", libelle: "Valeur anti-gel" },
+  { code: "ge_diff_entree_sortie_air", libelle: "Différence Entrée / Sortie d'air" },
+  { code: "ge_nettoyage", libelle: "Nettoyage du groupe extérieur", options: LISTES_MESURES.ouiNon },
+  { code: "ge_visuel", libelle: "État visuel du groupe extérieur", options: LISTES_MESURES.etatVisuel },
+  { code: "ge_verif_fuite", libelle: "Vérification de fuite frigorigène", options: LISTES_MESURES.verifMasc },
+];
+
+// Page 5 — « Vérification Module hydraulique » (valeurs de la feuille).
+// La « T° d'air extérieur » (fiches existantes, absente de la feuille) est
+// conservée en fin de bloc — retrait à confirmer avec le client (§3.2.12).
+const BLOC_MODULE_HYDRAULIQUE = [
+  { code: "mh_tension_alim", libelle: "Tension d'alimentation", options: LISTES_MESURES.verifFem },
+  { code: "mh_tension_intercom", libelle: "Tension intercommunication", options: LISTES_MESURES.verifFem },
+  { code: "mh_resserrage_bornes", libelle: "Resserrage des bornes électrique", options: LISTES_MESURES.ouiNon },
+  { code: "mh_delta_t_primaire", libelle: "Delta T° d'eau primaire", options: LISTES_MESURES.verifMasc },
+  { code: "mh_delta_t_secondaire", libelle: "Delta T° d'eau secondaire 1 et 2", options: LISTES_MESURES.verifNC },
+  { code: "mh_debit_primaire", libelle: "Débit d'eau primaire", options: LISTES_MESURES.verifMasc },
+  { code: "mh_debit_secondaire", libelle: "Débit d'eau secondaire 1 et 2", options: LISTES_MESURES.verifNC },
+  { code: "mh_pression_eau", libelle: "Pression d'eau", unite: "bar" },
+  { code: "mh_nettoyage_tamis", libelle: "Nettoyage filtre à tamis", options: LISTES_MESURES.ouiNon },
+  { code: "mh_etat_tamis", libelle: "État filtre à tamis", options: LISTES_MESURES.etatRemplacer },
+  { code: "mh_nettoyage_boue", libelle: "Nettoyage filtre à boue", options: LISTES_MESURES.ouiNon },
+  { code: "mh_etat_boue", libelle: "État filtre à boue", options: LISTES_MESURES.etatRemplacer },
+  { code: "mh_disconnecteur", libelle: "Disconnecteur", options: LISTES_MESURES.presentAbsent },
+  { code: "mh_mitigeur_ecs", libelle: "Mitigeur ECS", options: LISTES_MESURES.presentAbsentNC },
+  { code: "mh_aquastat_c1", libelle: "Aquastat de sécurité circuit 1", options: LISTES_MESURES.presentAbsentNC },
+  { code: "mh_aquastat_c2", libelle: "Aquastat de sécurité circuit 2", options: LISTES_MESURES.presentAbsentNC },
+  { code: "mh_nettoyage_module", libelle: "Nettoyage du module hydraulique", options: LISTES_MESURES.ouiNon },
+  { code: "mh_visuel_module", libelle: "État visuel du module hydraulique", options: LISTES_MESURES.etatVisuel },
+  { code: "mh_vanne_z1", libelle: "Vanne d'équilibrage zone 1", options: LISTES_MESURES.presentAbsentNC },
+  { code: "mh_vanne_z2", libelle: "Vanne d'équilibrage zone 2", options: LISTES_MESURES.presentAbsentNC },
+  { code: "mh_emetteur_z1", libelle: "Émetteur zone 1", options: LISTES_MESURES.emetteur },
+  { code: "mh_emetteur_z2", libelle: "Émetteur zone 2", options: LISTES_MESURES.emetteur },
+  { code: "t_air_ext", libelle: "T° d'air extérieur", unite: "°C" },
+];
+
+// Page 4 chaudière bois — proposition métier 05/10/2026 : mesures spécifiques
+// (combustion, granulés, WOS, creuset…) réintégrées en listes fermées.
+const BLOC_CHAUDIERE_BOIS = [
+  { code: "etalonnage_granules", libelle: "Étalonnage granulés", options: LISTES_MESURES.ouiNon },
+  { code: "test_remplissage_granules", libelle: "Test remplissage granulés", options: LISTES_MESURES.ouiNon },
+  { code: "test_combustion", libelle: "Test de combustion", options: LISTES_MESURES.combustion },
+  { code: "test_bougie", libelle: "Test bougie d'allumage", options: LISTES_MESURES.bougie },
+  { code: "test_clapet", libelle: "Test clapet coupe-feu", options: LISTES_MESURES.clapet },
+  { code: "wos_nettoyage", libelle: "Nettoyage WOS (échangeur)", options: LISTES_MESURES.ouiNon },
+  { code: "wos_etat", libelle: "État du WOS", options: LISTES_MESURES.etatRemplacer },
+  { code: "creuset_nettoyage", libelle: "Nettoyage creuset", options: LISTES_MESURES.ouiNon },
+  { code: "creuset_etat", libelle: "État du creuset", options: LISTES_MESURES.etatRemplacer },
+  { code: "cendrier_nettoyage", libelle: "Nettoyage cendrier", options: LISTES_MESURES.ouiNon },
+  { code: "sonde_lambda", libelle: "Nettoyage sonde lambda", options: LISTES_MESURES.ouiNon },
+  { code: "chambre_combustion", libelle: "Nettoyage chambre de combustion", options: LISTES_MESURES.ouiNon },
+  { code: "chaudiere_nettoyage", libelle: "Nettoyage chaudière", options: LISTES_MESURES.ouiNon },
+  { code: "silo_nettoyage", libelle: "Nettoyage silo interne", options: LISTES_MESURES.ouiNon },
+  { code: "visuel_chaudiere", libelle: "État visuel chaudière", options: LISTES_MESURES.etatVisuel },
+  { code: "visuel_silo", libelle: "État visuel silo interne", options: LISTES_MESURES.etatVisuel },
+];
+
 const ENTRETIEN_META = {
   air_eau: {
     label: "Entretien Air/Eau - Sol/Eau",
     icon: "droplet",
-    types: ["Air/Eau (aérothermie)", "Sol/Eau (géothermie)"],
+    types: ["Aérothermie", "Géothermie", "Aquathermie"],
     maxEq: 3,
     cerfa: true,
     mesures: [
-      { section: "Groupe extérieur", items: [
-        { code: "tension_alim", libelle: "Tension d'alimentation", unite: "V" },
-        { code: "amperage", libelle: "Ampérage de fonctionnement", unite: "A" },
-        { code: "tension_intercom", libelle: "Tension intercommunication", unite: "V" },
-        { code: "pression_fluide", libelle: "Pression fluide frigo", unite: "bar" },
-        { code: "type_fluide", libelle: "Type de fluide", unite: "" },
-        { code: "charge_usine", libelle: "Charge d'usine", unite: "kg" },
-        { code: "debit_eau_primaire", libelle: "Débit eau primaire", unite: "m³/h" },
-        { code: "t_entree_air_ge", libelle: "T° entrée d'air groupe ext.", unite: "°C" },
-        { code: "t_sortie_air_ge", libelle: "T° sortie d'air groupe ext.", unite: "°C" },
-      ]},
-      { section: "Circuit eau & divers", items: [
-        { code: "t_eau_aller_primaire", libelle: "T° eau aller primaire", unite: "°C" },
-        { code: "t_eau_retour_primaire", libelle: "T° eau retour primaire", unite: "°C" },
-        { code: "t_eau_aller_sec1", libelle: "T° eau aller secondaire 1", unite: "°C" },
-        { code: "t_eau_retour_sec1", libelle: "T° eau retour secondaire 1", unite: "°C" },
-        { code: "t_eau_aller_sec2", libelle: "T° eau aller secondaire 2", unite: "°C" },
-        { code: "t_eau_retour_sec2", libelle: "T° eau retour secondaire 2", unite: "°C" },
-        { code: "debits_eau_sec", libelle: "Débits eau secondaires", unite: "m³/h" },
-        { code: "pression_eau", libelle: "Pression d'eau", unite: "bar" },
-        { code: "t_air_ext", libelle: "T° d'air extérieur", unite: "°C" },
-        { code: "filtres", libelle: "Nettoyage / état filtres (tamis, boue)", unite: "" },
-        { code: "disconnecteur", libelle: "Disconnecteur", unite: "" },
-        { code: "mitigeur_ecs", libelle: "Mitigeur ECS", unite: "" },
-        { code: "antigel", libelle: "Sécurité anti-gel", unite: "" },
-        { code: "aquastat", libelle: "Aquastat de sécurité", unite: "" },
-        { code: "visuel_ge_ui", libelle: "Nettoyage / état visuel GE & unité int.", unite: "" },
-        { code: "resserrage_bornes", libelle: "Resserrage des bornes électriques", unite: "" },
-        { code: "vannes_equilibrage", libelle: "Vannes d'équilibrage", unite: "" },
-        { code: "emetteurs_z1", libelle: "Émetteurs zone 1", unite: "" },
-        { code: "emetteurs_z2", libelle: "Émetteurs zone 2", unite: "" },
-      ]},
+      { section: "Vérification Groupe extérieur", items: BLOC_GROUPE_EXTERIEUR },
+      { section: "Vérification Module hydraulique", items: BLOC_MODULE_HYDRAULIQUE },
     ],
   },
   air_air: {
@@ -157,36 +215,18 @@ const ENTRETIEN_META = {
   chaudiere: {
     label: "Entretien Chaudière bois",
     icon: "flame",
+    // Feuille 18/09 : Aérothermie/Géothermie/Aquathermie (incohérent avec une
+    // chaudière bois) — liste d'origine conservée, en attente de confirmation.
     types: ["Granulés", "Bûches", "Pellets"],
     maxEq: 3,
     cerfa: false,
     prochaine: true,
     mesures: [
-      { section: "Électrique / hydraulique", items: [
-        { code: "tension_alim", libelle: "Tension d'alimentation", unite: "V" },
-        { code: "resserrage_bornes", libelle: "Resserrage des bornes", unite: "" },
-        { code: "vannes_equilibrage", libelle: "Vannes d'équilibrage", unite: "" },
-        { code: "emetteurs_z1", libelle: "Émetteurs zone 1", unite: "" },
-        { code: "emetteurs_z2", libelle: "Émetteurs zone 2", unite: "" },
-        { code: "t_air_ext", libelle: "T° d'air extérieur", unite: "°C" },
-        { code: "filtres_boue", libelle: "Nettoyage / état filtres & filtre à boue", unite: "" },
-        { code: "pression_eau", libelle: "Pression eau", unite: "bar" },
-        { code: "disconnecteur", libelle: "Disconnecteur", unite: "" },
-        { code: "mitigeur_ecs", libelle: "Mitigeur ECS", unite: "" },
-      ]},
-      { section: "Combustion & nettoyage", items: [
-        { code: "etalonnage_granules", libelle: "Étalonnage & test remplissage granulés", unite: "" },
-        { code: "wos", libelle: "Nettoyage & état du WOS (échangeur)", unite: "" },
-        { code: "creuset", libelle: "Nettoyage creuset / cendrier", unite: "" },
-        { code: "sonde_lambda", libelle: "Nettoyage sonde lambda", unite: "" },
-        { code: "chambre_combustion", libelle: "Nettoyage chambre de combustion", unite: "" },
-        { code: "chaudiere", libelle: "Nettoyage chaudière", unite: "" },
-        { code: "silo_interne", libelle: "Nettoyage silo interne", unite: "" },
-        { code: "test_combustion", libelle: "Test de combustion", unite: "" },
-        { code: "test_clapet", libelle: "Test clapet coupe-feu", unite: "" },
-        { code: "test_bougie", libelle: "Test bougie d'allumage", unite: "" },
-        { code: "visuel_chaudiere", libelle: "État visuel chaudière & silo interne", unite: "" },
-      ]},
+      // Proposition métier (maquette 05/10/2026) : « Vérification chaudière bois »
+      // remplace « Groupe extérieur » (sans objet) — pas de champs fluides, CERFA n°15497 non applicable.
+      { section: "Vérification chaudière bois", items: BLOC_CHAUDIERE_BOIS },
+      // Circuit d'eau réel de la chaudière bois : bloc hydraulique identique à la fiche Air/Eau-Sol/Eau.
+      { section: "Vérification Module hydraulique", items: BLOC_MODULE_HYDRAULIQUE },
     ],
   },
 };
@@ -357,6 +397,14 @@ async function loadDraftFromIntervention(id) {
   const client = itv.client_id ? await DB.getClient(itv.client_id) : itv.client;
   d.client = { id: client?.id, nom: client?.nom || "", adresse: client?.adresse || "", code_postal: client?.code_postal || "", ville: client?.ville || "", mail: client?.mail || "", tel: client?.tel || "", type_batiment: client?.type_batiment || "" };
   if (!d.client_id) d.client_id = client?.id || null;
+  // Refonte 18/09 : migration douce des anciens libellés d'entretien
+  // (« Air/Eau (aérothermie) » / « Sol/Eau (géothermie) ») vers la liste cible.
+  const etm = ENTRETIEN_META[state.draftType];
+  if (etm && d.type_entretien_detail && !etm.types.includes(d.type_entretien_detail)) {
+    const legacyMapping = { "Air/Eau (aérothermie)": "Aérothermie", "Sol/Eau (géothermie)": "Géothermie" };
+    const mapped = legacyMapping[d.type_entretien_detail];
+    if (mapped && etm.types.includes(mapped)) d.type_entretien_detail = mapped;
+  }
   state.draft = d;
   state.step = 1;
 }
@@ -1091,11 +1139,25 @@ function wizardSteps() {
       { id: "signature", title: "Devis & signature", render: stepSignHTML, wire: wireSignStep, read: readSignStep },
     ];
   }
+  // Structure feuille 18/09 : 7 pages + fin d'intervention (§3.2.11 / §3.2.12) —
+  // 1 Client · 2 Entretien · 3 Équipement · 4-5 Mesures (une page par section,
+  // la page 5 — dernière — portant le CERFA le cas échéant) · 6 Observation & photos ·
+  // 7 Pièces utilisées · fin Devis & signature.
+  const meta = ENTRETIEN_META[state.draftType];
+  const mesuresSteps = meta.mesures.map((s, i) => ({
+    id: `mesures_${i + 1}`,
+    title: s.section,
+    render: () => stepMesuresHTML(i),
+    wire: wireMesuresStep,
+    read: () => readMesuresSectionStep(i),
+  }));
   return [
-    { id: "client_entretien", title: "Client & entretien", render: stepClientEntretienHTML, wire: wireClientEntretienStep, read: readClientEntretienStep },
+    { id: "client", title: "Client", render: stepClientHTML, wire: wireClientStep, read: readClientStep },
+    { id: "entretien", title: "Entretien", render: stepEntretienHTML, wire: wireEntretienStep, read: readEntretienStep },
     { id: "equipement", title: "Équipement", render: stepEquipHTML, wire: wireEquipStep, read: readEquipStep },
-    { id: "mesures", title: "Mesures", render: stepMesuresHTML, wire: wireMesuresStep, read: readMesuresStep },
-    { id: "remarque_pieces", title: "Remarque & pièces", render: stepRemarquePiecesHTML, wire: wireRemarquePiecesStep, read: readRemarquePiecesStep },
+    ...mesuresSteps,
+    { id: "observation_photos", title: "Observation & photos", render: stepObservationPhotosHTML, wire: wireObservationPhotosStep, read: readObservationStep },
+    { id: "pieces", title: "Pièces utilisées", render: stepPiecesHTML, wire: wirePiecesStep, read: readPiecesStep },
     { id: "signature", title: "Devis & signature", render: stepSignHTML, wire: wireSignStep, read: readSignStep },
   ];
 }
@@ -1170,22 +1232,49 @@ function stepClientHTML() {
   return `<div class="card" style="padding:14px;">${clientFieldsHTML(state.draft.client)}</div>`;
 }
 
-function stepClientEntretienHTML() {
+// ---- Étape Entretien (page 2 feuille 18/09 : type, date, heures, forfait) ----
+const ZONES_FORFAIT = ["", "Z0 (Chazé-sur-Argos)", "Z1 (5 à 10 kms)", "Z2 (11 à 30 kms)", "Z3 (31 à 50 kms)", "Forfait"];
+function stepEntretienHTML() {
   const meta = draftMeta();
+  const d = state.draft;
   return `
   <div class="card" style="padding:14px;">
-    ${clientFieldsHTML(state.draft.client)}
-    <div class="field" style="margin-bottom:0;">
+    <div class="field">
       <label>Type d'entretien *</label>
       <select id="f-type-entretien">
         ${meta.types.map((t) => `<option ${state.draft.type_entretien_detail === t ? "selected" : ""}>${t}</option>`).join("")}
       </select>
     </div>
+    <div class="field"><label>Date</label><input id="f-date" type="date" value="${esc(d.date)}" /></div>
+    <div class="row2">
+      <div class="field"><label>Heure d'arrivée</label><input id="f-h-arr" type="time" value="${esc(d.heure_arrivee)}" /></div>
+      <div class="field"><label>Heure de départ</label><input id="f-h-dep" type="time" value="${esc(d.heure_depart)}" /></div>
+    </div>
+    <div class="field" style="margin-bottom:0;">
+      <label>Forfait déplacement</label>
+      <select id="f-forfait">
+        ${ZONES_FORFAIT.map((z) => `<option value="${esc(z)}" ${d.forfait_deplacement === z ? "selected" : ""}>${z || "Non précisé"}</option>`).join("")}
+      </select>
+    </div>
   </div>`;
+}
+function wireEntretienStep() {}
+function readEntretienStep() {
+  const d = state.draft;
+  const sel = $("#f-type-entretien");
+  if (sel) d.type_entretien_detail = sel.value;
+  d.date = $("#f-date").value || todayISO();
+  d.heure_arrivee = $("#f-h-arr").value;
+  d.heure_depart = $("#f-h-dep").value;
+  // D4 : renseigne `temps_intervention` (calculé à partir des heures saisies)
+  // au lieu de laisser la colonne vide — le même calcul alimente le PDF.
+  const dur = computeDuration(d.heure_arrivee, d.heure_depart);
+  d.temps_intervention = dur === "-" ? "" : dur;
+  d.forfait_deplacement = $("#f-forfait").value;
+  return true;
 }
 
 function wireClientStep() { wireClientCombo(); }
-function wireClientEntretienStep() { wireClientCombo(); }
 
 function wireClientCombo() {
   const input = $("#f-nom");
@@ -1242,15 +1331,11 @@ function captureClientFields() {
   if (!d.client_signature_nom || d.client_signature_nom === prevNom) d.client_signature_nom = d.client.nom;
   if (state.draftType !== "intervention") {
     d.type_entretien = state.draftType;                          // clé machine (air_eau / air_air / chaudiere)
-    d.type_entretien_detail = $("#f-type-entretien")?.value || "";
+    const sel = $("#f-type-entretien");                          // présent seulement à l'étape Entretien
+    if (sel) d.type_entretien_detail = sel.value;
   }
 }
 function readClientStep() {
-  captureClientFields();
-  if (!state.draft.client.nom) { toast("Merci d'indiquer le nom du client", true); return false; }
-  return true;
-}
-function readClientEntretienStep() {
   captureClientFields();
   if (!state.draft.client.nom) { toast("Merci d'indiquer le nom du client", true); return false; }
   return true;
@@ -1282,7 +1367,7 @@ function stepInterventionHTML() {
     <div class="field" style="margin-bottom:0;">
       <label>Forfait déplacement</label>
       <select id="f-forfait">
-        ${["", "Z0 (Chazé-sur-Argos)", "Z1 (5 à 10 kms)", "Z2 (11 à 30 kms)", "Z3 (31 à 50 kms)", "Forfait"].map((z) => `<option value="${esc(z)}" ${d.forfait_deplacement === z ? "selected" : ""}>${z || "Non précisé"}</option>`).join("")}
+        ${ZONES_FORFAIT.map((z) => `<option value="${esc(z)}" ${d.forfait_deplacement === z ? "selected" : ""}>${z || "Non précisé"}</option>`).join("")}
       </select>
     </div>
   </div>
@@ -1418,10 +1503,16 @@ function stepActionHTML() {
   <div id="piece-list">${d.pieces.map(pieceLineHTML).join("")}</div>
   <button type="button" class="add-line-btn" id="add-piece">${ICONS.plus} Ajouter une pièce</button>`;
 }
-function stepRemarquePiecesHTML() {
+// Pages 6 (Observation & photos) et 7 (Pièces utilisées) des fiches d'entretien.
+function stepObservationPhotosHTML() {
   const d = state.draft;
   return `
-  <div class="section-label">Remarque / Observation</div><textarea id="f-action" placeholder="Observations de l'entretien…">${esc(d.action_realisee)}</textarea>
+  <div class="section-label">Observation</div><textarea id="f-action" placeholder="Observations de l'entretien…">${esc(d.action_realisee)}</textarea>
+  ${stepPhotosHTML()}`;
+}
+function stepPiecesHTML() {
+  const d = state.draft;
+  return `
   <div class="section-label">Pièces utilisées</div>
   <div id="piece-list">${d.pieces.map(pieceLineHTML).join("")}</div>
   <button type="button" class="add-line-btn" id="add-piece">${ICONS.plus} Ajouter une pièce</button>`;
@@ -1482,54 +1573,79 @@ function readActionStep() {
   state.draft.action_realisee = cleanText($("#f-action").value);
   return true;
 }
-function readRemarquePiecesStep() {
+function readObservationStep() {
   state.draft.action_realisee = cleanText($("#f-action").value);
   return true;
 }
-function wireRemarquePiecesStep() {
-  wirePiecesStep();
+function readPiecesStep() { return true; }
+function wireObservationPhotosStep() {
+  wirePhotosStep();
+  autoResize("f-action");
 }
 
-// ---- Étape Mesures (entretiens) ----
-function stepMesuresHTML() {
+// ---- Étapes Mesures (entretiens — une page par section, refonte 18/09) ----
+// Un champ porte soit une liste fermée (`options`, valeurs de la feuille),
+// soit une saisie libre avec unité (`unite`). Une valeur déjà enregistrée
+// hors liste (ancienne saisie libre) reste sélectionnable.
+function mesureInputHTML(m, valeur) {
+  const control = m.options?.length
+    ? (() => {
+        const listed = m.options.includes(valeur);
+        const extra = valeur && !listed ? `<option selected>${esc(valeur)}</option>` : "";
+        return `<select data-mesure-code="${m.code}" class="mesure-field">
+          <option value="">—</option>
+          ${m.options.map((o) => `<option ${valeur === o ? "selected" : ""}>${esc(o)}</option>`).join("")}
+          ${extra}
+        </select>`;
+      })()
+    : `<input type="text" inputmode="decimal" data-mesure-code="${m.code}" class="mesure-field" placeholder="${esc(m.unite || "")}" value="${esc(valeur)}" />`;
+  return `
+    <div class="kv" style="padding:8px 14px;">
+      <div class="k" style="width:auto;flex:1;">${esc(m.libelle)}${m.options?.length ? "" : (m.unite ? ` <span class="hint">(${esc(m.unite)})</span>` : "")}</div>
+      <div class="v" style="width:130px;flex:none;">${control}</div>
+    </div>`;
+}
+
+function stepMesuresHTML(sectionIdx) {
   const meta = draftMeta();
   const d = state.draft;
   const val = (code) => (d.mesures.find((m) => m.code === code)?.valeur || "");
-  const sections = meta.mesures.map((s) => `
-    <div class="section-label">${esc(s.section)}</div>
+  const sec = meta.mesures[sectionIdx];
+  const sectionHTML = `
     <div class="card">
-      ${s.items.map((m) => `
-        <div class="kv" style="padding:8px 14px;">
-          <div class="k" style="width:auto;flex:1;">${esc(m.libelle)}</div>
-          <div class="v" style="width:110px;flex:none;"><input type="text" inputmode="decimal" data-mesure-code="${m.code}" placeholder="${esc(m.unite)}" value="${esc(val(m.code))}" style="width:100%;padding:8px;border:1px solid var(--ce-border);border-radius:8px;" /></div>
-        </div>`).join("")}
-    </div>`).join("");
-
-  const cerfa = meta.cerfa ? `
+      ${sec.items.map((m) => mesureInputHTML(m, val(m.code))).join("")}
+    </div>`;
+  const isLast = sectionIdx === meta.mesures.length - 1;
+  const cerfa = meta.cerfa && isLast ? `
     <div class="section-label">CERFA n°15497 — fluides frigorigènes</div>
     <div class="card">
       ${CERFA_FIELDS.map((f) => `
         <div class="kv" style="padding:8px 14px;">
           <div class="k" style="width:auto;flex:1;">${esc(f.libelle)}</div>
-          <div class="v" style="width:110px;flex:none;"><input type="text" data-mesure-code="${f.code}" placeholder="${esc(f.unite)}" value="${esc(val(f.code))}" style="width:100%;padding:8px;border:1px solid var(--ce-border);border-radius:8px;" /></div>
+          <div class="v" style="width:130px;flex:none;"><input type="text" data-mesure-code="${f.code}" placeholder="${esc(f.unite)}" value="${esc(val(f.code))}" style="width:100%;padding:8px;border:1px solid var(--ce-border);border-radius:8px;" /></div>
         </div>`).join("")}
-    </div>` : "";
-  return `<div class="note blue">Formulaire CERFA sur une seule page (document officiel).</div>${sections}${cerfa}`;
+    </div>
+    <div class="note blue" style="margin-top:10px;">Formulaire CERFA sur une seule page (document officiel).</div>` : "";
+  return `${sectionHTML}${cerfa}`;
 }
 function wireMesuresStep() {}
-function readMesuresStep() {
+// Lecture limitée aux champs présents sur la page courante : les mesures des
+// autres pages (et les anciens codes hors modèle) restent inchangées.
+function readMesuresSectionStep(sectionIdx) {
   const meta = draftMeta();
-  const codes = [];
-  meta.mesures.forEach((s) => s.items.forEach((m) => codes.push(m)));
-  if (meta.cerfa) CERFA_FIELDS.forEach((f) => codes.push(f));
+  const sec = meta.mesures[sectionIdx];
+  if (!sec) return true;
+  const items = [...sec.items];
+  if (meta.cerfa && sectionIdx === meta.mesures.length - 1) CERFA_FIELDS.forEach((f) => items.push(f));
   const map = new Map();
   state.draft.mesures.forEach((m) => map.set(m.code, m));
-  for (const m of codes) {
+  for (const m of items) {
     const input = document.querySelector(`[data-mesure-code="${m.code}"]`);
-    const valeur = input ? input.value.trim() : "";
+    if (!input) continue;
+    const valeur = input.value.trim();
     const libelle = m.libelle;
     if (map.has(m.code)) map.get(m.code).valeur = valeur;
-    else map.set(m.code, { code: m.code, libelle, valeur, unite: m.unite, type_entretien: state.draftType });
+    else map.set(m.code, { code: m.code, libelle, valeur, unite: m.unite || "", type_entretien: state.draftType });
   }
   // on conserve toutes les mesures (même vides) pour la ré-édition
   state.draft.mesures = [...map.values()];
@@ -1790,7 +1906,7 @@ async function saveBrouillon() {
   const steps = wizardSteps();
   const s = steps[state.step - 1];
   try {
-    if (s.id === "client" || s.id === "client_entretien") captureClientFields();
+    if (s.id === "client") captureClientFields();
     else if (s.read) s.read();
   } catch (e) { /* brouillon tolérant */ }
   const d = state.draft;
