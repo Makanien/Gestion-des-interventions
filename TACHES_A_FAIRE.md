@@ -1,8 +1,9 @@
 # Tâches à faire — V3 (compléments identifiés)
 
-> Dernière mise à jour : 20/09/2026 (ajout des points 10 et 11 — feuilles « Entretien Chaudière Bois » et
-> « Entretien Air.Eau Sol.E » du classeur `documentation/Application - 20260918.xlsx`, détails aux §3.2.11
-> et §3.2.12 du PRD). Base historique : comparaison spec V3 (§3.3 du PRD) vs implémentation réelle
+> Dernière mise à jour : 07/10/2026 (points 12 à 14 — retours « refonte 18/09 » matérialisés dans la mise à jour
+> des maquettes du 05/10/2026, commit `d53a9ce` : fin d'intervention commune, Tableau de bord = accueil,
+> page 5 « Unités intérieures » air/air ; les écrans maquette des points 10 et 11 sont livrés par ce même commit).
+> Base historique : comparaison spec V3 (§3.3 du PRD) vs implémentation réelle
 > (branche `application-v3`, revue du 25/08/2026).
 >
 > Légende :
@@ -146,6 +147,9 @@ l'appel est l'origine du flux (relié puis masqué) ; un RDV peut produire une i
 | 7 | ~~Option « + de 15 ans » Type de bâtiment (point 9)~~ ✅ |
 | 8 | Refonte fiche « Entretien Chaudière bois » (point 10) — après confirmation client (cf. §3.2.11 du PRD) |
 | 9 | Refonte fiche « Entretien Air/Eau-Sol/Eau » (point 11) — feuille de référence du classeur, à traiter avant/avec le point 10 |
+| 10 | Fin d'intervention commune (point 12) — chantier partagé aux 4 fiches (fiche générique + 3 entretiens) |
+| 11 | Tableau de bord = accueil (point 13) — après validation de la maquette par le client |
+| 12 | Fiche Air/Air — page 5 « Unités intérieures » (point 14) — après validation de la proposition métier |
 
 ---
 
@@ -192,16 +196,15 @@ fin d'intervention alignée sur la page 6/6 de « Nouvelle intervention ». Dét
       « Remarque & pièces ») → 7 pages + fin d'intervention — `app.js` (`wizardSteps` lignes 1094-1100, `stepRemarquePiecesHTML` ligne ~1421)
 - [ ] Liste « Type d'entretien » : la feuille indique Aérothermie / Géothermie / Aquathermie à la place de
       Granulés / Bûches / Pellets — **à confirmer avant modification** (incohérent avec une chaudière bois) — `app.js` ligne 160
-- [ ] Fin d'intervention (étape « Devis & signature », partagée) : saisir/afficher le **statut d'intervention avant
-      les signatures**, n'autoriser les signatures que si le statut de la fiche est « Effectuée » (ou « suite à
-      prévoir »), rendre la **signature client obligatoire si le client est présent**, et n'autoriser « Soumettre
-      pour validation » que si la fiche est signée — `app.js` (`stepSignHTML` ligne ~1609, `finishWizard` ligne ~1728)
+- [ ] Fin d'intervention (page finale partagée) : règles 18/09 extraites au **point 12** (communes à la fiche
+      générique « Nouvelle intervention » et aux 3 fiches d'entretien) — un seul chantier
 - [ ] Arbitrer le sort du champ « Prochaine intervention prévue » (absent de la nouvelle feuille ; fiches existantes
       déjà renseignées) — `app.js` lignes 1621-1625 et 1845, `supabase/schema.sql` ligne 83
 - [ ] Maintenir le bloc CERFA n°15497 non applicable (`cerfa: false`) — les champs fluides frigorigènes hérités de la
       feuille Air/Eau n'ont pas de sens pour une chaudière bois (à confirmer)
 - [ ] PDF : rendu des nouvelles sections de mesures et retrait des anciennes sections chaudière — `pdf.js` (bloc « Mesures » lignes 176-193)
-- [ ] Maquette de documentation : écran « Nouvel entretien Chaudière bois » + note d'étape suivante — `Maquettes.html` lignes ~970-1002
+- [x] Maquette de documentation : écran « Entretien Chaudière bois — proposition métier » — `Maquettes.html`
+      (livrée 05/10/2026, commit `d53a9ce`)
 - [ ] Incrémenter `CACHE_VERSION` dans `sw.js` (→ `climatelec-v16`)
 
 **Fichiers :** `app.js`, `pdf.js`, `Maquettes.html`, `sw.js` (+ `supabase/schema.sql` si retrait du champ « Prochaine intervention prévue »)
@@ -211,7 +214,12 @@ fin d'intervention alignée sur la page 6/6 de « Nouvelle intervention ». Dét
 - Perte des mesures spécifiques chaudière bois (combustion, WOS, creuset, sonde lambda, silo…).
 - Champ « Prochaine intervention prévue » non repris dans la feuille.
 - La feuille « Entretien Air.Air » du même classeur porte la même mention « A FAIRE » (contenu identique à
-  Air.Eau) : évolution analogue de la fiche Air/Air à prévoir si confirmée — hors périmètre du présent point.
+  Air.Eau) : évolution analogue de la fiche Air/Air à prévoir si confirmée — détaillée au point 14.
+- La maquette du 05/10/2026 porte une **alternative « proposition métier »** (validateur client) : page 4 
+  « Vérification chaudière bois » au lieu de « Groupe extérieur » (mesures spécifiques réintégrées), page 5
+  « Module hydraulique » conservée (circuit d'eau réel), champs fluides retirés (CERFA non applicable),
+  Granulés/Bûches/Pellets (liste d'origine), « Prochaine intervention prévue » conservé — implémenter la
+  variante retenue après validation.
 
 ---
 
@@ -233,7 +241,8 @@ de référence aux pages 4-5 partagées.
       point 10 (un seul chantier pour les 3 fiches d'entretien + page finale commune avec la fiche générique)
 - [ ] CERFA n°15497 : maintenu (`cerfa: true`), cohérent avec la feuille (champs fluides frigorigènes présents)
 - [ ] PDF : rendu des nouvelles sections de mesures — `pdf.js` (bloc « Mesures » lignes 176-193)
-- [ ] Maquette de documentation : écran « Nouvel entretien Air/Eau-Sol/Eau » — `Maquettes.html`
+- [x] Maquette de documentation : écran « Entretien Air/Eau - Sol/Eau — refonte 18/09 » (pages 4/7 Groupe extérieur
+      et 5/7 Module hydraulique, listes fermées) — `Maquettes.html` (livrée 05/10/2026, commit `d53a9ce`)
 - [ ] Incrémenter `CACHE_VERSION` dans `sw.js` (→ `climatelec-v16`, cumulé avec le point 10)
 
 **Fichiers :** `app.js`, `pdf.js`, `Maquettes.html`, `sw.js`
@@ -247,3 +256,88 @@ de référence aux pages 4-5 partagées.
 - Données existantes saisies avec unités (V, bar, °C…) : conservées en base, pas de conversion prévue
   (table `mesures` typée, aucun changement de schéma).
 - La feuille « Entretien Air.Air » (contenu identique) : même évolution à confirmer — cf. point 10.
+
+---
+
+## 12. Fin d'intervention commune — règles statut & signatures (18/09)
+
+**Objectif :** appliquer les règles de la feuille 18/09 à la page finale « Devis & Signature », désormais
+**commune** à la fiche générique « Nouvelle intervention » (page 6/6) et aux 3 fiches d'entretien (page finale,
+après 7/7 « Pièces utilisées »). Maquette dédiée « Fin d'intervention » (`documentation/Maquettes.html`,
+écran `fin_intervention`, groupe « Refonte 18/09 — à valider ») ; spécification au **§3.2.14 du PRD**.
+
+- [ ] Déplacer la saisie du **statut d'intervention** en tête de l'étape finale (avant les signatures) — `app.js`
+      (`stepSignHTML` ligne ~1609 ; le statut est actuellement saisi à l'étape « Intervention »)
+- [ ] **Verrouiller les signatures** tant que le statut est « À effectuer » (débloquées si « Effectuée » ou
+      « Effectuée, suite à prévoir ») — `app.js` (`stepSignHTML` / `wireSignStep` ligne ~1662)
+- [ ] Signature **technicien obligatoire** (actuellement « facultative ») — `app.js` (`stepSignHTML` ligne ~1645,
+      validation dans `finishWizard` ligne ~1728)
+- [ ] Signature **client obligatoire si le client est présent** — `app.js` (`readSignStep` / `finishWizard`)
+- [ ] **« Soumettre pour validation » désactivé** tant que la fiche n'est pas signée (technicien + client si
+      présent) — `app.js` (`finishWizard` ligne ~1728, workflow `brouillon → a_valider`)
+- [ ] Ajouter la case **« Page ok — fiche complète et vérifiée »** (libellé/portée à clarifier avec le client) ;
+      à persister si confirmée : `app.js`, `idb.js`, `supabase/schema.sql` (colonne à prévoir, ex. `page_ok bool`)
+- [ ] « Enregistrer comme brouillon » conservé à la page finale (déjà présent à toutes les étapes — à vérifier) — `app.js`
+- [ ] PDF : figurer ou non la case « Page ok » sur le PDF généré (à arbitrer) — `pdf.js`
+- [ ] Incrémenter `CACHE_VERSION` dans `sw.js` (→ `climatelec-v16`, cumulé avec les points 10-11-13-14)
+
+**Fichiers :** `app.js`, `pdf.js`, `sw.js` (+ `idb.js`, `supabase/schema.sql` si « Page ok » persistée)
+
+**Points de vigilance (à clarifier avec le client, cf. PRD §3.2.14) :**
+- Libellé et portée du champ « Page ok » (case de confirmation de page — fonction exacte à définir ; la feuille
+  indique l'intitulé brut « Page ok »).
+
+---
+
+## 13. Tableau de bord = écran d'accueil (retour 18/09 — à faire valider)
+
+**Objectif :** remplacer « accueil = planning » (arbitrage du 16/08) par un **Tableau de bord** : vue synthèse
+par statut du workflow (US-13 · US-15) + bloc « Appels — À traiter ». Les onglets Planning / Tâches / Dossiers
+sont **conservés** ; seul l'écran ouvert par défaut change. Maquette dédiée (écran `dashboard`, groupe
+« Refonte 18/09 — à valider ») ; spécification au **§3.2.15 du PRD**.
+
+- [ ] **Faire valider la maquette** « Tableau de bord » par le client (en remplacement de « accueil = planning »
+      du 16/08) — ne pas implémenter avant accord
+- [ ] Si validé : afficher le Tableau de bord comme **vue par défaut de l'accueil** — blocs par statut de dossier
+      (À valider, À facturer, À vérifier, À envoyer…) + bloc **« Appels — À traiter »** en tête (les appels
+      « Enregistrer sans planifier » y arrivent) — `app.js` (rendu des onglets lignes ~503-505 ; `dossiersHTML`
+      ligne ~636 réutilisable comme base des blocs par statut)
+- [ ] Arbitrer le bloc **« Devis en cours »** de la maquette : le workflow (§3.3.4) n'a pas de statut « devis » —
+      proposer un bloc fiches portant l'indicateur « devis souhaité », ou le retirer — à arbitrer avec le client
+- [ ] **Vue par rôle** : toute l'équipe pour Régis/Delphine, propres lignes pour Jérémy (règles §3.2.2 conservées) — `app.js`
+- [ ] Incrémenter `CACHE_VERSION` dans `sw.js` (→ `climatelec-v16`, cumulé)
+
+**Fichiers :** `app.js`, `style.css`, `sw.js`
+
+**Points de vigilance (cf. PRD §3.2.15) :**
+- Statut maquette « à faire valider » : retour du 18/09 non encore arbitré.
+- Bloc « Devis en cours » sans équivalent dans le workflow de statuts (§3.3.4) — à arbitrer.
+
+---
+
+## 14. Fiche « Entretien Air/Air » — page 5 « Unités intérieures » (proposition métier, 05/10/2026)
+
+**Objectif :** si la proposition métier (maquette « Entretien Air/Air ») est validée en alternative à l'application
+littérale de la feuille « Entretien Air.Air » (copie de la feuille hydraulique, sans objet pour une PAC air/air —
+cf. **§3.2.13 du PRD**), remplacer la page 5 « Vérification Module hydraulique » par une page **« Unités
+intérieures »** ; le reste (pages 1-2, 4, 6-7 et fin d'intervention) est partagé avec le chantier commun des
+points 10-11-12.
+
+- [ ] **Faire valider la proposition** : page 5 « Unités intérieures » (nettoyage/état des filtres intérieurs,
+      nettoyage pompe de relevage des condensats, T° d'échange groupe extérieur et unités intérieures 1 à 4,
+      état visuel des unités, T° d'air extérieur) — `Maquettes.html`
+- [ ] Conserver **5 lignes d'équipement** (1 unité extérieure + jusqu'à 4 intérieures, structure actuelle) au lieu
+      de 3 (feuille) — `ENTRETIEN_META.air_air` (`app.js` lignes 127-146)
+- [ ] Arbitrer « **GWP du fluide** » : retiré par la feuille mais utile au CERFA (§3.2.13) — `app.js` / `pdf.js`
+- [ ] Écarter la liste « Type d'entretien » Aérothermie/Géothermie/Aquathermie (copie de la feuille) : arbitrer
+      entre liste dédiée air/air et conservation de la liste commune — `app.js` ligne ~130
+- [ ] Contenu de `ENTRETIEN_META.air_air` : page 4 + fin d'intervention partagées, page 5 dédiée, **CERFA maintenu
+      (`cerfa: true`)** — `app.js`, `pdf.js`
+- [ ] Incrémenter `CACHE_VERSION` dans `sw.js` (→ `climatelec-v16`, cumulé)
+
+**Fichiers :** `app.js`, `pdf.js`, `Maquettes.html`, `sw.js`
+
+**Points de vigilance (à confirmer avec le client, cf. PRD §3.2.13) :**
+- La feuille Air.Air est un copier-coller de la feuille Air/Eau-Sol/Eau : ne pas appliquer telle quelle.
+- Champs sans liste de valeurs (« Charge d'usine », « Valeur anti-gel », « Différence Entrée/Sortie d'air »,
+  « Pression d'eau ») : même question que le point 11 (saisie libre, unités ?).

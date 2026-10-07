@@ -1,8 +1,8 @@
 # PRD — Application de gestion des fiches d'intervention
 ## Climat Elec (Chazé-sur-Argos)
 
-**Version du document :** 1.25
-**Date :** 24/09/2026
+**Version du document :** 1.26
+**Date :** 07/10/2026
 **Auteur :** Rédigé avec Claude, sur la base des échanges avec le porteur de projet
 
 ---
@@ -41,7 +41,7 @@ Climat Elec est une entreprise artisanale spécialisée en géothermie, climatis
 
 ## 3. Découpage en versions
 
-> **État d'implémentation (21/08/2026) :** La **V1 (MVP)** et la **V2** sont **implémentées et mergées** (branche `synchro-supabase` fusionnée dans `dev`). La **V3** est **spécifiée, arbitrée et son développement est largement avancé** sur la branche `application-v3` : schéma de données, planning/appels, fiches d'entretien dédiées + CERFA, workflow de dossier avec import PDF, dossier final fusionné, statistiques, brouillon et numérotation sont livrés (détail au **§3.4**). Le détail de ce qui est réellement livré figure au **§3.1** (V2) et au **§3.4** (V3).
+> **État d'implémentation (21/08/2026) :** La **V1 (MVP)** et la **V2** sont **implémentées et mergées** (branche `synchro-supabase` fusionnée dans `dev`). La **V3** est **spécifiée, arbitrée et son développement est largement avancé** sur la branche `application-v3` : schéma de données, planning/appels, fiches d'entretien dédiées + CERFA, workflow de dossier avec import PDF, dossier final fusionné, statistiques, brouillon et numérotation sont livrés (détail au **§3.4**). Le détail de ce qui est réellement livré figure au **§3.1** (V2) et au **§3.4** (V3). Les maquettes de documentation (`documentation/Maquettes.html`, maj 05/10/2026) portent désormais un groupe « Refonte 18/09 — à valider » : Tableau de bord en accueil (§3.2.15), fin d'intervention commune (§3.2.14) et fiches d'entretien réalignées (§3.2.11 → §3.2.13).
 
 ### V1 — MVP (cible immédiate)
 - **1 seul technicien**, usage mono-appareil.
@@ -119,6 +119,8 @@ L'écran d'accueil de l'application devient le **planning journalier**, avec une
 - **Régis et Delphine** : voient toutes les lignes ; tri par intervenant ou par type (Dépannage, Entretien, Garantie).
 - Dans les deux cas, si possible, les tâches déjà réalisées sont masquées par défaut mais restent accessibles via le tri/filtre (ne pas les supprimer de la liste, juste les sortir de la vue par défaut).
 
+> **Note 18/09 (maquette, à confirmer) :** la feuille planning du classeur du 18/09 mentionne « **Régis** » seul dans le tri par intervenant ; Delphine (secrétaire) conserve la vue équipe complète (arbitrage du 19/08, §3.2.1) — divergence à confirmer. Le retour du 18/09 fait par ailleurs de la page d'accueil un **Tableau de bord** en remplacement de « accueil = planning » (cf. §3.2.15).
+
 ### 3.2.3 Synchronisation Google Agenda (bidirectionnelle) — US-14
 Demande confirmée par le client mais **reportée hors V3** (le fonctionnement souhaité — calendrier unique vs par technicien, source de vérité, conflits — reste à clarifier, cf. §11). Correspond à l'US-14 du backlog §10 :
 - Un rendez-vous créé dans l'application doit apparaître dans Google Agenda.
@@ -156,12 +158,16 @@ Trois actions possibles en sortie d'écran :
 > **Cycle de vie de l'appel (arbitré et implémenté le 25/08/2026, cf. §3.4) :** l'appel est l'**origine** d'un flux, pas un dossier autonome. Dès qu'une action de sortie est réalisée, l'appel est **relié** à l'élément créé (`rendezvous_id` pour un RDV, `intervention_id` pour une fiche) puis **retiré de la liste active** de l'onglet Dossiers : le bloc « Appels » ne montre que les appels en attente, étiquetés « **À traiter** » (libellé remplaçant « Sans suite », jugé ambigu — un appel enregistré sans planifier n'est pas classé mais en attente de traitement). Les coordonnées et le motif étant déjà reportés dans le RDV ou la fiche, rien n'est perdu et **aucune suppression manuelle n'est nécessaire** ; l'appel reste en base pour la traçabilité et un « dé-lien » reste possible en cas d'erreur.
 
 > Ce nouvel écran répond en même temps à l'un des points ouverts du §11 (V1.5) : le champ "Type de bâtiment" est désormais une **liste fermée à 4 valeurs** (Professionnel / - de 2 ans / + de 2 ans / + de 15 ans), et non un texte libre.
+>
+> **Divergences feuille 18/09 (maquette 05/10/2026, à confirmer) :** l'écran d'appel du classeur du 18/09 ne comporte plus le **Motif de l'appel** et ne marque plus Téléphone / Mail « Obligatoire » ; le PRD conserve ces trois éléments comme obligatoires (le motif alimente le RDV et le pré-remplissage descriptif de la fiche, cf. §3.4).
 
 ### 3.2.6 Évolutions du formulaire "Nouvelle intervention" — US-21 · US-22
 - **Liste "Type d'intervention" modifiée** (US-22) : retrait de "Entretien" et "Rendez-vous" (qui ont désormais leurs propres flux dédiés, cf. §3.2.4 et §3.2.7) ; ajout de "Garantie". Liste cible : Dépannage, Garantie, Diagnostic.
 - **Statut de l'intervention** (US-22) : « À effectuer » (défaut) / « Effectuée » / « Effectuée, suite à prévoir » (cf. §3.4), affiché en résumé avant validation finale.
 - **Ajout d'une étape "Photos"** (US-21) avec légende par photo, insérée avant l'étape 5/5. Ceci répond au point ouvert du §11 (V1.5) sur la prise de photos ; impacte le choix de stockage (cf. §6.1, IndexedDB déjà anticipé pour cet usage).
 - Le bug remonté initialement ("le bouton retour efface les données déjà saisies") a été vérifié : il ne semble plus présent dans la version actuelle (V2). Aucune action requise pour l'instant ; à re-tester lors des essais terrain (étape 4 de la roadmap, §9).
+
+> **Structure 6 pages (18/09) :** le classeur du 18/09 fixe la fiche générique en **6 pages** — 1/6 Client · 2/6 Intervention (type Dépannage / Garantie / Diagnostic, date, heures d'arrivée et de départ, forfait déplacement Z0→Z3) · 3/6 Équipement · 4/6 Action réalisée & Pièces utilisées · 5/6 Photos · 6/6 Devis & Signature (règles communes, cf. §3.2.14). Structure conforme à la pagination implémentée (maquette « Nouvelle intervention — 6 pages », maj 05/10/2026 ; forfait en zones déjà en place Z0→Z3).
 
 ### 3.2.7 Fiches d'entretien dédiées par type d'équipement — US-19
 Trois nouveaux flux de création (accessibles depuis le bouton "+"), chacun démarrant par un écran d'identification client identique à "Nouvelle intervention" (nom, adresse, CP, ville, tél, mail, type de bâtiment obligatoires), suivi d'un champ "Type d'entretien" spécifique, puis d'une **fiche d'entretien dédiée** dont le contenu (mesures) diffère de la fiche d'intervention générique. Contenu détaillé fourni par le client via les fiches papier existantes :
@@ -234,7 +240,7 @@ Tension d'alimentation (Absente / Vérifiée / Non vérifiée / Non vérifiable)
 **Page 5 — Vérification Module hydraulique** :
 Tension d'alimentation (Absente / Vérifiée / Non vérifiée / Non vérifiable) · Tension intercommunication (idem) · Resserrage des bornes électrique (Oui / Non) · Delta T° d'eau Primaire (Vérifié / Non vérifié / Non vérifiable) · Delta T° d'eau Secondaire 1 et 2 (Vérifié / Non vérifié / Non vérifiable / Non concerné) · Débit d'eau Primaire (Vérifié / Non vérifié / Non vérifiable) · Débit d'eau Secondaire 1 et 2 (Vérifié / Non vérifié / Non vérifiable / Non concerné) · Pression d'eau · Nettoyage filtre à tamis (Oui / Non) · État filtre à tamis (Bon / Moyen / A remplacer) · Nettoyage filtre à boue (Oui / Non) · État filtre à boue (Bon / Moyen / A remplacer) · Disconnecteur (Présent / Absent) · Mitigeur ECS (Présent / Absent / Non concerné) · Aquastat de sécurité circuit 1 et circuit 2 (Présent / Absent / Non concerné) · Nettoyage du module hydraulique (Oui / Non) · État visuel du module hydraulique (Bon / Moyen / Très moyen) · Vanne d'équilibrage zone 1 et zone 2 (Présent / Absent / Non concerné) · Émetteur zone 1 et zone 2 (P. Chauffant / Radiateurs).
 
-**Fin d'intervention (page 6/6 de « Nouvelle intervention »)** — règles ajoutées par la feuille, applicables à la page finale partagée (fiche générique + entretiens) :
+**Fin d'intervention (page 6/6 de « Nouvelle intervention »)** — règles ajoutées par la feuille, applicables à la page finale partagée (fiche générique + entretiens) — **détail au §3.2.14** :
 - le **statut d'intervention** est saisi/affiché **avant les signatures** ;
 - les **signatures ne sont possibles que si le statut de la fiche est « terminée »** ;
 - **signature technicien** obligatoire ; **signature client obligatoire si le client est présent** ;
@@ -248,6 +254,8 @@ Tension d'alimentation (Absente / Vérifiée / Non vérifiée / Non vérifiable)
 > - **Disparition des mesures spécifiques chaudière bois** (étalonnage granulés, WOS/échangeur, creuset/cendrier, sonde lambda, chambre de combustion, nettoyage chaudière/silo, test de combustion, clapet coupe-feu, bougie d'allumage, état visuel chaudière/silo) — perte d'informations utiles au suivi de l'entretien.
 > - **Champ « Prochaine intervention prévue »** absent de la nouvelle feuille : à conserver ou retirer (les fiches existantes portent déjà la donnée).
 > - Les valeurs de mesure passent de **saisies libres (avec unités)** à des **listes fermées** — le rendu partagé avec la fiche Air/Eau-Sol/Eau évolue de la même façon (cf. §3.2.12).
+
+> **Proposition métier (maquettes 05/10/2026, à faire valider) :** l'écran « Entretien Chaudière bois — proposition métier » propose, en alternative à l'application littérale de la feuille : page 4 « **Vérification chaudière bois** » en remplacement de « Vérification Groupe extérieur » (sans objet) — réintégration des mesures spécifiques disparues (étalonnage et test de remplissage granulés, test de combustion, bougie d'allumage, clapet coupe-feu, nettoyage/état du WOS et du creuset, cendrier, sonde lambda, chambre de combustion, chaudière et silo interne, états visuels) ; page 5 « Vérification Module hydraulique » **conservée** (circuit d'eau réel de la chaudière bois) ; champs fluides frigorigènes retirés (**CERFA n°15497 non applicable**, cf. §3.2.10) ; liste « Type d'entretien » d'origine (Granulés / Bûches / Pellets) ; « Prochaine intervention prévue » conservé en fin de fiche.
 
 > **Remarque :** la feuille « Entretien Air.Air » du même classeur porte la même mention « A FAIRE » et un contenu identique à la feuille Air.Eau-Sol.Eau — la fiche Air/Air est désormais réalignée sur la même structure (spécification au **§3.2.13**).
 
@@ -304,7 +312,30 @@ Tension d'alimentation (Absente / Vérifiée / Non vérifiée / Non vérifiable)
 > - **Nombre de lignes d'équipement** : 3 (page 3/6) au lieu de 5 (1 unité extérieure + 4 unités intérieures) — limite la description d'un multi-split.
 > - **Champs sans liste de valeurs** (« Charge d'usine », « Valeur anti-gel », « Différence Entrée / Sortie d'air », « Pression d'eau ») : saisie libre conservée, avec quelles unités ? (même question que §3.2.12).
 
+> **Proposition métier (maquettes 05/10/2026, à faire valider) :** l'écran « Entretien Air/Air — proposition métier » concrétise l'alternative « Unités intérieures » recommandée ci-dessous : page 5 remplacée par « **Unités intérieures** » (nettoyage/état des filtres intérieurs, nettoyage de la pompe de relevage des condensats, T° d'échange groupe extérieur et unités intérieures 1 à 4, état visuel des unités, T° d'air extérieur) ; page 4 « Vérification Groupe extérieur » identique à la fiche Air/Eau-Sol/Eau (fluides conservés — **CERFA n°15497 maintenu**) ; **5 lignes d'équipement** conservées (1 unité extérieure + jusqu'à 4 intérieures) au lieu des 3 de la feuille ; « GWP du fluide » retiré par la feuille — à confirmer (utile au CERFA).
+
 > **Recommandation pour le développement :** le réalignement **structurel** (pagination en 7 pages + fin d'intervention commune, listes fermées de la page 4, règles de signature/fin d'intervention) est **partagé** avec les fiches Air/Eau-Sol/Eau (§3.2.12) et Chaudière bois (§3.2.11) et peut être implémenté tel quel (même chantier, point 11 de `TACHES_A_FAIRE.md`). En revanche, le **contenu** de la page 5 (bloc hydraulique vs équivalent « Unités intérieures ») et les points ⚠️ ci-dessus doivent être **validés avec le client avant** la refonte du bloc de mesures air/air.
+
+### 3.2.14 Fin d'intervention commune — règles statut & signatures (18/09)
+
+> **Source :** écran « Fin d'intervention » des maquettes (groupe « Refonte 18/09 — à valider », maj 05/10/2026), reprenant les règles ajoutées par la feuille 18/09 (initialement documentées au §3.2.11). La page finale « Devis & Signature » est **commune à la fiche générique** (« Nouvelle intervention », page 6/6) **et aux 3 fiches d'entretien** (page finale, après la page 7/7 « Pièces utilisées ») ; les règles ci-dessous s'appliquent donc aux 4 formulaires.
+
+- Le **statut d'intervention** est saisi/affiché **en tête de la page finale, avant les signatures** (« À effectuer » / « Effectuée » / « Effectuée, suite à prévoir ») ;
+- Les **signatures ne sont possibles que si le statut de la fiche est « terminée »** (« Effectuée » ou « Effectuée, suite à prévoir ») — zones signatures verrouillées sinon ;
+- **Signature technicien obligatoire** ;
+- **Signature client obligatoire si le client est présent** (masquée/ignorée si le client est absent) ;
+- **« Enregistrer comme brouillon » conservé** (brouillon enregistrable à chaque étape, cf. §3.3.2) ;
+- **« Soumettre pour validation » possible seulement si la fiche est signée** (technicien + client si présent) — bouton désactivé sinon ;
+- Case **« Page ok »** (confirmation « fiche complète et vérifiée ») — **libellé et portée à clarifier avec le client**.
+
+### 3.2.15 Tableau de bord = écran d'accueil (retour 18/09, à faire valider)
+
+> **Source :** écran « Tableau de bord » des maquettes (groupe « Refonte 18/09 — à valider », maj 05/10/2026), en remplacement de « **accueil = planning** » du 16/08 (US-17, §3.2.2). **À faire valider par le client** — non arbitré, ne pas implémenter avant accord. Les onglets Planning / Tâches / Dossiers sont conservés ; seul l'écran ouvert par défaut change.
+
+- **L'accueil s'ouvre sur un Tableau de bord** (US-13 · US-15) : vue synthèse groupée par **statut du workflow** (§3.3.4 — À valider, À facturer, À vérifier, À envoyer…) plutôt qu'un planning journalier ;
+- **Bloc « Appels — À traiter »** en tête : les appels « Enregistrer sans planifier » (§3.2.5) y arrivent jusqu'à ce qu'un RDV ou une fiche soit créé depuis eux (cycle de vie, §3.2.5) ;
+- **Vue par rôle** : équipe pour Régis/Delphine, propres lignes pour Jérémy (règles §3.2.2 inchangées) ;
+- **Bloc « Devis en cours »** dans la maquette : arbitrage à prévoir — le workflow de statuts (§3.3.4) ne comporte pas d'état « devis » ; le bloc correspondrait aux fiches portant l'indicateur « devis souhaité » (§3.3.3).
 
 ---
 
@@ -697,6 +728,7 @@ ContratEntretien {
 | 7. Spécification V3 | Cadrage des fonctionnalités V3 (ce PRD, §3.3) | Terminé (19/08/2026) |
 | 8. Développement V3 | Planning/appel, fiches entretien + CERFA + contrat, workflow validation/facturation (import PDF), statistiques, brouillon, numérotation | **En cours (largement livré — branche `application-v3`, cf. §3.4)** |
 | 9. Recadrage Google Agenda | Clarifier le fonctionnement de la synchronisation (reportée hors V3) | À faire |
+| 10. Refonte « 18/09 » (entretiens, fin d'intervention, Tableau de bord) | Validation client des maquettes du 05/10/2026 (groupe « Refonte 18/09 — à valider ») puis développement — cf. §3.2.11 → §3.2.15 | À faire |
 
 > Le contenu de la V3 est **arbitré** (cf. §3.3) et son développement est **largement avancé** sur la branche `application-v3` (cf. §3.4) ; les seuls points reportés sont la synchronisation Google Agenda (US-14) et l'envoi automatique d'email.
 
@@ -789,9 +821,11 @@ Points restant ouverts (hors V3) :
 - **Envoi automatique d'email au client** — reporté : envoi manuel conservé (partage natif).
 - **Génération de devis/factures dans l'application** — non retenue : réalisée par un logiciel externe, l'appli importe le PDF. À reconsidérer éventuellement plus tard.
 - **Extension de la base pièces** — désignation seule pour l'instant ; référence/prix, disponibilité par technicien et import initial restent possibles ultérieurement (porte non fermée).
-- **Refonte de la fiche « Entretien Chaudière bois » (18/09/2026, cf. §3.2.11)** — à confirmer avec le client : liste « Type d'entretien » (Aérothermie/Géothermie/Aquathermie au lieu de Granulés/Bûches/Pellets ?), disparition des mesures spécifiques chaudière bois (combustion, WOS, creuset, silo…), sort du champ « Prochaine intervention prévue ».
+- **Refonte de la fiche « Entretien Chaudière bois » (18/09/2026, cf. §3.2.11)** — à confirmer avec le client : liste « Type d'entretien » (Aérothermie/Géothermie/Aquathermie au lieu de Granulés/Bûches/Pellets ?), disparition des mesures spécifiques chaudière bois (combustion, WOS, creuset, silo…), sort du champ « Prochaine intervention prévue ». Une **proposition métier** (maquette du 05/10/2026, écran dédié) concrétise l'alternative à faire valider : page 4 « Vérification chaudière bois » (mesures spécifiques réintégrées) au lieu de « Groupe extérieur », page 5 hydraulique conservée, fluides retirés (CERFA non applicable), Granulés/Bûches/Pellets, « Prochaine intervention prévue » conservé.
 - **Refonte de la fiche « Entretien Air/Eau-Sol/Eau » (18/09/2026, cf. §3.2.12)** — à confirmer avec le client : retrait éventuel de la « T° d'air extérieur » (absente des pages 4-5 de la feuille), maintien des champs sans liste de valeurs (« Charge d'usine », « Valeur anti-gel », « Différence Entrée/Sortie d'air », « Pression d'eau »), sort de l'« Année d'installation » et du « Descriptif » à l'étape Équipement.
-- **Refonte de la fiche « Entretien Air/Air » (18/09/2026, cf. §3.2.13)** — à confirmer avec le client avant implémentation : la feuille reprend mot pour mot celle d'Air/Eau-Sol/Eau, dont la page 5 « Vérification Module hydraulique » (filtres tamis/boue, disconnecteur, aquastat, vannes, émetteurs…) est sans objet pour un système air/air ; sort de la liste « Type d'entretien » (Aérothermie/Géothermie/Aquathermie), des mesures spécifiques air/air (filtres intérieurs, pompe de relevage, T° d'échange par unité, T° d'air extérieur, GWP) et du nombre de lignes d'équipement (3 au lieu de 5).
+- **Refonte de la fiche « Entretien Air/Air » (18/09/2026, cf. §3.2.13)** — à confirmer avec le client avant implémentation : la feuille reprend mot pour mot celle d'Air/Eau-Sol/Eau, dont la page 5 « Vérification Module hydraulique » (filtres tamis/boue, disconnecteur, aquastat, vannes, émetteurs…) est sans objet pour un système air/air ; sort de la liste « Type d'entretien » (Aérothermie/Géothermie/Aquathermie), des mesures spécifiques air/air (filtres intérieurs, pompe de relevage, T° d'échange par unité, T° d'air extérieur, GWP) et du nombre de lignes d'équipement (3 au lieu de 5). Une **proposition métier** « Unités intérieures » (maquette du 05/10/2026, écran dédié, cf. §3.2.13) concrétise l'équivalent à faire valider.
+- **Fin d'intervention commune (18/09, cf. §3.2.14)** — règles à appliquer aux 4 fiches (statut avant signatures, signatures verrouillées si la fiche n'est pas terminée, signature technicien obligatoire, signature client obligatoire si présent, « Soumettre pour validation » seulement si signée) ; libellé et portée du champ « Page ok » à clarifier.
+- **Tableau de bord = écran d'accueil (18/09, cf. §3.2.15)** — à faire valider : en remplacement de « accueil = planning » du 16/08 ; le bloc « Devis en cours » de la maquette (sans état dédié dans le workflow §3.3.4) reste à arbitrer.
 - **Format exact de la numérotation** — à valider (proposition : préfixe type + année + séquence, ex. `FIC-2026-001`).
 - **Faut-il interfacer ou remplacer les outils existants (Google Agenda, OneDrive) ?** — OneDrive remplacé par le classement par statut dans l'appli (§3.3) ; Google Agenda en suspens (ci-dessus).
 
