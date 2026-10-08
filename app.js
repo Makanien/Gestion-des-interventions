@@ -212,6 +212,7 @@ let state = {
   homeSearch: "",
   planFilter: { type: "", intervenant: "" },
   tachesFilter: { type: "", intervenant: "" },
+  dossiersOpen: {},      // sections dépliées de l'onglet Dossiers (clé = statut ou "appels")
   clientsCache: [],
   auth: null,
   team: [],
@@ -519,6 +520,14 @@ function wireTab() {
   bind("#pf-tech", "change", (e) => { state.planFilter.intervenant = e.target.value; renderTab(); });
   bind("#tf-type", "change", (e) => { state.tachesFilter.type = e.target.value; renderTab(); });
   bind("#tf-tech", "change", (e) => { state.tachesFilter.intervenant = e.target.value; renderTab(); });
+  // Onglet Dossiers : le clic sur un titre déplie/replie les sous-dossiers
+  $all(".status-head[data-toggle]").forEach((el) => el.addEventListener("click", () => {
+    const k = el.dataset.toggle;
+    const open = !state.dossiersOpen[k];
+    state.dossiersOpen[k] = open;
+    el.setAttribute("aria-expanded", String(open));
+    el.closest(".status-block").classList.toggle("open", open);
+  }));
 }
 
 async function planningHTML() {
@@ -648,18 +657,27 @@ async function dossiersHTML() {
   // ajouter les statuts inconnus
   for (const k of Object.keys(byStatut)) if (!keys.includes(k)) keys.push(k);
 
-  const appelsBlock = appelsEnAttente.length ? `
-    <div class="status-block">
-      <div class="status-head"><span class="sw sw-appel"></span><h3>Appels</h3><span class="n">${appelsEnAttente.length}</span></div>
-      ${appelsEnAttente.map(appelHTML).join("")}
-    </div>` : "";
-
   if (!keys.length && !appelsEnAttente.length) return `<div class="empty-state"><div class="glyph">${ICONS.file}</div><h3>Aucun dossier</h3><p>Les fiches terminées apparaissent ici, classées par statut.</p></div>`;
-  return appelsBlock + keys.map((k) => `
-    <div class="status-block">
-      <div class="status-head"><span class="sw sw-${statutDossierCls(k)}"></span><h3>${statutDossierLabel(k)}</h3><span class="n">${byStatut[k].length}</span></div>
-      ${byStatut[k].map(itemHTML).join("")}
-    </div>`).join("");
+
+  // Sections repliées par défaut : seul le titre (avec badge du nombre de
+  // dossiers) est visible ; le clic sur le titre déplie les sous-dossiers.
+  const block = (key, cls, label, items, count) => {
+    if (!count) return "";
+    const open = !!state.dossiersOpen[key];
+    return `
+    <div class="status-block ${open ? "open" : ""}" data-block="${key}">
+      <div class="status-head" data-toggle="${key}" role="button" aria-expanded="${open}">
+        <span class="sw sw-${cls}"></span>
+        <h3>${label}</h3>
+        <span class="n">${count}</span>
+        <span class="chev">${ICONS.chevron}</span>
+      </div>
+      <div class="status-items">${items}</div>
+    </div>`;
+  };
+
+  return block("appels", "appel", "Appels", appelsEnAttente.map(appelHTML).join(""), appelsEnAttente.length)
+    + keys.map((k) => block(k, statutDossierCls(k), statutDossierLabel(k), byStatut[k].map(itemHTML).join(""), byStatut[k].length)).join("");
 }
 
 function appelHTML(a) {
