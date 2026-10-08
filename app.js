@@ -210,6 +210,7 @@ let state = {
   draftType: "intervention", // intervention | air_eau | air_air | chaudiere
   step: 1,
   homeSearch: "",
+  clientSearch: "",
   planFilter: { type: "", intervenant: "" },
   tachesFilter: { type: "", intervenant: "" },
   dossiersOpen: {},      // sections dépliées de l'onglet Dossiers (clé = statut ou "appels")
@@ -399,6 +400,11 @@ async function route() {
     await renderContrat(parts[1] || null);
   } else if (parts[0] === "detail-contrat" && parts[1]) {
     await renderDetailContrat(parts[1]);
+  } else if (parts[0] === "clients") {
+    state.tab = "clients";
+    await renderHome();
+  } else if (parts[0] === "client" && parts[1]) {
+    await renderClientDetail(parts[1]);
   } else if (parts[0] === "stats") {
     await renderStats();
   } else if (parts[0] === "account") {
@@ -476,6 +482,7 @@ async function renderHome() {
     { id: "planning", label: "Planning" },
     { id: "taches", label: "Tâches" },
     { id: "dossiers", label: "Dossiers" },
+    { id: "clients", label: "Clients" },
   ];
   setApp(`
     ${topbar({ title: "Climat Elec", subtitle: todayLabel(), onHome: false, actions: `<button class="icon-btn" data-nav="stats" title="Statistiques">${ICONS.chart}</button>` })}
@@ -503,6 +510,7 @@ async function renderTab() {
   const root = $("#tab-content");
   if (state.tab === "planning") root.innerHTML = await planningHTML();
   else if (state.tab === "taches") root.innerHTML = await tachesHTML();
+  else if (state.tab === "clients") root.innerHTML = await clientsTabHTML();
   else root.innerHTML = await dossiersHTML();
   wireTab();
 }
@@ -520,6 +528,12 @@ function wireTab() {
   bind("#pf-tech", "change", (e) => { state.planFilter.intervenant = e.target.value; renderTab(); });
   bind("#tf-type", "change", (e) => { state.tachesFilter.type = e.target.value; renderTab(); });
   bind("#tf-tech", "change", (e) => { state.tachesFilter.intervenant = e.target.value; renderTab(); });
+  bind("#client-search", "input", async (e) => {
+    state.clientSearch = e.target.value;
+    await renderTab();
+    const el = $("#client-search");
+    if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
+  });
   // Onglet Dossiers : le clic sur un titre déplie/replie les sous-dossiers
   $all(".status-head[data-toggle]").forEach((el) => el.addEventListener("click", () => {
     const k = el.dataset.toggle;
@@ -693,6 +707,132 @@ function appelHTML(a) {
       <span class="ii-tags">
         <span class="tag">${esc(a.type_intervention || "")}</span>
         <span class="tag pending">À traiter</span>
+      </span>
+    </span>
+    ${ICONS.chevron}
+  </button>`;
+}
+
+// ---------------------------------------------------------
+// Onglet Clients — annuaire (liste, recherche, fiche client)
+// ---------------------------------------------------------
+async function clientsTabHTML() {
+  const [clients, interventions] = await Promise.all([DB.listClients(), DB.listInterventions()]);
+  const counts = {};
+  for (const i of interventions) {
+    if (i.client_id) counts[i.client_id] = (counts[i.client_id] || 0) + 1;
+  }
+  const q = state.clientSearch.trim().toLowerCase();
+  let visible = clients;
+  if (q) visible = clients.filter((c) => `${c.nom || ""} ${c.ville || ""} ${c.tel || ""} ${c.code_postal || ""}`.toLowerCase().includes(q));
+  return `
+    <div class="search-wrap">${ICONS.search}<input id="client-search" type="text" placeholder="Rechercher un client, une ville…" value="${esc(state.clientSearch)}" /></div>
+    ${visible.length ? visible.map((c) => clientItemHTML(c, counts[c.id] || 0)).join("") : `<div class="empty-state"><div class="glyph">${ICONS.user}</div><h3>Aucun client</h3><p>${q ? "Aucun résultat avec ces critères." : "Les clients se créent automatiquement lors d'un nouvel appel ou d'une intervention."}</p></div>`}`;
+}
+
+function clientItemHTML(c, n) {
+  return `
+  <button class="intervention-item" data-nav="client-open" data-id="${c.id}">
+    <span class="status-dot">${ICONS.user}</span>
+    <span class="ii-body">
+      <span class="ii-top">
+        <span class="ii-client">${esc(c.nom || "Client")}</span>
+        <span class="ii-date">${n} dossier${n === 1 ? "" : "s"}</span>
+      </span>
+      <span class="ii-type">${esc([c.ville, c.tel].filter(Boolean).join(" · ") || "—")}</span>
+    </span>
+    ${ICONS.chevron}
+  </button>`;
+}
+
+// ---------------------------------------------------------
+// Fiche client — détail + dossiers du client
+// ---------------------------------------------------------
+async function renderClientDetail(id) {
+  const client = await DB.getClient(id);
+  if (!client) { go("#/"); return; }
+  const interventions = await DB.listInterventions();
+  const dossiers = interventions
+    .filter((i) => i.client_id === id)
+    .sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+  // Équipements connus = historique client (copies sans fiche) + équipements
+  // de toutes les fiches du client. L'historisation à la finalisation ne copie
+  // que les lignes avec n° de série : la liste fusionne donc les deux sources
+  // (dédupliquées) pour couvrir tous les équipements de tous les dossiers.
+  const eqRows = [...(await DB.listEquipementsForClient(id))];
+  for (const d of dossiers) {
+    const rows = await DB.listEquipementsForIntervention(d.id);
+    eqRows.push(...rows);
+  }
+  const equipements = mergeEquipements(eqRows);
+
+  setApp(`
+    <div class="topbar">
+      <div class="topbar-row">
+        <button class="back-btn" data-nav="back">${ICONS.back}</button>
+        <div><h1>${esc(client.nom || "Client")}</h1><div class="subtitle">Fiche client</div></div>
+      </div>
+    </div>
+    <main>
+      <div class="detail-header">
+        <div class="meta">${dossiers.length} dossier${dossiers.length === 1 ? "" : "s"} enregistré${dossiers.length === 1 ? "" : "s"}</div>
+        ${client.type_batiment ? `<div class="ii-tags" style="margin-top:10px;"><span class="tag">${esc(client.type_batiment)}</span></div>` : ""}
+      </div>
+
+      <div class="section-label">Coordonnées</div>
+      <div class="card">
+        <div class="kv"><div class="k">Adresse</div><div class="v">${esc([client.adresse, client.code_postal, client.ville].filter(Boolean).join(" ") || "-")}</div></div>
+        <div class="kv"><div class="k">Téléphone</div><div class="v">${esc(client.tel || "-")}</div></div>
+        <div class="kv"><div class="k">Mail</div><div class="v">${esc(client.mail || "-")}</div></div>
+        <div class="kv"><div class="k">Type de bâtiment</div><div class="v">${esc(client.type_batiment || "-")}</div></div>
+      </div>
+
+      ${equipements.length ? `
+      <div class="section-label">Équipements connus</div>
+      <div class="card">
+        ${equipements.map((eq) => `<div class="kv"><div class="k">${esc(eq.intitule || "Équipement")}</div><div class="v">${esc([eq.marque, eq.modele].filter(Boolean).join(" "))}${eq.numero_serie ? ` · N° ${esc(eq.numero_serie)}` : ""}</div></div>`).join("")}
+      </div>` : ""}
+
+      <div class="section-label">Dossiers</div>
+      ${dossiers.length ? dossiers.map(clientDossierHTML).join("") : `<div class="card"><div class="block-text">Aucun dossier pour ce client.</div></div>`}
+    </main>
+    <div class="toast" id="toast"></div>
+  `);
+}
+
+// Fusionne l'historique client et les équipements des fiches en dédupliquant
+// (intitulé + marque + modèle + n° de série, insensible à la casse/espaces) ;
+// ignore les lignes vides et les tombstones résiduels.
+function mergeEquipements(rows) {
+  const key = (eq) => [eq.intitule, eq.marque, eq.modele, eq.numero_serie]
+    .map((x) => (x ?? "").toString().trim().toLowerCase()).join("|");
+  const seen = new Map();
+  for (const eq of rows) {
+    if (!eq || eq._deleted) continue;
+    const fields = [eq.intitule, eq.marque, eq.modele, eq.numero_serie];
+    if (!fields.some((x) => (x ?? "").toString().trim())) continue;
+    const k = key(eq);
+    if (!seen.has(k)) seen.set(k, eq);
+  }
+  return [...seen.values()];
+}
+
+function clientDossierHTML(itv) {
+  const dot = statutDossierDot(itv.statut_dossier);
+  const label = itv.type_entretien ? (ENTRETIEN_META[itv.type_entretien]?.label || "Entretien") : (itv.type_intervention || "-");
+  return `
+  <button class="intervention-item" data-nav="detail" data-id="${itv.id}">
+    <span class="status-dot ${dot.cls}">${dot.svg}</span>
+    <span class="ii-body">
+      <span class="ii-top">
+        <span class="ii-client">${esc(label)}</span>
+        <span class="ii-date">${fmtDateShort(itv.date)}</span>
+      </span>
+      <span class="ii-type">${esc(itv.type_entretien_detail || itv.technicien_nom || "")}</span>
+      <span class="ii-tags">
+        <span class="tag ${statutDossierCls(itv.statut_dossier)}">${statutDossierLabel(itv.statut_dossier)}</span>
+        ${itv.numero ? `<span class="tag">${esc(itv.numero)}</span>` : ""}
+        ${itv.devis_souhaite ? `<span class="tag">Devis souhaité</span>` : ""}
       </span>
     </span>
     ${ICONS.chevron}
@@ -2246,6 +2386,7 @@ document.addEventListener("click", async (e) => {
   const action = nav.dataset.nav;
 
   if (action === "detail") go(`#/detail/${nav.dataset.id}`);
+  else if (action === "client-open") go(`#/client/${nav.dataset.id}`);
   else if (action === "edit") {
     if (state.draft && state.draft.id !== nav.dataset.id) state.draft = null;
     goReplace(`#/edit/${nav.dataset.id}`);

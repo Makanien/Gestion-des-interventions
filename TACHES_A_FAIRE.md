@@ -1,6 +1,8 @@
 # Tâches à faire — V3 (compléments identifiés)
 
-> Dernière mise à jour : 07/10/2026 (points 12 à 14 — retours « refonte 18/09 » matérialisés dans la mise à jour
+> Dernière mise à jour : 08/10/2026 (point 15 — annuaire clients : onglet Clients,
+> fiche client et dossiers par client, cf. §3.4 du PRD).
+> Historique : 07/10/2026 (points 12 à 14 — retours « refonte 18/09 » matérialisés dans la mise à jour
 > des maquettes du 05/10/2026, commit `d53a9ce` : fin d'intervention commune, Tableau de bord = accueil,
 > page 5 « Unités intérieures » air/air ; les écrans maquette des points 10 et 11 sont livrés par ce même commit).
 > Base historique : comparaison spec V3 (§3.3 du PRD) vs implémentation réelle
@@ -132,8 +134,6 @@ l'appel est l'origine du flux (relié puis masqué) ; un RDV peut produire une i
 
 **Fichiers :** `app.js`, `idb.js`, `supabase/schema.sql`, `sw.js`
 
----
-
 ## Résumé des prochaines étapes prioritaires
 
 | Priorité | Tâche |
@@ -150,6 +150,7 @@ l'appel est l'origine du flux (relié puis masqué) ; un RDV peut produire une i
 | 10 | Fin d'intervention commune (point 12) — chantier partagé aux 4 fiches (fiche générique + 3 entretiens) |
 | 11 | Tableau de bord = accueil (point 13) — après validation de la maquette par le client |
 | 12 | Fiche Air/Air — page 5 « Unités intérieures » (point 14) — après validation de la proposition métier |
+| 13 | ~~Annuaire clients : liste → fiche client → dossiers (point 15)~~ ✅ |
 
 ---
 
@@ -341,3 +342,33 @@ points 10-11-12.
 - La feuille Air.Air est un copier-coller de la feuille Air/Eau-Sol/Eau : ne pas appliquer telle quelle.
 - Champs sans liste de valeurs (« Charge d'usine », « Valeur anti-gel », « Différence Entrée/Sortie d'air »,
   « Pression d'eau ») : même question que le point 11 (saisie libre, unités ?).
+---
+
+## 15. Annuaire clients — liste, fiche client, dossiers du client (08/10/2026)
+
+**Objectif :** naviguer par client : liste des clients → fiche client (coordonnées + historique
+équipements) → liste des dossiers du client → détail d'un dossier. Demandé par le porteur de projet
+le 08/10/2026 ; décrit au **§3.4 du PRD** (« Annuaire clients »).
+
+- [x] **Onglet « Clients »** (4e onglet de l'accueil) : liste alphabétique des clients
+      (`DB.listClients`), recherche (nom, ville, téléphone, CP) et compteur de dossiers par client —
+      `app.js` (`clientsTabHTML`, `clientItemHTML`, onglets `renderHome`, `renderTab`)
+- [x] Recherche persistée dans `state.clientSearch` + câblage de `#client-search` dans `wireTab`
+- [x] **Fiche client** : route `#/client/:id` (`renderClientDetail`) — coordonnées (adresse, CP/ville,
+      tél, mail, type de bâtiment), **équipements connus** fusionnés : historique client
+      (`DB.listEquipementsForClient`) **+ équipements de toutes les fiches du client**
+      (`DB.listEquipementsForIntervention` par fiche), dédupliqués par intitulé+marque+modèle+n° de série
+      (`mergeEquipements`) — couvre les équipements non historisés (sans n° de série, fiches antérieures
+      à la V2) ; section masquée si vide
+- [x] **Liste des dossiers du client** : fiches (interventions + entretiens) filtrées par `client_id`,
+      tri **date décroissante**, statut du workflow, référence `FIC/ENT`, indicateur « Devis souhaité » —
+      `app.js` (`clientDossierHTML`)
+- [x] **Clic sur un dossier** → détail de fiche existant `#/detail/:id` (`data-nav="detail"`,
+      délégation globale). Nav `client-open` ajoutée à la délégation
+- [x] Route `#/clients` (deep-link : ouvre l'accueil sur l'onglet Clients) — `app.js` (`route`)
+- [x] Incrémenter `CACHE_VERSION` dans `sw.js` (→ `climatelec-v16`)
+
+Sans modification : `idb.js`, `supabase/schema.sql`, `style.css` (classes existantes réutilisées),
+`pdf.js`. Aucun changement de schéma (jointure `client_id` existante).
+
+**Fichiers :** `app.js`, `sw.js`, `PRD_App_Interventions_Climat_Elec.md`

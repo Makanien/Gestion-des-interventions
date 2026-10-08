@@ -1,8 +1,8 @@
 # PRD — Application de gestion des fiches d'intervention
 ## Climat Elec (Chazé-sur-Argos)
 
-**Version du document :** 1.26
-**Date :** 07/10/2026
+**Version du document :** 1.27
+**Date :** 08/10/2026
 **Auteur :** Rédigé avec Claude, sur la base des échanges avec le porteur de projet
 
 ---
@@ -410,6 +410,7 @@ Brouillon → À valider → Validée → À facturer → Facture importée → 
 
 ### Prise de contact & planification (US-01 · US-02 · US-16 · US-17 · US-18)
 - **Accueil = Planning** : 3 onglets — **Planning** (rendez-vous groupés par jour, filtrés par intervenant pour le technicien), **Tâches** (fiches terrain, masquage des tâches réalisées par défaut, recherche), **Dossiers** (classement par statut du workflow + bloc « Appels »).
+- **Annuaire clients (nouveau — 08/10/2026, à faire valider)** : un 4e onglet **Clients** à l'accueil — liste alphabétique des clients avec recherche (nom, ville, téléphone, CP) et compteur de dossiers par client ; **un clic sur un client** ouvre sa **fiche client** (`#/client/:id`) : coordonnées, **équipements connus** et **liste des dossiers du client** (fiches d'intervention/entretien triées par date décroissante, avec statut du workflow, référence et indicateur devis) ; **un clic sur un dossier** ouvre le détail de la fiche existant (`#/detail/:id`). Les **équipements connus** fusionnent l'historique client (copies sans fiche) et les équipements de **toutes les fiches** du client, dédupliqués (intitulé + marque + modèle + n° de série) — couvre les équipements non historisés (sans n° de série ou fiches antérieures à la V2). Aucun changement de schéma (tables `clients` / `interventions` existantes, jointure `client_id`).
 - **Filtres Planning & Tâches** : tri des rendez-vous et des tâches par **type** (Dépannage / Garantie / Diagnostic / Entretiens) et par **intervenant** (manager uniquement), combinés à la recherche ; boutons de rendez-vous cliquables vers l'édition.
 - **Bouton « + »** (US-18) : point d'entrée unique — Nouvel appel, Nouvelle intervention, Entretien Air/Eau-Sol/Eau, Air/Air, Chaudière bois, Contrat d'entretien annuel.
 - **Écran « Nouvel appel »** (US-01) : recherche client avec auto-remplissage, motif, type de bâtiment, type d'intervention ; 3 actions de sortie — « Créer le rendez-vous → », « Créer l'intervention → » (pré-remplissage du flux), « Enregistrer sans planifier ».
