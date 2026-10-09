@@ -1,10 +1,11 @@
 # Tâches à faire — V3 (compléments identifiés)
 
-> Dernière mise à jour : 07/10/2026 (points 10 et 11 — fiches d'entretien réalignées sur la feuille 18/09
-> via la variante « proposition métier » : pagination 7 pages + fin d'intervention, listes fermées,
-> module hydraulique partagé, CERFA maintenu hors chaudière bois, PDF regroupé par sections, sw `v16` ;
-> retours « refonte 18/09 » des points 12 à 14 matérialisés dans les maquettes du 05/10/2026, commit `d53a9ce` : fin
-> d'intervention commune, Tableau de bord = accueil, page 5 « Unités intérieures » air/air).
+> Dernière mise à jour : 09/10/2026 (arbitrages du classeur « Application 20261009.xlsx », réponses du porteur
+> de projet 6.1 → 6.12 — analyse : `documentation/Application 20261009 analyse retours.md`, PRD v1.27) :
+> **nouveaux points 15 → 20** (fiche générique : types à 5 valeurs + page 3/6 Équipement/Descriptif ;
+> Chaudière bois et Air/Air sur les feuilles 09/10 ; ajustements Air/Eau incl. GWP rétabli et retrait
+> T° d'air extérieur ; unités avant le champ de saisie, tous formulaires ; bouton « + » solaire / retrait
+> contrat) ; points 10 → 14 actualisés (types, « Page ok », Tableau de bord re-validé).
 > Base historique : comparaison spec V3 (§3.3 du PRD) vs implémentation réelle
 > (branche `application-v3`, revue du 25/08/2026).
 >
@@ -140,18 +141,24 @@ l'appel est l'origine du flux (relié puis masqué) ; un RDV peut produire une i
 
 | Priorité | Tâche |
 |---|---|
-| 1 | ~~Câbler les filtres Tâches (`wireTab`) + styles filtre (points 3)~~ ✅
+| 1 | ~~Câbler les filtres Tâches (`wireTab`) + styles filtre (points 3)~~ ✅ |
 | 2 | ~~Stats « par client » (point 2)~~ ✅ |
 | 3 | ~~Réutilisation historique équipement dans le wizard (point 5)~~ ✅ |
 | 4 | ~~Upload photos/documents en fin de wizard + import (point 6)~~ ✅ |
 | 5 | ~~Vérification finale + `sw.js` + PRD (point 7)~~ ✅ |
 | 6 | ~~Cycle de vie de l'appel & RDV → intervention (point 8)~~ ✅ |
 | 7 | ~~Option « + de 15 ans » Type de bâtiment (point 9)~~ ✅ |
-| 8 | ~~Refonte fiche « Entretien Chaudière bois » (point 10)~~ ✅ (07/10 — variante « proposition métier ») |
-| 9 | ~~Refonte fiche « Entretien Air/Eau-Sol/Eau » (point 11)~~ ✅ (07/10 — feuille de référence, chantier partagé avec le point 10) |
-| 10 | Fin d'intervention commune (point 12) — chantier partagé aux 4 fiches (fiche générique + 3 entretiens) |
-| 11 | Tableau de bord = accueil (point 13) — après validation de la maquette par le client |
-| 12 | Fiche Air/Air — page 5 « Unités intérieures » (point 14) — après validation de la proposition métier |
+| 8 | ~~Refonte fiche « Entretien Chaudière bois » (point 10)~~ ✅ (07/10 — à actualiser avec la feuille 09/10, point 16) |
+| 9 | ~~Refonte fiche « Entretien Air/Eau-Sol/Eau » (point 11)~~ ✅ (07/10 — ajustements 09/10 au point 18) |
+| 10 | Fin d'intervention commune (point 12) — chantier partagé aux 4 fiches (fiche générique + 3 entretiens) ; « Page ok » précisée (6.9) |
+| 11 | Tableau de bord = accueil (point 13) — re-validé au 09/10, à implémenter (drill-down + tris Nom/CP/Ville) |
+| 12 | ~~Fiche Air/Air — page 5 « Unités intérieures » (point 14)~~ → arbitré 09/10, implémentation au point 17 |
+| 13 | Retours 09/10 — fiche générique « Nouvelle intervention » (point 15) |
+| 14 | Retours 09/10 — fiche « Chaudière bois » (point 16) |
+| 15 | Retours 09/10 — fiche « Air/Air » (point 17) |
+| 16 | Retours 09/10 — ajustements fiche « Air/Eau-Sol/Eau » (point 18) |
+| 17 | Unités avant le champ de saisie — tous formulaires (point 19) |
+| 18 | Bouton « + » — retrait « Contrat d'entretien annuel », préparation « Entretien installation solaire » (point 20) |
 
 ---
 
@@ -184,7 +191,7 @@ feuille « Entretien Chaudière Bois », mention « A FAIRE ») : la fiche chaud
 mesures spécifique (combustion, WOS, creuset…) et s'aligne sur la structure de la fiche Air/Eau-Sol/Eau —
 pages « Vérification Groupe extérieur » et « Vérification Module hydraulique », pagination en 7 pages,
 fin d'intervention alignée sur la page 6/6 de « Nouvelle intervention ». Détail complet au **§3.2.11 du PRD**
-(dont les points à confirmer avec le client).
+(points arbitrés le 09/10 — cf. « Points de vigilance » ci-dessous et tâche 16).
 
 > **Implémenté le 07/10/2026** (arbitrage : variante « proposition métier » de la maquette du 05/10/2026).
 
@@ -209,10 +216,14 @@ fin d'intervention alignée sur la page 6/6 de « Nouvelle intervention ». Dét
 - [x] Liste « Type d'entretien » : **conservée** (Granulés / Bûches / Pellets) — la liste de la feuille
       (Aérothermie/Géothermie/Aquathermie) est incohérente avec une chaudière bois ; à confirmer tout de
       même avec le client — `app.js` (`ENTRETIEN_META.chaudiere.types`)
+      → **Arbitré le 09/10 (6.2)** : la liste 18/09 est remplacée par celle, cohérente, de la feuille 09/10 —
+      **« Chaudière Bûches / Chaudière Granulés / Chaudière Déchiquettée »** (« Pellets » remplacé par
+      « Déchiquettée », confirmé) ; implémentation à la **tâche 16**
 - [ ] Fin d'intervention (page finale partagée) : règles 18/09 extraites au **point 12** (communes à la fiche
       générique « Nouvelle intervention » et aux 3 fiches d'entretien) — un seul chantier
 - [x] Arbitré le sort du champ « Prochaine intervention prévue » : **conservé** à la page finale
       (variante proposition métier ; retrait éventuel à confirmer) — `app.js` (`stepSignHTML`, flag `prochaine: true`), `supabase/schema.sql` inchangé
+      → **Arbitré définitivement le 09/10 (6.3) : conservé** — rien à faire
 - [x] Maintenu le bloc CERFA n°15497 non applicable (`cerfa: false`) — aucun champ fluide frigorigène dans
       les blocs de mesures chaudière bois (fluides de la feuille retirés)
 - [x] PDF : regroupement des mesures par section (sous-titres de section du modèle, puis « Autres mesures »
@@ -228,18 +239,20 @@ fin d'intervention alignée sur la page 6/6 de « Nouvelle intervention ». Dét
 
 **Fichiers :** `app.js`, `pdf.js`, `style.css`, `Maquettes.html`, `sw.js` (+ `supabase/schema.sql` si retrait du champ « Prochaine intervention prévue »)
 
-**Points de vigilance (à confirmer avec le client, cf. PRD §3.2.11) :**
-- « Type d'entretien » Aérothermie/Géothermie/Aquathermie : semble copié de la feuille Air.Eau.
-- Perte des mesures spécifiques chaudière bois (combustion, WOS, creuset, sonde lambda, silo…).
-- Champ « Prochaine intervention prévue » non repris dans la feuille.
-- La feuille « Entretien Air.Air » du même classeur porte la même mention « A FAIRE » (contenu identique à
-  Air.Eau) : évolution analogue de la fiche Air/Air à prévoir si confirmée — détaillée au point 14.
-- La maquette du 05/10/2026 porte une **alternative « proposition métier »** (validateur client) : page 4 
-  « Vérification chaudière bois » au lieu de « Groupe extérieur » (mesures spécifiques réintégrées), page 5
-  « Module hydraulique » conservée (circuit d'eau réel), champs fluides retirés (CERFA non applicable),
-  Granulés/Bûches/Pellets (liste d'origine), « Prochaine intervention prévue » conservé —
-  **variante implémentée le 07/10/2026** (si le client retient plutôt l'application littérale de la feuille,
-  repasser les blocs de mesures de `ENTRETIEN_META.chaudiere` sur `BLOC_GROUPE_EXTERIEUR` + hydraulique).
+**Points de vigilance (mise à jour 09/10 : arbitrages rendus au §3.2.11 du PRD — implémentation à la tâche 16) :**
+- Types d'entretien : **Bûches / Granulés / Déchiquettée** (le « Pellets » du 07/10 est remplacé par « Déchiquettée ») ;
+- Page 4 « Vérification Chaudière » : précisions 09/10 — **état du joint WOS** (Bon/Moyen/A remplacer),
+  **test alimentation granulés** (Oui/Non) ;
+- Page 5 renommée **« Vérification réseau hydraulique »** et **allégée** : retrait tensions d'alimentation /
+  intercommunication / resserrage des bornes (électricité passée page 4) et du duo « Nettoyage / État visuel
+  du module hydraulique » ; ajout « **Non concerné** » sur nettoyage/état du filtre à tamis —
+  uniquement pour la fiche bois (le bloc partagé Air/Eau reste complet, cf. tâche 18) ;
+- « Prochaine intervention prévue » **conservée** (6.3) ; CERFA confirmé **non applicable** ;
+- La feuille « Entretien Air.Air » du 09/10 a ses propres pages (voir tâche 17).
+- Historique (résolu par les 09/10) : types 18/09 Aérothermie/Géothermie/Aquathermie copiés de la feuille
+  Air.Eau (remplacés), mesures spécifiques disparues (réintégrées), « Prochaine intervention prévue »
+  absente (conservée). La maquette du 05/10/2026 « proposition métier » avait préfiguré la variante
+  implémentée le 07/10/2026.
 
 ---
 
@@ -268,16 +281,20 @@ de référence aux pages 4-5 partagées.
 
 **Fichiers :** `app.js`, `pdf.js`, `style.css`, `Maquettes.html`, `sw.js`
 
-**Points de vigilance (à confirmer avec le client, cf. PRD §3.2.12) :**
-- « T° d'air extérieur » : présente dans la fiche actuelle (`t_air_ext`), absente des pages 4-5 de la feuille —
-  **conservée en fin de bloc hydraulique (07/10)**, retrait à confirmer.
+**Points de vigilance (mise à jour 09/10 : arbitrages rendus au §3.2.12 du PRD ; ajustements à la tâche 18) :**
+- « T° d'air extérieur » : **retrait confirmé au 09/10 (6.6)** — la fin de bloc conservée le 07/10
+  (`t_air_ext`) est à retirer de la fiche Air/Eau-Sol/Eau (`BLOC_MODULE_HYDRAULIQUE`) ;
+- « GWP du fluide » : **champ rétabli au 09/10 (6.6)** en page 4 (utile au CERFA) — confirmation client
+  restant consignée au PRD (tâche 18) ;
 - Champs sans liste de valeurs (« Charge d'usine », « Valeur anti-gel », « Différence Entrée/Sortie d'air »,
-  « Pression d'eau ») : saisie libre conservée ? Unités à réafficher ?
-- « Année d'installation » (affichée à l'étape Équipement des fiches d'entretien) absente de la feuille :
-  conserver ou retirer ? « Descriptif » (obligatoire en page 3/6 de Nouvelle intervention) : à ajouter ?
+  « Pression d'eau ») : **saisie libre conservée (6.8)**, **unités affichées avant le champ** (convention
+  tous formulaires, cf. tâche 19) — la question des unités attendues reste ouverte pour le client (point §11 du PRD) ;
+- « Année d'installation » : **conservée (6.7)** ; « Descriptif » : **obligatoire (6.7)**, hérité de la
+  page 3/6 arbitrée (cf. tâches 15) ;
 - Données existantes saisies avec unités (V, bar, °C…) : conservées en base, pas de conversion prévue
   (table `mesures` typée, aucun changement de schéma).
-- La feuille « Entretien Air.Air » (contenu identique) : même évolution à confirmer — cf. point 10.
+- Historique : la feuille « Entretien Air.Air » 18/09 (contenu copié de la feuille Air.Eau) a été remplacée
+  par la feuille 09/10 dédiée — cf. point 10.
 
 ---
 
@@ -297,33 +314,43 @@ après 7/7 « Pièces utilisées »). Maquette dédiée « Fin d'intervention »
 - [ ] Signature **client obligatoire si le client est présent** — `app.js` (`readSignStep` / `finishWizard`)
 - [ ] **« Soumettre pour validation » désactivé** tant que la fiche n'est pas signée (technicien + client si
       présent) — `app.js` (`finishWizard` ligne ~1728, workflow `brouillon → a_valider`)
-- [ ] Ajouter la case **« Page ok — fiche complète et vérifiée »** (libellé/portée à clarifier avec le client) ;
-      à persister si confirmée : `app.js`, `idb.js`, `supabase/schema.sql` (colonne à prévoir, ex. `page_ok bool`)
+- [ ] Ajouter la case **« Page ok »** — **précision arbitrée le 09/10 (6.9)** : « Page ok » est le **résumé/attestation
+      que toutes les informations obligatoires sont renseignées** ; les champs « obligatoires » **ne bloquent pas le
+      passage à la page suivante**, ils conditionnent le **contrôle de complétude à la validation** ; **conserver
+      l'astérisque** des champs obligatoires (toutes sections : intervention + entretiens). À persister si besoin :
+      `app.js`, `idb.js`, `supabase/schema.sql` (colonne à prévoir, ex. `page_ok bool`)
 - [ ] « Enregistrer comme brouillon » conservé à la page finale (déjà présent à toutes les étapes — à vérifier) — `app.js`
 - [ ] PDF : figurer ou non la case « Page ok » sur le PDF généré (à arbitrer) — `pdf.js`
 - [ ] Incrémenter `CACHE_VERSION` dans `sw.js` (→ `climatelec-v16`, cumulé avec les points 10-11-13-14)
 
 **Fichiers :** `app.js`, `pdf.js`, `sw.js` (+ `idb.js`, `supabase/schema.sql` si « Page ok » persistée)
 
-**Points de vigilance (à clarifier avec le client, cf. PRD §3.2.14) :**
-- Libellé et portée du champ « Page ok » (case de confirmation de page — fonction exacte à définir ; la feuille
-  indique l'intitulé brut « Page ok »).
+**Points de vigilance (mise à jour 09/10, 6.9 — précision arbitrée au §3.2.14 du PRD) :**
+- « Page ok » = **résumé de la complétude** des champs obligatoires (astérisque conservé) ; les champs
+  « obligatoires » ne bloquent **pas la navigation** vers la page suivante, seulement la **validation** finale —
+  s'assurer que la validation de complétude est appliquée par page/à la soumission, sur toutes les sections
+  (intervention + entretiens).
 
 ---
 
-## 13. Tableau de bord = écran d'accueil (retour 18/09 — à faire valider)
+## 13. Tableau de bord = écran d'accueil (retours 18/09 + 09/10 — validé, à implémenter)
 
 **Objectif :** remplacer « accueil = planning » (arbitrage du 16/08) par un **Tableau de bord** : vue synthèse
 par statut du workflow (US-13 · US-15) + bloc « Appels — À traiter ». Les onglets Planning / Tâches / Dossiers
 sont **conservés** ; seul l'écran ouvert par défaut change. Maquette dédiée (écran `dashboard`, groupe
-« Refonte 18/09 — à valider ») ; spécification au **§3.2.15 du PRD**.
+« Refonte 18/09 — à valider ») ; spécification au **§3.2.15 du PRD** — **validée au 09/10**
+(demande re-confirmée, drill-down + tris arbitrés 6.12).
 
-- [ ] **Faire valider la maquette** « Tableau de bord » par le client (en remplacement de « accueil = planning »
-      du 16/08) — ne pas implémenter avant accord
-- [ ] Si validé : afficher le Tableau de bord comme **vue par défaut de l'accueil** — blocs par statut de dossier
+- [x] **Faire valider la maquette** « Tableau de bord » par le client (en remplacement de « accueil = planning »
+      du 16/08) — **validée** : demande re-confirmée par le client au 09/10 (« Page d'accueil = Tableau de
+      bord », 2e mention) et précisions arbitrées (6.12, cf. ci-dessous et §3.2.15 du PRD)
+- [ ] Afficher le Tableau de bord comme **vue par défaut de l'accueil** — blocs par statut de dossier
       (À valider, À facturer, À vérifier, À envoyer…) + bloc **« Appels — À traiter »** en tête (les appels
       « Enregistrer sans planifier » y arrivent) — `app.js` (rendu des onglets lignes ~503-505 ; `dossiersHTML`
       ligne ~636 réutilisable comme base des blocs par statut)
+- [ ] **Retours 09/10 (arbitrés 6.12)** : **drill-down par statut** — clic sur un groupe de statut ouvre la
+      liste des dossiers de ce statut ; **tris Nom / Code postal / Ville** (en plus des tris type/intervenant) —
+      valables **aussi pour le technicien, dans son périmètre** — `app.js`
 - [ ] Arbitrer le bloc **« Devis en cours »** de la maquette : le workflow (§3.3.4) n'a pas de statut « devis » —
       proposer un bloc fiches portant l'indicateur « devis souhaité », ou le retirer — à arbitrer avec le client
 - [ ] **Vue par rôle** : toute l'équipe pour Régis/Delphine, propres lignes pour Jérémy (règles §3.2.2 conservées) — `app.js`
@@ -331,35 +358,157 @@ sont **conservés** ; seul l'écran ouvert par défaut change. Maquette dédiée
 
 **Fichiers :** `app.js`, `style.css`, `sw.js`
 
-**Points de vigilance (cf. PRD §3.2.15) :**
-- Statut maquette « à faire valider » : retour du 18/09 non encore arbitré.
+**Points de vigilance (mise à jour 09/10, cf. PRD §3.2.15) :**
+- Maquette **validée** (re-demande explicite 09/10) ; précisions arbitrées (6.12) : drill-down, tris
+  Nom/CP/Ville, **périmètre technicien inclus**.
 - Bloc « Devis en cours » sans équivalent dans le workflow de statuts (§3.3.4) — à arbitrer.
 
 ---
 
 ## 14. Fiche « Entretien Air/Air » — page 5 « Unités intérieures » (proposition métier, 05/10/2026)
 
-**Objectif :** si la proposition métier (maquette « Entretien Air/Air ») est validée en alternative à l'application
-littérale de la feuille « Entretien Air.Air » (copie de la feuille hydraulique, sans objet pour une PAC air/air —
-cf. **§3.2.13 du PRD**), remplacer la page 5 « Vérification Module hydraulique » par une page **« Unités
-intérieures »** ; le reste (pages 1-2, 4, 6-7 et fin d'intervention) est partagé avec le chantier commun des
-points 10-11-12.
+> **✅ Arbitré le 09/10/2026** : la feuille « Entretien Air.Air » du classeur `Application 20261009.xlsx`
+> lève les deux anomalies du 18/09 (types + page 5) et converge avec la proposition métier, avec des
+> nuances arbitrées (réponses 6.4, 6.5, 6.6 — détail au §3.2.13 du PRD). L'implémentation est portée par la
+> **tâche 17** ci-dessous : liste type Mono Split / Multi Split / Gainable, page 5 « Vérification Unitée
+> Intérieure » extraites de la feuille 09/10, page 4 sans « anti-gel », « Delta T° d'air » **champ unique**
+> (nuance vs la maquette qui prévoyait des T° par unité 1 à 4), équipement = **même bloc que la page 3/6**
+> (la structure dédiée 5 lignes 1 extérieure + 4 intérieures est abandonnée), GWP du fluide rétabli
+> (confirmation client conservée au PRD), « T° d'air extérieur » retirée, CERFA maintenu.
 
-- [ ] **Faire valider la proposition** : page 5 « Unités intérieures » (nettoyage/état des filtres intérieurs,
-      nettoyage pompe de relevage des condensats, T° d'échange groupe extérieur et unités intérieures 1 à 4,
-      état visuel des unités, T° d'air extérieur) — `Maquettes.html`
-- [ ] Conserver **5 lignes d'équipement** (1 unité extérieure + jusqu'à 4 intérieures, structure actuelle) au lieu
-      de 3 (feuille) — `ENTRETIEN_META.air_air` (`app.js` lignes 127-146)
-- [ ] Arbitrer « **GWP du fluide** » : retiré par la feuille mais utile au CERFA (§3.2.13) — `app.js` / `pdf.js`
-- [ ] Écarter la liste « Type d'entretien » Aérothermie/Géothermie/Aquathermie (copie de la feuille) : arbitrer
-      entre liste dédiée air/air et conservation de la liste commune — `app.js` ligne ~130
-- [ ] Contenu de `ENTRETIEN_META.air_air` : page 4 + fin d'intervention partagées, page 5 dédiée, **CERFA maintenu
-      (`cerfa: true`)** — `app.js`, `pdf.js`
-- [ ] Incrémenter `CACHE_VERSION` dans `sw.js` (→ `climatelec-v16`, cumulé)
+---
+
+## 15. Fiche générique « Nouvelle intervention » — retours 09/10 (arbitrés)
+
+**Objectif :** appliquer les arbitrages du 09/10 à la fiche générique (analyse
+`documentation/Application 20261009 analyse retours.md` §2, réponses 6.1, 2.2, 6.7 ; PRD §3.2.6).
+
+- [ ] Liste « **Type d'intervention** » (page 2) : passer de 3 à **5 valeurs** — **Sav · Garantie ·
+      Dépannage · Diagnostic · Sur devis** (orthographe imposée « Diagnostic », jamais « Diagnostique »)
+      — `app.js` (select `f-type-itv`, `stepInterventionHTML`)
+- [ ] Page 3/6 : fusionner l'étape **Équipement** et le **« Descriptif »** (saisie sur la même page) ;
+      le descriptif devient **obligatoire** — `app.js` (`stepEquipementHTML`, validation `finishWizard`)
+- [ ] Équipement : **gestion actuelle conservée** (base de données équipements avec bouton
+      « Reprendre l'équipement enregistré ») ; rendre **obligatoires** les champs **Intitulé, Marque,
+      Modèle, N° de série** — `app.js` (validation équipements ; le PDF/détail affichent déjà les champs)
+- [ ] Vérifier l'orthographe « Diagnostic » partout (formulaires, filtres, statistiques, PDF) — `app.js`, `pdf.js`
+- [ ] Pré-remplissage : le descriptif hérité de l'appel/RDV reste reporté sur la page 3/6 — `app.js`
+- [ ] PDF : bloc Équipement + Descriptif conforme à la fusion — `pdf.js`
+- [ ] Incrémenter `CACHE_VERSION` dans `sw.js`
+
+**Fichiers :** `app.js`, `pdf.js`, `sw.js`
+
+---
+
+## 16. Fiche « Entretien Chaudière bois » — feuille 09/10 (arbitrée)
+
+**Objectif :** appliquer la feuille « Entretien Chaudière Bois » du classeur `Application 20261009.xlsx`
+(arbitrage 6.2/6.3 ; PRD §3.2.11). La fiche 07/10 (proposition métier) sert de base.
+
+- [ ] Types d'entretien : passer à **« Chaudière Bûches · Chaudière Granulés · Chaudière Déchiquettée »**
+      (« Pellets » remplacé par « Déchiquettée ») — `app.js` (`ENTRETIEN_META.chaudiere.types`) ;
+      ancien libellé « Pellets » des fiches existantes conservé/toléré à l'ouverture (pas de conversion)
+- [ ] Page 4 « Vérification Chaudière » : intégrer les précisions 09/10 — **état du joint WOS**
+      (Bon/Moyen/A remplacer, champ séparé du nettoyage WOS) et **« Test alimentation granulés »** (Oui/Non) —
+      `app.js` (`BLOC_CHAUDIERE_BOIS`)
+- [ ] Page 5 renommée **« Vérification réseau hydraulique »** et **allégée** (fiche bois uniquement) :
+      retirer « Tension d'alimentation », « Tension intercommunication » (disparait totalement de la fiche
+      bois), « Resserrage des bornes électrique », « Nettoyage du module hydraulique » et « État visuel du
+      module hydraulique » ; ajouter l'option « Non concerné » sur le nettoyage **et** l'état du filtre
+      à tamis — `app.js` (bloc dédié chaudière ; ne pas toucher à `BLOC_MODULE_HYDRAULIQUE` partagé
+      avec l'Air/Eau)
+- [ ] PDF : rendu des libellés « Vérification Chaudière » / « Vérification réseau hydraulique » — `pdf.js`
+- [ ] Incrémenter `CACHE_VERSION` dans `sw.js` (cumulé)
+
+**Fichiers :** `app.js`, `pdf.js`, `sw.js`
+
+---
+
+## 17. Fiche « Entretien Air/Air » — feuille 09/10 (arbitrée)
+
+**Objectif :** appliquer la feuille « Entretien Air.Air » du classeur `Application 20261009.xlsx`
+(arbitrages 6.4/6.5/6.6 ; PRD §3.2.13 ; remplace la tâche 14 ci-dessus).
+
+- [ ] Types d'entretien : **Mono Split · Multi Split · Gainable** — `app.js` (`ENTRETIEN_META.air_air.types`,
+      `type_entretien_detail`) ; fiches existantes (type « Air/Air ») à requalifier à l'ouverture
+- [ ] Page 5 : remplacer « Unités intérieures » (maquette) par **« Vérification Unitée Intérieure »**
+      de la feuille 09/10 — tension d'alimentation, tension intercommunication, resserrage des bornes
+      électrique, nettoyage filtre (Oui/Non) + état filtre (Bon/Moyen/A remplacer), test évacuation
+      condensat (Oui/Non) + état réseau condensat (Bon/Moyen/Très moyen), nettoyage pompe de relevage
+      (Oui/Non/Absente) + état pompe de relevage (Bon/Moyen/Très moyen/Absente), **Delta T° d'air**
+      (Vérifié/Non vérifié/Non vérifiable), nettoyage unité intérieure (Oui/Non) + état visuel
+      (Bon/Moyen/Très moyen) — `app.js` (`ENTRETIEN_META.air_air` pages 4-5)
+- [ ] Page 4 « Vérification Groupe extérieur » : reprendre le bloc référentiel **moins** les champs
+      « Sécurité anti-gel » et « Valeur anti-gel » (retrait en air/air) ; « Vérification de fuite
+      frigorigène » **avant** nettoyage/état visuel ; « Différence Entrée / Sortie d'air » en fin de page —
+      `app.js`
+- [ ] Retirer les « T° échange unité 1 à 4 » (remplacés par le **champ unique « Delta T° d'air »**, 6.4)
+      — `app.js`
+- [ ] Équipement (page 3) : abandonner la structure dédiée « 1 extérieure + 4 intérieures » au profit du
+      **même bloc que la page 3/6** de « Nouvelle intervention » (base équipements + rappel, champs
+      Intitulé/Marque/Modèle/N° de série obligatoires — 6.5) — `app.js` (`ENTRETIEN_META.air_air`)
+- [ ] **GWP du fluide** : champ rétabli en page 4 (utile au CERFA ; confirmation client conservée au PRD)
+      — `app.js`, `pdf.js`
+- [ ] « T° d'air extérieur » : absente (retrait conforme aux feuilles 18/09 et 09/10) — rien à ajouter
+- [ ] CERFA n°15497 maintenu (`cerfa: true`) — `app.js`, `pdf.js`
+- [ ] Maquette de documentation « Entretien Air/Air » alignée sur la feuille 09/10 — `Maquettes.html`
+- [ ] Incrémenter `CACHE_VERSION` dans `sw.js` (cumulé)
 
 **Fichiers :** `app.js`, `pdf.js`, `Maquettes.html`, `sw.js`
 
-**Points de vigilance (à confirmer avec le client, cf. PRD §3.2.13) :**
-- La feuille Air.Air est un copier-coller de la feuille Air/Eau-Sol/Eau : ne pas appliquer telle quelle.
-- Champs sans liste de valeurs (« Charge d'usine », « Valeur anti-gel », « Différence Entrée/Sortie d'air »,
-  « Pression d'eau ») : même question que le point 11 (saisie libre, unités ?).
+---
+
+## 18. Fiche « Entretien Air/Eau-Sol/Eau » — ajustements 09/10
+
+**Objectif :** la feuille de référence 09/10 est identique au 18/09 — appliquer les arbitrages
+6.6 / 6.7 / 6.8 récents (PRD §3.2.12).
+
+- [ ] Retirer « **T° d'air extérieur** » (`t_air_ext`) de la fin de bloc hydraulique (retrait confirmé
+      au 09/10) — `app.js` (`BLOC_MODULE_HYDRAULIQUE`), `pdf.js`
+- [ ] Ajouter le champ « **GWP du fluide** » à la page 4 « Vérification Groupe extérieur » (saisie,
+      utile au CERFA ; confirmation client conservée au PRD) — `app.js`, `pdf.js`
+- [ ] Champs sans liste de valeurs : saisie libre conservée (6.8), **unités affichées avant le champ**
+      (cf. tâche 19) ; question des unités laissée ouverte (point §11 du PRD)
+- [ ] « Année d'installation » : conservée (6.7) — rien à faire ; « Descriptif » ajouté via la tâche 15
+      (héritage page 3/6 des fiches d'entretien)
+- [ ] Incrémenter `CACHE_VERSION` dans `sw.js` (cumulé)
+
+**Fichiers :** `app.js`, `pdf.js`, `sw.js`
+
+---
+
+## 19. Unités affichées avant le champ de saisie — tous formulaires (09/10)
+
+**Objectif :** convention validée par le porteur de projet : **l'unité apparaît avant le champ de saisie,
+pas dans le champ** (pas de placeholder d'unité) — tous formulaires (wizard, mesures, CERFA).
+
+- [ ] `mesureInputHTML` : retirer l'unité du `placeholder` des champs en saisie libre
+      (elle est déjà indiquée à côté du libellé, **avant** le champ — conserver/renforcer cet affichage)
+      — `app.js` (ligne ~1619), `style.css` le cas échéant
+- [ ] Vérifier les autres champs à unité (CERFA : quantité kg, déchets, etc.) pour le même rendu — `app.js`
+- [ ] PDF : unités déjà portées sur les libellés — vérifier qu'elles restent affichées à côté du champ — `pdf.js`
+- [ ] Incrémenter `CACHE_VERSION` dans `sw.js` (cumulé)
+
+**Fichiers :** `app.js`, `pdf.js`, `style.css`, `sw.js`
+
+---
+
+## 20. Bouton « + » — solaire préparé, retrait de l'entrée « Contrat d'entretien annuel » (09/10)
+
+**Objectif :** appliquer la feuille « Bouton + » du classeur 09/10 arbitrée (6.10, 6.11 ; PRD §3.2.4).
+
+- [ ] Retirer l'entrée « **Contrat d'entretien annuel** » de la feuille d'action du bouton « + » (le flux
+      `#/contrat`, la liste `#/contrats` et les données existantes restent accessibles — US-24 conservée)
+      — `app.js` (menu, ligne ~765)
+- [ ] Ajouter l'entrée « **Entretien installation solaire** » (**préparation** 6.10) : clé `solaire` dans
+      `ENTRETIEN_META` (trame commune 7 pages + fin d'intervention, bloc « Vérification installation
+      solaire » à renseigner dès réception des données du client, CERFA a priori non applicable) ;
+      l'activer à l'entrée du menu dès la trame en place — `app.js`, `pdf.js` (libellé entretien),
+      `supabase/schema.sql` (aucun changement attendu : `type_entretien` en texte)
+- [ ] Filtres/tris « Entretiens » (planning, tâches, accueil) : prévoir la ventilation du nouveau type
+      solaire — `app.js`
+- [ ] Incrémenter `CACHE_VERSION` dans `sw.js` (cumulé)
+
+**Fichiers :** `app.js`, `pdf.js`, `Maquettes.html`, `sw.js`
+**Reste attendu du client :** contenu du bloc « Vérification installation solaire » et liste des types
+d'installation (point ouvert §11 du PRD).
