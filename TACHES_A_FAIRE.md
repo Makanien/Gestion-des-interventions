@@ -1,6 +1,7 @@
 # Tâches à faire — V3 (compléments identifiés)
 
-> Dernière mise à jour : 09/10/2026 (arbitrages du classeur « Application 20261009.xlsx », réponses du porteur
+> Dernière mise à jour : 10/10/2026 (retours 09/10 — point 15 implémenté ; arbitrages du classeur
+> « Application 20261009.xlsx », réponses du porteur
 > de projet 6.1 → 6.12 — analyse : `documentation/Application 20261009 analyse retours.md`, PRD v1.27) :
 > **nouveaux points 15 → 20** (fiche générique : types à 5 valeurs + page 3/6 Équipement/Descriptif ;
 > Chaudière bois et Air/Air sur les feuilles 09/10 ; ajustements Air/Eau incl. GWP rétabli et retrait
@@ -153,7 +154,7 @@ l'appel est l'origine du flux (relié puis masqué) ; un RDV peut produire une i
 | 10 | ~~Fin d'intervention commune (point 12) — chantier partagé aux 4 fiches (fiche générique + 3 entretiens) ; « Page ok » précisée (6.9)~~ ✅ |
 | 11 | ~~Tableau de bord = accueil (point 13)~~ ✅ (10/10 — reste : arbitrage du bloc « Devis en cours ») |
 | 12 | ~~Fiche Air/Air — page 5 « Unités intérieures » (point 14)~~ → arbitré 09/10, implémenté au point 17 ✅ |
-| 13 | Retours 09/10 — fiche générique « Nouvelle intervention » (point 15) |
+| 13 | ~~Retours 09/10 — fiche générique « Nouvelle intervention » (point 15)~~ ✅ |
 | 14 | Retours 09/10 — fiche « Chaudière bois » (point 16) |
 | 15 | ~~Retours 09/10 — fiche « Air/Air » (point 17)~~ ✅ |
 | 16 | Retours 09/10 — ajustements fiche « Air/Eau-Sol/Eau » (point 18) |
@@ -416,18 +417,31 @@ sont **conservés** ; seul l'écran ouvert par défaut change. Maquette dédiée
 **Objectif :** appliquer les arbitrages du 09/10 à la fiche générique (analyse
 `documentation/Application 20261009 analyse retours.md` §2, réponses 6.1, 2.2, 6.7 ; PRD §3.2.6).
 
-- [ ] Liste « **Type d'intervention** » (page 2) : passer de 3 à **5 valeurs** — **Sav · Garantie ·
+> **✅ Implémenté le 10/10/2026** (arbitrages 6.1, 2.2/6.5/6.7 ; page 3/6 = étape partagée
+> « Équipement & demande », déjà commune aux 4 fiches — l'héritage de l'obligatoire
+> « Descriptif » profite aux fiches d'entretien, cf. tâches 18/19) : test de fumée
+> `node` — 28 contrôles OK (dont non-régression Tableau de bord, 19/19).
+
+- [x] Liste « **Type d'intervention** » (page 2) : passer de 3 à **5 valeurs** — **Sav · Garantie ·
       Dépannage · Diagnostic · Sur devis** (orthographe imposée « Diagnostic », jamais « Diagnostique »)
-      — `app.js` (select `f-type-itv`, `stepInterventionHTML`)
-- [ ] Page 3/6 : fusionner l'étape **Équipement** et le **« Descriptif »** (saisie sur la même page) ;
-      le descriptif devient **obligatoire** — `app.js` (`stepEquipementHTML`, validation `finishWizard`)
-- [ ] Équipement : **gestion actuelle conservée** (base de données équipements avec bouton
+      — `app.js` (select `f-type-itv`, `stepInterventionHTML`) ; pré-remplissages alignés : appel →
+      fiche (liste d'inclusion à 5 valeurs) et RDV « Rdv devis » → fiche (« Sur devis »)
+- [x] Page 3/6 : fusionner l'étape **Équipement** et le **« Descriptif »** (saisie sur la même page) ;
+      le descriptif devient **obligatoire** — `app.js` (partage déjà en place « Équipement & demande » ;
+      descriptif désormais rendu sur **toutes** les fiches — héritage page 3/6 des entretiens, arb. 6.7 ;
+      astérisque ; validation à la soumission via `requiredFieldsMissing()`, jamais la navigation)
+- [x] Équipement : **gestion actuelle conservée** (base de données équipements avec bouton
       « Reprendre l'équipement enregistré ») ; rendre **obligatoires** les champs **Intitulé, Marque,
-      Modèle, N° de série** — `app.js` (validation équipements ; le PDF/détail affichent déjà les champs)
-- [ ] Vérifier l'orthographe « Diagnostic » partout (formulaires, filtres, statistiques, PDF) — `app.js`, `pdf.js`
-- [ ] Pré-remplissage : le descriptif hérité de l'appel/RDV reste reporté sur la page 3/6 — `app.js`
-- [ ] PDF : bloc Équipement + Descriptif conforme à la fusion — `pdf.js`
-- [ ] Incrémenter `CACHE_VERSION` dans `sw.js`
+      Modèle, N° de série** (et au moins un équipement — « Équipement(s) concerné(s) » obligatoire) —
+      `app.js` (`requiredFieldsMissing()`, labels « ... (équipement N) » ; le PDF/détail affichent déjà les champs)
+- [x] Vérifier l'orthographe « Diagnostic » partout (formulaires, filtres, statistiques, PDF) — aucune
+      occurrence « Diagnostique » relevée ; filtres type (Tâches + Tableau de bord) étendus à
+      **Sav / Sur devis** (`matchesType` sur `type_intervention`), statistiques « par type » dynamiques
+- [x] Pré-remplissage : le descriptif hérité de l'appel/RDV reste reporté sur la page 3/6 — `app.js`
+      (via « saveAppelFromDraft » → descriptif ; RDV → `rdvToIntervention`)
+- [x] PDF : bloc Équipement + Descriptif conforme à la fusion — `pdf.js` (bloc « Descriptif de la
+      demande » désormais rendu pour toutes les fiches, héritage entretiens inclus)
+- [x] Incrémenter `CACHE_VERSION` dans `sw.js` (→ `climatelec-v20`)
 
 **Fichiers :** `app.js`, `pdf.js`, `sw.js`
 
@@ -509,8 +523,8 @@ sont **conservés** ; seul l'écran ouvert par défaut change. Maquette dédiée
       utile au CERFA ; confirmation client conservée au PRD) — `app.js`, `pdf.js`
 - [ ] Champs sans liste de valeurs : saisie libre conservée (6.8), **unités affichées avant le champ**
       (cf. tâche 19) ; question des unités laissée ouverte (point §11 du PRD)
-- [ ] « Année d'installation » : conservée (6.7) — rien à faire ; « Descriptif » ajouté via la tâche 15
-      (héritage page 3/6 des fiches d'entretien)
+- [x] « Année d'installation » : conservée (6.7) — rien à faire ; « Descriptif » ajouté via la tâche 15
+      (héritage page 3/6 des fiches d'entretien) ✅ (10/10 — descriptif obligatoire, partagé, tâche 15)
 - [ ] Incrémenter `CACHE_VERSION` dans `sw.js` (cumulé)
 
 **Fichiers :** `app.js`, `pdf.js`, `sw.js`

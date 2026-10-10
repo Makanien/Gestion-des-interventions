@@ -700,7 +700,7 @@ async function tachesHTML() {
     <div class="filter-row">
       <select class="filter-select" id="tf-type">
         <option value="">Type : tous</option>
-        ${["Dépannage", "Garantie", "Diagnostic", "Entretiens"].map((t) => `<option value="${t}" ${f.type === t ? "selected" : ""}>${t}</option>`).join("")}
+        ${["Sav", "Garantie", "Dépannage", "Diagnostic", "Sur devis", "Entretiens"].map((t) => `<option value="${t}" ${f.type === t ? "selected" : ""}>${t}</option>`).join("")}
       </select>
       ${isManager() ? `
       <select class="filter-select" id="tf-tech">
@@ -815,7 +815,7 @@ async function dashboardHTML() {
       </select>
       <select class="filter-select" id="df-type">
         <option value="">Type : tous</option>
-        ${["Dépannage", "Garantie", "Diagnostic", "Entretiens"].map((t) => `<option value="${t}" ${f.type === t ? "selected" : ""}>${t}</option>`).join("")}
+        ${["Sav", "Garantie", "Dépannage", "Diagnostic", "Sur devis", "Entretiens"].map((t) => `<option value="${t}" ${f.type === t ? "selected" : ""}>${t}</option>`).join("")}
       </select>
       ${isManager() ? `
       <select class="filter-select" id="df-tech">
@@ -918,7 +918,7 @@ function openCreateSheet() {
       <div class="sheet-head"><h3>Créer</h3><button class="icon-btn" id="sheet-close">${ICONS.close}</button></div>
       ${[
         { k: "appel", icon: "phone", label: "Nouvel appel", sub: "Enregistrer un contact client entrant" },
-        { k: "intervention", icon: "wrench", label: "Nouvelle intervention", sub: "Dépannage, Garantie, Diagnostic" },
+        { k: "intervention", icon: "wrench", label: "Nouvelle intervention", sub: "Sav, Garantie, Dépannage, Diagnostic, Sur devis" },
         { k: "entretien_air_eau", icon: "droplet", label: "Entretien Air/Eau - Sol/Eau", sub: "PAC géothermie / aérothermie" },
         { k: "entretien_air_air", icon: "wind", label: "Entretien Air/Air", sub: "Mono Split, Multi Split ou Gainable" },
         { k: "entretien_chaudiere", icon: "flame", label: "Entretien Chaudière bois", sub: "Granulés, bûches, pellets" },
@@ -1120,7 +1120,7 @@ async function saveAppelFromDraft(action) {
     state.draft.client = { id: clientId, nom: d.nom, adresse: d.adresse, code_postal: d.code_postal, ville: d.ville, mail: d.mail, tel: d.tel, type_batiment: d.type_batiment };
     state.draft.client_id = clientId;
     state.draft.client_signature_nom = d.nom || "";
-    state.draft.type_intervention = ["Dépannage", "Garantie", "Diagnostic"].includes(d.type_intervention) ? d.type_intervention : "Dépannage";
+    state.draft.type_intervention = ["Sav", "Garantie", "Dépannage", "Diagnostic", "Sur devis"].includes(d.type_intervention) ? d.type_intervention : "Dépannage";
     if (d.motif) state.draft.descriptif_demande = d.motif;
     clearAppelDraft();
     go("#/new/2");
@@ -1297,7 +1297,7 @@ async function rdvToIntervention(id) {
   const techName = resolveTechFullName(rdv.technicien_id, rdv.intervenant);
   if (techName) state.draft.technicien_nom = techName;
   if (client?.nom) state.draft.client_signature_nom = client.nom;
-  state.draft.type_intervention = rdv.type === "depannage" ? "Dépannage" : "Diagnostic";
+  state.draft.type_intervention = rdv.type === "depannage" ? "Dépannage" : rdv.type === "rdv_devis" ? "Sur devis" : "Diagnostic";
   if (rdv.note) state.draft.descriptif_demande = rdv.note;
   if (rdv.date) state.draft.date = rdv.date;
   go(client ? "#/new/2" : "#/new/1");
@@ -1332,7 +1332,7 @@ function wizardSteps() {
   return [
     { id: "client", title: "Client", render: stepClientHTML, wire: wireClientStep, read: readClientStep },
     { id: "entretien", title: "Entretien", render: stepEntretienHTML, wire: wireEntretienStep, read: readEntretienStep },
-    { id: "equipement", title: "Équipement", render: stepEquipHTML, wire: wireEquipStep, read: readEquipStep },
+    { id: "equipement", title: "Équipement & demande", render: stepEquipHTML, wire: wireEquipStep, read: readEquipStep },
     ...mesuresSteps,
     { id: "observation_photos", title: "Observation & photos", render: stepObservationPhotosHTML, wire: wireObservationPhotosStep, read: readObservationStep },
     { id: "pieces", title: "Pièces utilisées", render: stepPiecesHTML, wire: wirePiecesStep, read: readPiecesStep },
@@ -1539,7 +1539,8 @@ function interventionStatutCls(s) {
 }
 function stepInterventionHTML() {
   const d = state.draft;
-  const types = ["Dépannage", "Garantie", "Diagnostic"];
+  // Arb. 6.1 (09/10, §3.2.6) : liste à 5 valeurs — orthographe « Diagnostic ».
+  const types = ["Sav", "Garantie", "Dépannage", "Diagnostic", "Sur devis"];
   return `
   <div class="card" style="padding:14px;">
     <div class="field">
@@ -1576,16 +1577,20 @@ function readInterventionStep() {
 }
 
 // ---- Étape Équipement + descriptif ----
+// Page 3/6 (arb. 2.2/6.5/6.7 du 09/10, §3.2.6) : Équipement + Descriptif sur
+// la même page, descriptif obligatoire, champs Intitulé / Marque / Modèle /
+// N° de série obligatoires — page de référence partagée par les fiches
+// d'entretien (« comme page 3/6 de Nouvelle intervention »).
 function equipLineHTML(eq, idx) {
   return `
   <div class="line-group" data-eq="${idx}">
     <div class="line-group-head"><span>Équipement ${idx + 1}</span><button type="button" class="remove-line" data-remove-eq="${idx}">${ICONS.trash.replace('width="24" height="24"', 'width="13" height="13"')} Supprimer</button></div>
-    <div class="field" style="margin-bottom:10px;"><label>Intitulé</label><input type="text" data-eq-f="intitule" data-eq-i="${idx}" value="${esc(eq.intitule)}" placeholder="Ex : Pompe à chaleur air/eau" /></div>
+    <div class="field" style="margin-bottom:10px;"><label>Intitulé *</label><input type="text" data-eq-f="intitule" data-eq-i="${idx}" value="${esc(eq.intitule)}" placeholder="Ex : Pompe à chaleur air/eau" /></div>
     <div class="row2">
-      <div class="field" style="margin-bottom:0;"><label>Marque</label><input type="text" data-eq-f="marque" data-eq-i="${idx}" value="${esc(eq.marque)}" /></div>
-      <div class="field" style="margin-bottom:0;"><label>Modèle</label><input type="text" data-eq-f="modele" data-eq-i="${idx}" value="${esc(eq.modele)}" /></div>
+      <div class="field" style="margin-bottom:0;"><label>Marque *</label><input type="text" data-eq-f="marque" data-eq-i="${idx}" value="${esc(eq.marque)}" /></div>
+      <div class="field" style="margin-bottom:0;"><label>Modèle *</label><input type="text" data-eq-f="modele" data-eq-i="${idx}" value="${esc(eq.modele)}" /></div>
     </div>
-    <div class="field" style="margin-top:10px;margin-bottom:0;"><label>N° de série</label><input type="text" data-eq-f="numero_serie" data-eq-i="${idx}" value="${esc(eq.numero_serie)}" /></div>
+    <div class="field" style="margin-top:10px;margin-bottom:0;"><label>N° de série *</label><input type="text" data-eq-f="numero_serie" data-eq-i="${idx}" value="${esc(eq.numero_serie)}" /></div>
   </div>`;
 }
 
@@ -1596,10 +1601,10 @@ function stepEquipHTML() {
   return `
   ${meta ? `<div class="card" style="padding:14px;margin-bottom:12px;"><div class="field" style="margin-bottom:0;"><label>Année d'installation</label><input id="f-annee" type="text" inputmode="numeric" placeholder="Ex : 2021" value="${esc(d.annee_installation)}" /></div></div>` : ""}
   <div id="eq-reuse"></div>
-  <div class="section-label">Équipement(s) concerné(s)</div>
+  <div class="section-label">Équipement(s) concerné(s) *</div>
   <div id="eq-list">${d.equipements.map(equipLineHTML).join("")}</div>
   <button type="button" class="add-line-btn" id="add-eq">${ICONS.plus} Ajouter un équipement</button>
-  ${state.draftType === "intervention" ? `<div class="section-label">Descriptif de la demande</div><textarea id="f-descriptif" placeholder="Ce que signale ou demande le client…">${esc(d.descriptif_demande)}</textarea>` : ""}`;
+  <div class="section-label">Descriptif de la demande *</div><textarea id="f-descriptif" placeholder="Ce que signale ou demande le client…">${esc(d.descriptif_demande)}</textarea>`;
 }
 function wireEquipStep() {
   $("#add-eq").addEventListener("click", () => {
@@ -1611,7 +1616,7 @@ function wireEquipStep() {
   });
   wireEquipLines();
   maybeShowEquipHistory();
-  if (state.draftType === "intervention") autoResize("f-descriptif");
+  autoResize("f-descriptif");
 }
 
 // Réutilisation de l'historique équipements du client (V2, point 5)
@@ -1654,7 +1659,7 @@ function wireEquipLines() {
   }));
 }
 function readEquipStep() {
-  if (state.draftType === "intervention") state.draft.descriptif_demande = cleanText($("#f-descriptif").value);
+  state.draft.descriptif_demande = cleanText($("#f-descriptif")?.value || "");
   if (draftMeta()) state.draft.annee_installation = $("#f-annee")?.value.trim() || "";
   return true;
 }
@@ -2121,6 +2126,18 @@ function requiredFieldsMissing() {
   if (!(d.client.ville || "").trim()) manquants.push("Ville");
   if (!(d.client.type_batiment || "").trim()) manquants.push("Type de bâtiment");
   if (draftMeta() && !(d.type_entretien_detail || "").trim()) manquants.push("Type d'entretien");
+  // Page 3/6 (arbitrages 09/10 — 2.2, 6.5, 6.7 ; §3.2.6) : « Équipement
+  // concerné(s) » et « Descriptif de la demande » obligatoires, champs
+  // Intitulé / Marque / Modèle / N° de série obligatoires sur chaque ligne.
+  if (!(d.descriptif_demande || "").trim()) manquants.push("Descriptif de la demande");
+  if (!d.equipements?.length) manquants.push("Équipement concerné");
+  d.equipements.forEach((eq, i) => {
+    const n = i + 1;
+    if (!(eq.intitule || "").trim()) manquants.push(`Intitulé (équipement ${n})`);
+    if (!(eq.marque || "").trim()) manquants.push(`Marque (équipement ${n})`);
+    if (!(eq.modele || "").trim()) manquants.push(`Modèle (équipement ${n})`);
+    if (!(eq.numero_serie || "").trim()) manquants.push(`N° de série (équipement ${n})`);
+  });
   return manquants;
 }
 

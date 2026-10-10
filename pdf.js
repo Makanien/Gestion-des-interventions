@@ -200,10 +200,9 @@ async function generateInterventionPDF(itv, client) {
     });
     y += 6;
   };
-  // Les fiches d'entretien n'ont pas descriptif : bloc masqué si vide.
-  if (!metaITV || (itv.descriptif_demande || "").trim()) {
-    textBlock("Descriptif de la demande", itv.descriptif_demande);
-  }
+  // Page 3/6 (arb. 09/10, §3.2.6) : Équipement + Descriptif sur la même page —
+  // descriptif obligatoire, hérité par les fiches d'entretien (arb. 6.7).
+  textBlock("Descriptif de la demande", itv.descriptif_demande);
   textBlock(metaITV ? "Remarque / Observation" : "Action réalisée", itv.action_realisee);
 
   // ---- Pièces utilisées ----
