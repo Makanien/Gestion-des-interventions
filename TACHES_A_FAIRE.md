@@ -151,7 +151,7 @@ l'appel est l'origine du flux (relié puis masqué) ; un RDV peut produire une i
 | 8 | ~~Refonte fiche « Entretien Chaudière bois » (point 10)~~ ✅ (07/10 — à actualiser avec la feuille 09/10, point 16) |
 | 9 | ~~Refonte fiche « Entretien Air/Eau-Sol/Eau » (point 11)~~ ✅ (07/10 — ajustements 09/10 au point 18) |
 | 10 | ~~Fin d'intervention commune (point 12) — chantier partagé aux 4 fiches (fiche générique + 3 entretiens) ; « Page ok » précisée (6.9)~~ ✅ |
-| 11 | Tableau de bord = accueil (point 13) — re-validé au 09/10, à implémenter (drill-down + tris Nom/CP/Ville) |
+| 11 | ~~Tableau de bord = accueil (point 13)~~ ✅ (10/10 — reste : arbitrage du bloc « Devis en cours ») |
 | 12 | ~~Fiche Air/Air — page 5 « Unités intérieures » (point 14)~~ → arbitré 09/10, implémenté au point 17 ✅ |
 | 13 | Retours 09/10 — fiche générique « Nouvelle intervention » (point 15) |
 | 14 | Retours 09/10 — fiche « Chaudière bois » (point 16) |
@@ -351,7 +351,7 @@ après 7/7 « Pièces utilisées »). Maquette dédiée « Fin d'intervention »
 
 ---
 
-## 13. Tableau de bord = écran d'accueil (retours 18/09 + 09/10 — validé, à implémenter)
+## 13. Tableau de bord = écran d'accueil (retours 18/09 + 09/10 — validé)
 
 **Objectif :** remplacer « accueil = planning » (arbitrage du 16/08) par un **Tableau de bord** : vue synthèse
 par statut du workflow (US-13 · US-15) + bloc « Appels — À traiter ». Les onglets Planning / Tâches / Dossiers
@@ -359,27 +359,41 @@ sont **conservés** ; seul l'écran ouvert par défaut change. Maquette dédiée
 « Refonte 18/09 — à valider ») ; spécification au **§3.2.15 du PRD** — **validée au 09/10**
 (demande re-confirmée, drill-down + tris arbitrés 6.12).
 
+> **Implémenté le 10/10/2026** (règles du §3.2.15 ; le Tableau de bord est un 1er onglet ajouté au bandeau
+> accueil, ouvert par défaut ; test de fumée `node` des rendus — 19 contrôles OK).
+
 - [x] **Faire valider la maquette** « Tableau de bord » par le client (en remplacement de « accueil = planning »
       du 16/08) — **validée** : demande re-confirmée par le client au 09/10 (« Page d'accueil = Tableau de
       bord », 2e mention) et précisions arbitrées (6.12, cf. ci-dessous et §3.2.15 du PRD)
-- [ ] Afficher le Tableau de bord comme **vue par défaut de l'accueil** — blocs par statut de dossier
-      (À valider, À facturer, À vérifier, À envoyer…) + bloc **« Appels — À traiter »** en tête (les appels
-      « Enregistrer sans planifier » y arrivent) — `app.js` (rendu des onglets lignes ~503-505 ; `dossiersHTML`
-      ligne ~636 réutilisable comme base des blocs par statut)
-- [ ] **Retours 09/10 (arbitrés 6.12)** : **drill-down par statut** — clic sur un groupe de statut ouvre la
-      liste des dossiers de ce statut ; **tris Nom / Code postal / Ville** (en plus des tris type/intervenant) —
-      valables **aussi pour le technicien, dans son périmètre** — `app.js`
-- [ ] Arbitrer le bloc **« Devis en cours »** de la maquette : le workflow (§3.3.4) n'a pas de statut « devis » —
-      proposer un bloc fiches portant l'indicateur « devis souhaité », ou le retirer — à arbitrer avec le client
-- [ ] **Vue par rôle** : toute l'équipe pour Régis/Delphine, propres lignes pour Jérémy (règles §3.2.2 conservées) — `app.js`
-- [ ] Incrémenter `CACHE_VERSION` dans `sw.js` (→ `climatelec-v16`, cumulé)
+- [x] Afficher le Tableau de bord comme **vue par défaut de l'accueil** — **1er onglet « Tableau de bord »**
+      (Planning / Tâches / Dossiers restent à l'identique) sous-titré « N dossiers en cours » ; blocs par
+      statut de dossier en cours dans l'ordre du workflow (À valider, À facturer, Facture à vérifier,
+      À envoyer…) — **hors clôturées** (l'onglet Dossiers reste exhaustif) + bloc **« Appels — À traiter »**
+      en tête (les appels « Enregistrer sans planifier » y arrivent) ; recherche par client — `app.js`
+      (`state.tab` défaut `dashboard`, `renderHome`, `dashboardHTML` réutilisant `itemHTML` / `appelHTML` et
+      la mécanique d'accordéon de `dossiersHTML`)
+- [x] **Retours 09/10 (arbitrés 6.12)** : **drill-down par statut** — clic sur un groupe de statut ouvre la
+      liste des dossiers de ce statut (accordéon replié par défaut, clés `dash:*`) ; **tris Nom / Code postal /
+      Ville** (défaut « date récente ») en plus des filtres type/intervenant — valables **aussi pour le
+      technicien, dans son périmètre** (règles §3.2.2 conservées : ses dossiers, intervenant masqué pour lui,
+      ses propres appels) — `app.js` (`sortDossiersPar` / `cmpFr`, filtres `df-sort`/`df-type`/`df-tech` dans
+      `wireTab`)
+- [ ] Bloc **« Devis en cours »** : livré à titre conservatoire (variante de la maquette proposée au §3.2.15) —
+      affiché seulement si des fiches portent l'indicateur « devis souhaité » encore en cours (inséré après le
+      bloc « À valider », position de la maquette) ; **retrait immédiat si le client l'écarte** — le workflow
+      (§3.3.4) n'a pas de statut « devis » — à arbitrer avec le client — `app.js` (`dashboardHTML`, bloc `devis`)
+- [x] **Vue par rôle** : toute l'équipe pour Régis/Delphine, propres lignes pour Jérémy (règles §3.2.2 conservées) —
+      `app.js` (`scopeInterventions`, filtrage appels aligné sur la RLS `appels_select`)
+- [x] Incrémenter `CACHE_VERSION` dans `sw.js` (→ `climatelec-v19` ; v16/v17 consommées par les points 10-11/17,
+      v18 par le point 12 — libellé « v16 cumulé » du 18/09 corrigé)
 
 **Fichiers :** `app.js`, `style.css`, `sw.js`
 
 **Points de vigilance (mise à jour 09/10, cf. PRD §3.2.15) :**
 - Maquette **validée** (re-demande explicite 09/10) ; précisions arbitrées (6.12) : drill-down, tris
   Nom/CP/Ville, **périmètre technicien inclus**.
-- Bloc « Devis en cours » sans équivalent dans le workflow de statuts (§3.3.4) — à arbitrer.
+- Bloc « Devis en cours » sans équivalent dans le workflow de statuts (§3.3.4) — livré à titre conservatoire,
+  à arbitrer avec le client (retrait trivial : bloc conditionnel de `dashboardHTML`).
 
 ---
 

@@ -276,14 +276,16 @@ const CERFA_FIELDS = [
 // ---------------------------------------------------------
 let state = {
   view: "home",
-  tab: "planning",       // planning | taches | dossiers
+  tab: "dashboard",      // dashboard | planning | taches | dossiers (défaut : Tableau de bord, §3.2.15)
   draft: null,
   draftType: "intervention", // intervention | air_eau | air_air | chaudiere
   step: 1,
   homeSearch: "",
   planFilter: { type: "", intervenant: "" },
   tachesFilter: { type: "", intervenant: "" },
-  dossiersOpen: {},      // sections dépliées de l'onglet Dossiers (clé = statut ou "appels")
+  dashFilter: { type: "", intervenant: "" }, // filtres type / intervenant du Tableau de bord
+  dashSort: "",          // tri du Tableau de bord : "" (date récente) | nom | cp | ville (arb. 6.12)
+  dossiersOpen: {},      // sections dépliées des onglets Dossiers / Tableau de bord (clé = statut ou "appels")
   clientsCache: [],
   auth: null,
   team: [],
@@ -549,17 +551,22 @@ function updateOfflinePill() {
 }
 
 // ---------------------------------------------------------
-// HOME (Planning / Tâches / Dossiers)
+// HOME (Tableau de bord / Planning / Tâches / Dossiers)
 // ---------------------------------------------------------
 async function renderHome() {
   const [interventions, rendezvous] = await Promise.all([DB.listInterventions(), DB.listRendezvous()]);
+  // Sous-titre Tableau de bord (maquette : « Accueil · N dossiers en cours ») —
+  // hors dossiers clôturés, dans le périmètre du rôle connecté.
+  const enCours = scopeInterventions(interventions).filter((i) => (i.statut_dossier || "a_valider") !== "cloturee").length;
+  const subtitle = enCours ? `${todayLabel()} · ${enCours} dossier${enCours > 1 ? "s" : ""} en cours` : todayLabel();
   const tabs = [
+    { id: "dashboard", label: "Tableau de bord" },
     { id: "planning", label: "Planning" },
     { id: "taches", label: "Tâches" },
     { id: "dossiers", label: "Dossiers" },
   ];
   setApp(`
-    ${topbar({ title: "Climat Elec", subtitle: todayLabel(), onHome: false, actions: `<button class="icon-btn" data-nav="stats" title="Statistiques">${ICONS.chart}</button>` })}
+    ${topbar({ title: "Climat Elec", subtitle, onHome: false, actions: `<button class="icon-btn" data-nav="stats" title="Statistiques">${ICONS.chart}</button>` })}
     <div class="home-tabs">
       ${tabs.map((t) => `<button class="home-tab ${state.tab === t.id ? "active" : ""}" data-tab="${t.id}">${t.label}</button>`).join("")}
     </div>
@@ -582,7 +589,8 @@ function todayLabel() {
 
 async function renderTab() {
   const root = $("#tab-content");
-  if (state.tab === "planning") root.innerHTML = await planningHTML();
+  if (state.tab === "dashboard") root.innerHTML = await dashboardHTML(); // Tableau de bord (§3.2.15) = vue par défaut
+  else if (state.tab === "planning") root.innerHTML = await planningHTML();
   else if (state.tab === "taches") root.innerHTML = await tachesHTML();
   else root.innerHTML = await dossiersHTML();
   wireTab();
@@ -601,7 +609,12 @@ function wireTab() {
   bind("#pf-tech", "change", (e) => { state.planFilter.intervenant = e.target.value; renderTab(); });
   bind("#tf-type", "change", (e) => { state.tachesFilter.type = e.target.value; renderTab(); });
   bind("#tf-tech", "change", (e) => { state.tachesFilter.intervenant = e.target.value; renderTab(); });
-  // Onglet Dossiers : le clic sur un titre déplie/replie les sous-dossiers
+  // Onglet Tableau de bord : tri Nom / Code postal / Ville (arb. 6.12) + filtres
+  bind("#df-sort", "change", (e) => { state.dashSort = e.target.value; renderTab(); });
+  bind("#df-type", "change", (e) => { state.dashFilter.type = e.target.value; renderTab(); });
+  bind("#df-tech", "change", (e) => { state.dashFilter.intervenant = e.target.value; renderTab(); });
+  // Onglets Dossiers / Tableau de bord : le clic sur un titre de groupe
+  // déplie le drill-down (liste des dossiers de ce statut — arb. 6.12)
   $all(".status-head[data-toggle]").forEach((el) => el.addEventListener("click", () => {
     const k = el.dataset.toggle;
     const open = !state.dossiersOpen[k];
@@ -721,6 +734,120 @@ function itemHTML(itv) {
     </span>
     ${ICONS.chevron}
   </button>`;
+}
+
+// ---------------------------------------------------------
+// Tableau de bord = écran d'accueil (US-13 · US-15, §3.2.15)
+// Vue synthèse groupée par statut du workflow, « Appels — À traiter » en tête
+// (les appels « Enregistrer sans planifier » y arrivent jusqu'à ce qu'un RDV
+// ou une fiche soit créé depuis eux). Arbitrages 09/10 (6.12) : le clic sur
+// un groupe de statut ouvre le drill-down — la liste des dossiers de ce
+// statut — avec tris Nom / Code postal / Ville en plus des filtres type /
+// intervenant ; ces éléments valent aussi pour le technicien, dans son
+// périmètre (règles §3.2.2 conservées). Bloc « Devis en cours » (maquette) :
+// fiches portant l'indicateur « devis souhaité » — à arbitrer avec le client,
+// le workflow (§3.3.4) n'ayant pas de statut « devis ».
+// ---------------------------------------------------------
+
+// Périmètre du rôle connecté : toute l'équipe (Régis / Delphine) ou, pour le
+// technicien, uniquement ses propres lignes (même règle que l'onglet Tâches).
+function scopeInterventions(list) {
+  if (isManager()) return list;
+  const uid = state.auth?.user?.id;
+  return list.filter((i) => !i.technicien_id || i.technicien_id === uid);
+}
+
+function cmpFr(a, b) {
+  return (a || "").localeCompare(b || "", "fr", { sensitivity: "base" });
+}
+// Tri d'une liste de dossiers : défaut « date récente », sinon Nom / CP / Ville.
+function sortDossiersPar(list, mode) {
+  const arr = [...list];
+  if (mode === "nom") arr.sort((a, b) => cmpFr(a.client?.nom, b.client?.nom) || cmpFr(a.client?.ville, b.client?.ville));
+  else if (mode === "cp") arr.sort((a, b) => cmpFr(a.client?.code_postal, b.client?.code_postal) || cmpFr(a.client?.ville, b.client?.ville) || cmpFr(a.client?.nom, b.client?.nom));
+  else if (mode === "ville") arr.sort((a, b) => cmpFr(a.client?.ville, b.client?.ville) || cmpFr(a.client?.nom, b.client?.nom));
+  else arr.sort((a, b) => (b.date || "").localeCompare(a.date || "") || cmpFr(a.client?.nom, b.client?.nom));
+  return arr;
+}
+
+async function dashboardHTML() {
+  const [interventions, appels] = await Promise.all([DB.listInterventions(), DB.listAppels()]);
+  const uid = state.auth?.user?.id;
+  const q = state.homeSearch.trim().toLowerCase();
+  const f = state.dashFilter;
+
+  // Bloc « Appels — À traiter » : appel non relié à un RDV ni à une fiche
+  // (cycle de vie §3.2.5) ; périmètre technicien = ses propres appels (RLS).
+  const appelsATraiter = appels
+    .filter((a) => !a.rendezvous_id && !a.intervention_id)
+    .filter((a) => isManager() || (a.created_by || "") === uid)
+    .filter((a) => !q || (a.nom || "").toLowerCase().includes(q))
+    .sort((a, b) => (b.created_at || "").localeCompare(a.created_at || ""));
+
+  // Dossiers « en cours » (hors clôturées — l'onglet Dossiers reste exhaustif)
+  let dossiers = scopeInterventions(interventions).filter((i) => (i.statut_dossier || "a_valider") !== "cloturee");
+  if (f.type) dossiers = dossiers.filter((i) => matchesType(i, f.type));
+  if (f.intervenant) dossiers = dossiers.filter((i) => matchesIntervenant(i, f.intervenant));
+  if (q) dossiers = dossiers.filter((i) => (i.client?.nom || "").toLowerCase().includes(q));
+  const dossiersDevis = dossiers.filter((i) => i.devis_souhaite);
+
+  // Groupes par statut, dans l'ordre du workflow (hors clôturées) ; le bloc
+  // « Devis en cours » est inséré après « À valider » (position de la maquette).
+  const byStatut = {};
+  for (const itv of dossiers) {
+    const s = itv.statut_dossier || "a_valider";
+    (byStatut[s] = byStatut[s] || []).push(itv);
+  }
+  const groups = Object.keys(WORKFLOW_NEXT).filter((s) => s !== "cloturee" && byStatut[s]?.length)
+    .map((s) => ({ key: s, cls: statutDossierCls(s), label: statutDossierLabel(s), items: sortDossiersPar(byStatut[s], state.dashSort) }));
+  if (dossiersDevis.length) {
+    const i = groups.findIndex((g) => g.key === "a_valider");
+    groups.splice(i + 1, 0, { key: "devis", cls: "violet", label: "Devis en cours", items: sortDossiersPar(dossiersDevis, state.dashSort) });
+  }
+
+  const filterBar = `
+    <div class="filter-row">
+      <select class="filter-select" id="df-sort">
+        <option value="" ${state.dashSort ? "" : "selected"}>Trier : date récente</option>
+        <option value="nom" ${state.dashSort === "nom" ? "selected" : ""}>Trier : nom</option>
+        <option value="cp" ${state.dashSort === "cp" ? "selected" : ""}>Trier : code postal</option>
+        <option value="ville" ${state.dashSort === "ville" ? "selected" : ""}>Trier : ville</option>
+      </select>
+      <select class="filter-select" id="df-type">
+        <option value="">Type : tous</option>
+        ${["Dépannage", "Garantie", "Diagnostic", "Entretiens"].map((t) => `<option value="${t}" ${f.type === t ? "selected" : ""}>${t}</option>`).join("")}
+      </select>
+      ${isManager() ? `
+      <select class="filter-select" id="df-tech">
+        <option value="">Intervenant : tous</option>
+        ${["Jérémy", "Régis", "Delphine"].map((t) => `<option value="${t}" ${f.intervenant === t ? "selected" : ""}>${t}</option>`).join("")}
+      </select>` : ""}
+    </div>`;
+
+  // Section repliée par défaut : le clic sur le titre ouvre le drill-down du
+  // groupe (même mécanique que l'onglet Dossiers, clés préfixées « dash: »).
+  const block = (key, cls, label, itemsHtml, count) => {
+    if (!count) return "";
+    const open = !!state.dossiersOpen[`dash:${key}`];
+    return `
+    <div class="status-block ${open ? "open" : ""}" data-block="dash-${key}">
+      <div class="status-head" data-toggle="dash:${key}" role="button" aria-expanded="${open}">
+        <span class="sw sw-${cls}"></span>
+        <h3>${label}</h3>
+        <span class="n">${count}</span>
+        <span class="chev">${ICONS.chevron}</span>
+      </div>
+      <div class="status-items">${itemsHtml}</div>
+    </div>`;
+  };
+
+  const body = block("appels", "appel", "Appels — À traiter", appelsATraiter.map(appelHTML).join(""), appelsATraiter.length)
+    + groups.map((g) => block(g.key, g.cls, g.label, g.items.map(itemHTML).join(""), g.items.length)).join("");
+  const filtered = !!(q || f.type || f.intervenant);
+
+  return `<div class="search-wrap">${ICONS.search}<input id="home-search" type="text" placeholder="Rechercher un client…" value="${esc(state.homeSearch)}" /></div>
+    ${filterBar}
+    ${body || `<div class="empty-state"><div class="glyph">${ICONS.file}</div><h3>${filtered ? "Aucun résultat" : "Rien à traiter"}</h3><p>${filtered ? "Aucun dossier ou appel avec ces critères." : "Les dossiers en cours apparaissent ici, groupés par statut du workflow."}</p></div>`}`;
 }
 
 async function dossiersHTML() {

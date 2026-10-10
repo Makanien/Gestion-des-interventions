@@ -161,7 +161,7 @@ main.content{padding:14px 14px 34px;}
       <div><strong>Climat Elec</strong><span>Maquettes — backlog</span></div>
     </div>
     <div class="nav-warn">✅ V3 développée (cf. PRD §3.3). 🔎 Groupe « Refonte 18/09 — à valider » : propositions à valider visuellement à partir du classeur <em>Application - 20260918.xlsx</em> (fiches d'entretien réalignées en 7 pages + fin d'intervention commune avec listes fermées, règles signatures/statut, Tableau de bord = accueil). Reportés : Google Agenda (US-14) et envoi automatique d'email.</div>
-    <div class="nav-group"><div class="nav-group-label">Transverses</div><button class="nav-btn" data-screen="dashboard" onclick="showScreen('dashboard')">
+    <div class="nav-group"><div class="nav-group-label">Transverses</div><button class="nav-btn developed" data-screen="dashboard" onclick="showScreen('dashboard')">
           <span class="dot"></span><span>Tableau de bord <small>US-13 · US-15</small></span>
         </button></div><div class="nav-group"><div class="nav-group-label">Épopée 1 — Contact & planification</div><button class="nav-btn" data-screen="bouton_plus" onclick="showScreen('bouton_plus')">
           <span class="dot"></span><span>Bouton "+" <span class="mini-badge" style="background:rgba(106,95,193,.25);color:#c9c2f5;">16/08</span></span>
@@ -302,10 +302,10 @@ const SCREENS = {
   },
   "dashboard": {
     title: "Tableau de bord — accueil de l'application",
-    sub: "Retour du 18/09 : « Page d'accueil = Tableau de bord » (en remplacement de « accueil = planning » du 16/08, à faire valider). Onglets conservés : Planning / Tâches / Dossiers ; vue équipe pour Régis et Delphine, propres lignes pour Jérémy.",
+    sub: "Retour du 18/09 : « Page d'accueil = Tableau de bord » (en remplacement de « accueil = planning » du 16/08, validé au 09/10). Onglets conservés : Planning / Tâches / Dossiers ; vue équipe pour Régis et Delphine, propres lignes pour Jérémy. Implémenté le 10/10/2026 + arbitrages 6.12 (drill-down, tris Nom/CP/Ville).",
     epic: 'Transverses · 18/09',
     us: 'US-13 · US-15',
-    developed: false,
+    developed: true,
     html: `<div class="topbar"><div class="topbar-row">
       <img class="logo" data-logo src="" alt="Climat Elec"/>
       <div><h2>Tableau de bord</h2><div class="sub">Accueil · 8 dossiers en cours</div></div>
