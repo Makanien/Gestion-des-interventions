@@ -376,6 +376,7 @@ function emptyDraft(type) {
     devis_souhaite: false,
     devis_commentaire: "",
     prochaine_intervention_prevue: false,
+    page_ok: false, // « Page ok » (§3.2.14, arb. 6.9) — indicateur de complétude calculé, persisté
     technicien_nom: localStorage.getItem("ce_technicien_nom") || state.auth?.profile?.full_name || "",
     client_present: true,
     client_signature_nom: "",
@@ -420,6 +421,7 @@ async function loadDraftFromIntervention(id) {
     devis_souhaite: itv.devis_souhaite || false,
     devis_commentaire: itv.devis_commentaire,
     prochaine_intervention_prevue: itv.prochaine_intervention_prevue || false,
+    page_ok: itv.page_ok || false,
     technicien_nom: itv.technicien_nom || "",
     client_present: itv.client_present !== false,
     client_signature_nom: itv.client_signature_nom || "",
@@ -1240,7 +1242,7 @@ async function renderWizard() {
       ${state.step > 1 ? `<button class="btn btn-ghost" data-nav="prev">${ICONS.back} Retour</button>` : ""}
       <button class="btn btn-ghost" data-nav="brouillon">${ICONS.file} Enregistrer le brouillon</button>
       <button class="btn ${state.step === steps.length ? "btn-accent" : "btn-primary"}" data-nav="${state.step === steps.length ? "finish" : "next"}">
-        ${state.step === steps.length ? `${ICONS.check} Valider la fiche` : "Continuer"}
+        ${state.step === steps.length ? `${ICONS.check} Soumettre pour validation` : "Continuer"}
       </button>
     </div>
     <div class="toast" id="toast"></div>
@@ -1260,17 +1262,17 @@ function clientFieldsHTML(c) {
       <input id="f-nom" type="text" autocomplete="off" placeholder="Rechercher ou saisir un nouveau nom" value="${esc(c.nom)}" />
       <div class="combo-list" id="combo-list" style="display:none;"></div>
     </div>
-    <div class="field"><label>Adresse</label><input id="f-adresse" type="text" value="${esc(c.adresse)}" /></div>
+    <div class="field"><label>Adresse *</label><input id="f-adresse" type="text" value="${esc(c.adresse)}" /></div>
     <div class="row2">
-      <div class="field"><label>Code postal</label><input id="f-cp" type="text" inputmode="numeric" value="${esc(c.code_postal)}" /></div>
-      <div class="field"><label>Ville</label><input id="f-ville" type="text" value="${esc(c.ville)}" /></div>
+      <div class="field"><label>Code postal *</label><input id="f-cp" type="text" inputmode="numeric" value="${esc(c.code_postal)}" /></div>
+      <div class="field"><label>Ville *</label><input id="f-ville" type="text" value="${esc(c.ville)}" /></div>
     </div>
     <div class="row2">
       <div class="field"><label>Téléphone</label><input id="f-tel" type="tel" value="${esc(c.tel)}" /></div>
       <div class="field"><label>Mail</label><input id="f-mail" type="email" value="${esc(c.mail)}" /></div>
     </div>
     <div class="field">
-      <label>Type de bâtiment</label>
+      <label>Type de bâtiment *</label>
       <select id="f-type-bat">
         ${["", "Professionnel", "- de 2 ans", "+ de 2 ans", "+ de 15 ans"].map((t) => `<option value="${esc(t)}" ${c.type_batiment === t ? "selected" : ""}>${t || "Non précisé"}</option>`).join("")}
       </select>
@@ -1391,9 +1393,11 @@ function captureClientFields() {
     if (sel) d.type_entretien_detail = sel.value;
   }
 }
+// Arbitrage 6.9 (§3.2.14) : les champs obligatoires (astérisque) ne bloquent
+// pas le passage à la page suivante — le contrôle de complétude est appliqué
+// à la validation finale (finishWizard, « Page ok »).
 function readClientStep() {
   captureClientFields();
-  if (!state.draft.client.nom) { toast("Merci d'indiquer le nom du client", true); return false; }
   return true;
 }
 
@@ -1426,20 +1430,9 @@ function stepInterventionHTML() {
         ${ZONES_FORFAIT.map((z) => `<option value="${esc(z)}" ${d.forfait_deplacement === z ? "selected" : ""}>${z || "Non précisé"}</option>`).join("")}
       </select>
     </div>
-  </div>
-  <div class="section-label">Statut de l'intervention</div>
-  <div class="segmented" id="f-statut">
-    <button type="button" data-v="a_prevoir" class="${d.statut === "a_prevoir" ? "active" : ""}">À effectuer</button>
-    <button type="button" data-v="terminee" class="${d.statut === "terminee" ? "active" : ""}">Effectuée</button>
-    <button type="button" data-v="terminee_suite" class="${d.statut === "terminee_suite" ? "active" : ""}">Effectuée, suite à prévoir</button>
   </div>`;
 }
-function wireInterventionStep() {
-  $all("#f-statut button").forEach((b) => b.addEventListener("click", () => {
-    $all("#f-statut button").forEach((x) => x.classList.remove("active"));
-    b.classList.add("active");
-  }));
-}
+function wireInterventionStep() {}
 function readInterventionStep() {
   const d = state.draft;
   d.type_intervention = $("#f-type-itv").value;
@@ -1451,7 +1444,7 @@ function readInterventionStep() {
   const dur = computeDuration(d.heure_arrivee, d.heure_depart);
   d.temps_intervention = dur === "-" ? "" : dur;
   d.forfait_deplacement = $("#f-forfait").value;
-  d.statut = $("#f-statut .active")?.dataset.v || "a_prevoir";
+  // Le statut est désormais saisi en tête de la page finale (§3.2.14, point 12).
   return true;
 }
 
@@ -1778,23 +1771,23 @@ function wirePhotoLines() {
 }
 
 // ---- Étape Devis & signature ----
+// Page finale commune à la fiche générique et aux 3 fiches d'entretien
+// (§3.2.14 — feuille 18/09, précisions 09/10 arb. 6.9) : le statut est saisi
+// en tête, avant les signatures ; les signatures ne sont possibles que si la
+// fiche est terminée ; « Page ok » atteste la complétude des champs
+// obligatoires (contrôle appliqué à la soumission, pas à la navigation).
 function stepSignHTML() {
   const d = state.draft;
   const meta = draftMeta();
+  const locked = d.statut === "a_prevoir";
   return `
-  <div class="toggle-row">
-    <div><div class="t-label">Le client souhaite-t-il un devis</div><div class="t-hint">Une action de suivi sera à prévoir</div></div>
-    <button class="switch ${d.devis_souhaite ? "on" : ""}" id="f-devis" type="button"></button>
+  <div class="section-label">Statut de l'intervention</div>
+  <div class="segmented" id="f-statut">
+    <button type="button" data-v="a_prevoir" class="${locked ? "active" : ""}">À effectuer</button>
+    <button type="button" data-v="terminee" class="${d.statut === "terminee" ? "active" : ""}">Effectuée</button>
+    <button type="button" data-v="terminee_suite" class="${d.statut === "terminee_suite" ? "active" : ""}">Effectuée, suite à prévoir</button>
   </div>
-  <div class="card" style="padding:14px;margin-bottom:18px;">
-    <div class="field" style="margin-bottom:0;"><label>Commentaire devis (optionnel)</label><textarea id="f-devis-com" placeholder="Précisions à conserver pour le devis…">${esc(d.devis_commentaire)}</textarea></div>
-  </div>
-
-  ${meta?.prochaine ? `
-  <div class="toggle-row">
-    <div><div class="t-label">Prochaine intervention prévue</div><div class="t-hint">En plus du statut d'intervention</div></div>
-    <button class="switch ${d.prochaine_intervention_prevue ? "on" : ""}" id="f-prochaine" type="button"></button>
-  </div>` : ""}
+  <div class="hint" id="sig-lock-note" style="display:${locked ? "block" : "none"};">Les signatures sont débloquées une fois la fiche marquée « Effectuée » ou « Effectuée, suite à prévoir ».</div>
 
   <div class="section-label">Signatures</div>
   <div class="card" style="padding:14px;">
@@ -1809,16 +1802,33 @@ function stepSignHTML() {
     <div class="field" style="margin-bottom:0;" id="wrap-client-sig">
       <label>Nom du client (signature)</label>
       <input id="f-client-sig" type="text" value="${esc(d.client_signature_nom || d.client.nom)}" placeholder="${d.client.nom ? esc(d.client.nom) : "Nom du client"}" />
-      <div class="hint">La signature électronique tactile est disponible.</div>
+      <div class="hint">Signature obligatoire si le client est présent — signature électronique tactile disponible.</div>
     </div>
-    <button type="button" class="add-line-btn" id="btn-client-sign" style="margin-top:10px;">${ICONS.pencil.replace('width="24" height="24"', 'width="15" height="15"')} Signer (client)</button>
+    <button type="button" class="add-line-btn" id="btn-client-sign" style="margin-top:10px;"${locked ? " disabled" : ""}>${ICONS.pencil.replace('width="24" height="24"', 'width="15" height="15"')} Signer (client)</button>
     <div class="sig-preview" id="client-sig-preview" style="display:${d.client_signature_url ? "block" : "none"};margin-top:10px;"><img id="client-sig-img" src="${d.client_signature_url ? esc(d.client_signature_url) : ""}" alt="Signature client" /></div>
     <div class="field" style="margin-top:12px;">
-      <label>Signature technicien (facultative)</label>
-      <button type="button" class="add-line-btn" id="btn-tech-sign" style="margin-top:6px;">${ICONS.pencil.replace('width="24" height="24"', 'width="15" height="15"')} Signer (technicien)</button>
+      <label>Signature technicien (obligatoire)</label>
+      <button type="button" class="add-line-btn" id="btn-tech-sign" style="margin-top:6px;"${locked ? " disabled" : ""}>${ICONS.pencil.replace('width="24" height="24"', 'width="15" height="15"')} Signer (technicien)</button>
       <div class="sig-preview" id="tech-sig-preview" style="display:${d.technicien_signature_url ? "block" : "none"};margin-top:10px;"><img id="tech-sig-img" src="${d.technicien_signature_url ? esc(d.technicien_signature_url) : ""}" alt="Signature technicien" /></div>
     </div>
   </div>
+
+  <div class="section-label">Devis & confirmation</div>
+  <div class="toggle-row">
+    <div><div class="t-label">Le client souhaite-t-il un devis</div><div class="t-hint">Une action de suivi sera à prévoir</div></div>
+    <button class="switch ${d.devis_souhaite ? "on" : ""}" id="f-devis" type="button"></button>
+  </div>
+  <div class="card" style="padding:14px;margin-bottom:18px;">
+    <div class="field" style="margin-bottom:0;"><label>Commentaire devis (optionnel)</label><textarea id="f-devis-com" placeholder="Précisions à conserver pour le devis…">${esc(d.devis_commentaire)}</textarea></div>
+  </div>
+
+  ${meta?.prochaine ? `
+  <div class="toggle-row">
+    <div><div class="t-label">Prochaine intervention prévue</div><div class="t-hint">En plus du statut d'intervention</div></div>
+    <button class="switch ${d.prochaine_intervention_prevue ? "on" : ""}" id="f-prochaine" type="button"></button>
+  </div>` : ""}
+
+  ${pageOkStatusHTML()}
 
   <div class="section-label">Récapitulatif</div>
   <div class="card">
@@ -1831,15 +1841,28 @@ function stepSignHTML() {
     <div class="kv"><div class="k">Photos</div><div class="v">${d.photos.length || 0}</div></div>
   </div>`;
 }
+// Verrouillage dynamique de la page finale (§3.2.14) : signatures possibles
+// seulement si le statut est « Effectuée » ou « Effectuée, suite à prévoir » ;
+// « Soumettre pour validation » possible seulement si la fiche est signée
+// (technicien + client si présent). Applique aussi l'état initial au rendu.
 function wireSignStep() {
+  $all("#f-statut button").forEach((b) => b.addEventListener("click", () => {
+    $all("#f-statut button").forEach((x) => x.classList.remove("active"));
+    b.classList.add("active");
+    state.draft.statut = b.dataset.v;
+    applySignLockUI();
+  }));
   $("#f-devis").addEventListener("click", (e) => e.currentTarget.classList.toggle("on"));
   $("#f-prochaine")?.addEventListener("click", (e) => e.currentTarget.classList.toggle("on"));
+  // « Page ok » : indicateur de statut calculé (aucun câblage utilisateur).
   $("#f-present").addEventListener("click", (e) => {
     e.currentTarget.classList.toggle("on");
     $("#wrap-client-sig").style.display = e.currentTarget.classList.contains("on") ? "block" : "none";
+    applySignLockUI();
   });
   if (!state.draft.client_present) $("#wrap-client-sig").style.display = "none";
   autoResize("f-devis-com");
+  applySignLockUI();
 
   $("#btn-client-sign")?.addEventListener("click", async () => {
     const blob = await signatureModal({ title: "Signature du client" });
@@ -1851,6 +1874,7 @@ function wireSignStep() {
     const prev = $("#client-sig-preview");
     prev.style.display = "block";
     $("#client-sig-img").src = state.draft.client_signature_url;
+    applySignLockUI();
     if (Supabase.configured() && navigator.onLine && oldUrl && oldUrl.startsWith("http")) {
       try { await Supabase.removeSignature(oldUrl); } catch (e) { console.warn("Suppression ancienne signature client échouée", e); }
     }
@@ -1864,19 +1888,79 @@ function wireSignStep() {
     const prev = $("#tech-sig-preview");
     prev.style.display = "block";
     $("#tech-sig-img").src = state.draft.technicien_signature_url;
+    applySignLockUI();
     if (Supabase.configured() && navigator.onLine && oldUrl && oldUrl.startsWith("http")) {
       try { await Supabase.removeSignature(oldUrl); } catch (e) { console.warn("Suppression ancienne signature technicien échouée", e); }
     }
   });
 }
+function applySignLockUI() {
+  const d = state.draft;
+  const locked = d.statut === "a_prevoir";
+  const present = signClientPresent();
+  $("#btn-client-sign")?.toggleAttribute("disabled", locked);
+  $("#btn-tech-sign")?.toggleAttribute("disabled", locked);
+  const note = $("#sig-lock-note");
+  if (note) note.style.display = locked ? "block" : "none";
+  // Indicateur de statut « Page ok » : complétude des informations obligatoires
+  const missing = pageOkMissingLabels();
+  const pageOkState = $("#page-ok-state");
+  const pageOkHint = $("#page-ok-hint");
+  if (pageOkState) {
+    pageOkState.className = `tag ${missing.length ? "muted" : "done"}`;
+    pageOkState.textContent = pageOkStateText(missing);
+  }
+  if (pageOkHint) pageOkHint.textContent = pageOkHintText(missing);
+  const signee = !!d.technicien_signature_url && (!present || !!d.client_signature_url);
+  const finish = document.querySelector('.wizard-footer [data-nav="finish"]');
+  if (finish) {
+    finish.toggleAttribute("disabled", !signee);
+    finish.title = signee ? "" : "Signature requise (technicien + client si présent) — la fiche doit être marquée « Effectuée » pour signer";
+  }
+}
+// « Page ok » (§3.2.14, arb. 6.9) — indicateur de statut, pas une case à
+// cocher : c'est le résumé que toutes les informations obligatoires sont
+// renseignées (champs obligatoires de toutes les sections + signatures).
+// Calculé à l'affichage et actualisé à chaque changement sur la page finale.
+function signClientPresent() {
+  return $("#f-present") ? $("#f-present").classList.contains("on") : state.draft.client_present;
+}
+function pageOkMissingLabels() {
+  const d = state.draft;
+  const present = signClientPresent();
+  const manquants = [...requiredFieldsMissing()];
+  if (!d.technicien_signature_url) manquants.push("Signature du technicien");
+  if (present && !d.client_signature_url) manquants.push("Signature du client");
+  return manquants;
+}
+function pageOkComputed() {
+  return pageOkMissingLabels().length === 0;
+}
+function pageOkStateText(missing) {
+  return missing.length ? "À compléter" : "Page ok";
+}
+function pageOkHintText(missing) {
+  return missing.length ? `À renseigner : ${missing.join(", ")}` : "Toutes les informations obligatoires (*) de toutes les pages sont renseignées.";
+}
+function pageOkStatusHTML() {
+  const missing = pageOkMissingLabels();
+  return `
+  <div class="toggle-row" id="page-ok-row">
+    <div><div class="t-label">Page ok</div><div class="t-hint" id="page-ok-hint">${esc(pageOkHintText(missing))}</div></div>
+    <span id="page-ok-state" class="tag ${missing.length ? "muted" : "done"}">${esc(pageOkStateText(missing))}</span>
+  </div>`;
+}
 function readSignStep() {
   const d = state.draft;
+  d.statut = $("#f-statut .active")?.dataset.v || d.statut;
   d.devis_souhaite = $("#f-devis").classList.contains("on");
   d.devis_commentaire = cleanText($("#f-devis-com").value);
   if ($("#f-prochaine")) d.prochaine_intervention_prevue = $("#f-prochaine").classList.contains("on");
   d.technicien_nom = $("#f-tech").value.trim();
-  d.client_present = $("#f-present").classList.contains("on");
+  d.client_present = signClientPresent();
   d.client_signature_nom = $("#f-client-sig").value.trim();
+  // Statut « Page ok » calculé (complétude obligatoires + signatures) — persisté.
+  d.page_ok = pageOkComputed();
   if (d.technicien_nom) localStorage.setItem("ce_technicien_nom", d.technicien_nom);
   return true;
 }
@@ -1897,6 +1981,22 @@ function readStepIntoDraft(step) {
   return true;
 }
 
+// Contrôle de complétude des champs obligatoires — arbitrage 6.9 (§3.2.14) :
+// les champs marqués d'un astérisque ne bloquent pas la navigation entre les
+// pages, ils conditionnent la soumission finale. Valable pour la fiche
+// générique comme pour les fiches d'entretien.
+function requiredFieldsMissing() {
+  const d = state.draft;
+  const manquants = [];
+  if (!(d.client.nom || "").trim()) manquants.push("Nom du client");
+  if (!(d.client.adresse || "").trim()) manquants.push("Adresse");
+  if (!(d.client.code_postal || "").trim()) manquants.push("Code postal");
+  if (!(d.client.ville || "").trim()) manquants.push("Ville");
+  if (!(d.client.type_batiment || "").trim()) manquants.push("Type de bâtiment");
+  if (draftMeta() && !(d.type_entretien_detail || "").trim()) manquants.push("Type d'entretien");
+  return manquants;
+}
+
 async function finishWizard() {
   if (!readStepIntoDraft(state.step)) return;
   const d = state.draft;
@@ -1904,6 +2004,29 @@ async function finishWizard() {
   const rdvId = d.rdv_id || null;
   const isEdit = !!d.id;
   const steps = wizardSteps();
+
+  // Fin d'intervention commune (§3.2.14) : la fiche doit être terminée et
+  // signée — technicien obligatoire, client obligatoire si présent — pour
+  // être soumise à la validation (brouillon → à valider).
+  if (d.statut === "a_prevoir") {
+    toast("La fiche doit être marquée « Effectuée » ou « Effectuée, suite à prévoir » pour être signée et soumise", true);
+    return;
+  }
+  if (!d.technicien_signature_url) {
+    toast("Signature du technicien obligatoire avant de soumettre la fiche", true);
+    return;
+  }
+  if (d.client_present && !d.client_signature_url) {
+    toast("Signature du client obligatoire (client présent)", true);
+    return;
+  }
+  // Champs obligatoires de toutes les sections : vérifiés ici seulement
+  // (jamais pendant la navigation, cf. arbitrage 6.9 — « Page ok »).
+  const manquants = requiredFieldsMissing();
+  if (manquants.length) {
+    toast(`Fiche incomplète : ${manquants.join(", ")}`, true);
+    return;
+  }
 
   // Upload des signatures tactiles vers Supabase Storage (si configuré).
   if (Supabase.configured() && state.auth && navigator.onLine) {
@@ -1968,9 +2091,11 @@ async function saveBrouillon() {
   const d = state.draft;
   const appelId = d.appel_id || null;
   const rdvId = d.rdv_id || null;
-  const savedClient = d.client_id
-    ? await DB.saveClient({ ...d.client })
-    : await DB.findOrCreateClientByName({ ...d.client });
+  // Brouillon tolérant (arbitrage 6.9) : jamais bloqué — un client sans nom
+  // est créé localement, les champs obligatoires seront contrôlés à la
+  // validation finale (finishWizard).
+  const savedClient = (d.client_id ? await DB.saveClient({ ...d.client }) : await DB.findOrCreateClientByName({ ...d.client }))
+    || await DB.saveClient({ ...d.client });
   d.client_id = savedClient.id;
   d.client = savedClient;
   const itv = { ...d, _brouillon: true };
@@ -2015,6 +2140,7 @@ async function renderDetail(id) {
           <span class="tag ${interventionStatutCls(itv.statut)}">${interventionStatutLabel(itv.statut)}</span>
           ${itv.devis_souhaite ? `<span class="tag">Devis souhaité</span>` : ""}
           ${itv.prochaine_intervention_prevue ? `<span class="tag">Prochaine intervention prévue</span>` : ""}
+          ${itv.page_ok ? `<span class="tag">Page ok</span>` : ""}
         </div>
       </div>
 
@@ -2406,6 +2532,15 @@ document.addEventListener("click", async (e) => {
   }
   else if (action === "duplicate") duplicateIntervention(nav.dataset.id);
   else if (action === "wf") {
+    // « Soumettre pour validation » (§3.2.14) : impossible tant que la fiche
+    // n'est pas signée (technicien + client si présent).
+    if (nav.dataset.to === "a_valider") {
+      const fiche = await DB.getIntervention(nav.dataset.id);
+      if (!fiche || !fiche.technicien_signature_url || (fiche.client_present !== false && !fiche.client_signature_url)) {
+        toast("La fiche doit être signée (technicien + client si présent) avant d'être soumise pour validation", true);
+        return;
+      }
+    }
     if (nav.dataset.to === "facture_verifiee") {
       const itv = await DB.getIntervention(nav.dataset.id);
       if (!(itv.documents || []).some((d) => d.type === "facture" && d.data_url)) {

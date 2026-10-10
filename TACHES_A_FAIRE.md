@@ -150,7 +150,7 @@ l'appel est l'origine du flux (relié puis masqué) ; un RDV peut produire une i
 | 7 | ~~Option « + de 15 ans » Type de bâtiment (point 9)~~ ✅ |
 | 8 | ~~Refonte fiche « Entretien Chaudière bois » (point 10)~~ ✅ (07/10 — à actualiser avec la feuille 09/10, point 16) |
 | 9 | ~~Refonte fiche « Entretien Air/Eau-Sol/Eau » (point 11)~~ ✅ (07/10 — ajustements 09/10 au point 18) |
-| 10 | Fin d'intervention commune (point 12) — chantier partagé aux 4 fiches (fiche générique + 3 entretiens) ; « Page ok » précisée (6.9) |
+| 10 | ~~Fin d'intervention commune (point 12) — chantier partagé aux 4 fiches (fiche générique + 3 entretiens) ; « Page ok » précisée (6.9)~~ ✅ |
 | 11 | Tableau de bord = accueil (point 13) — re-validé au 09/10, à implémenter (drill-down + tris Nom/CP/Ville) |
 | 12 | ~~Fiche Air/Air — page 5 « Unités intérieures » (point 14)~~ → arbitré 09/10, implémenté au point 17 ✅ |
 | 13 | Retours 09/10 — fiche générique « Nouvelle intervention » (point 15) |
@@ -219,8 +219,8 @@ fin d'intervention alignée sur la page 6/6 de « Nouvelle intervention ». Dét
       → **Arbitré le 09/10 (6.2)** : la liste 18/09 est remplacée par celle, cohérente, de la feuille 09/10 —
       **« Chaudière Bûches / Chaudière Granulés / Chaudière Déchiquettée »** (« Pellets » remplacé par
       « Déchiquettée », confirmé) ; implémentation à la **tâche 16**
-- [ ] Fin d'intervention (page finale partagée) : règles 18/09 extraites au **point 12** (communes à la fiche
-      générique « Nouvelle intervention » et aux 3 fiches d'entretien) — un seul chantier
+- [x] Fin d'intervention (page finale partagée) : règles 18/09 extraites au **point 12** (communes à la fiche
+      générique « Nouvelle intervention » et aux 3 fiches d'entretien) — un seul chantier ✅ livré avec le **point 12** (10/10/2026)
 - [x] Arbitré le sort du champ « Prochaine intervention prévue » : **conservé** à la page finale
       (variante proposition métier ; retrait éventuel à confirmer) — `app.js` (`stepSignHTML`, flag `prochaine: true`), `supabase/schema.sql` inchangé
       → **Arbitré définitivement le 09/10 (6.3) : conservé** — rien à faire
@@ -305,31 +305,49 @@ de référence aux pages 4-5 partagées.
 après 7/7 « Pièces utilisées »). Maquette dédiée « Fin d'intervention » (`documentation/Maquettes.html`,
 écran `fin_intervention`, groupe « Refonte 18/09 — à valider ») ; spécification au **§3.2.14 du PRD**.
 
-- [ ] Déplacer la saisie du **statut d'intervention** en tête de l'étape finale (avant les signatures) — `app.js`
-      (`stepSignHTML` ligne ~1609 ; le statut est actuellement saisi à l'étape « Intervention »)
-- [ ] **Verrouiller les signatures** tant que le statut est « À effectuer » (débloquées si « Effectuée » ou
-      « Effectuée, suite à prévoir ») — `app.js` (`stepSignHTML` / `wireSignStep` ligne ~1662)
-- [ ] Signature **technicien obligatoire** (actuellement « facultative ») — `app.js` (`stepSignHTML` ligne ~1645,
-      validation dans `finishWizard` ligne ~1728)
-- [ ] Signature **client obligatoire si le client est présent** — `app.js` (`readSignStep` / `finishWizard`)
-- [ ] **« Soumettre pour validation » désactivé** tant que la fiche n'est pas signée (technicien + client si
-      présent) — `app.js` (`finishWizard` ligne ~1728, workflow `brouillon → a_valider`)
-- [ ] Ajouter la case **« Page ok »** — **précision arbitrée le 09/10 (6.9)** : « Page ok » est le **résumé/attestation
-      que toutes les informations obligatoires sont renseignées** ; les champs « obligatoires » **ne bloquent pas le
-      passage à la page suivante**, ils conditionnent le **contrôle de complétude à la validation** ; **conserver
-      l'astérisque** des champs obligatoires (toutes sections : intervention + entretiens). À persister si besoin :
-      `app.js`, `idb.js`, `supabase/schema.sql` (colonne à prévoir, ex. `page_ok bool`)
-- [ ] « Enregistrer comme brouillon » conservé à la page finale (déjà présent à toutes les étapes — à vérifier) — `app.js`
-- [ ] PDF : figurer ou non la case « Page ok » sur le PDF généré (à arbitrer) — `pdf.js`
-- [ ] Incrémenter `CACHE_VERSION` dans `sw.js` (→ `climatelec-v16`, cumulé avec les points 10-11-13-14)
+> **Implémenté le 10/10/2026** (règles du §3.2.14 ; statut déplacé de l'étape « Intervention » vers la page
+> finale ; test de fumée `node` des rendus/contrôles). Déploiement : relancer `supabase/schema.sql`
+> (idempotent) pour la colonne `page_ok`.
 
-**Fichiers :** `app.js`, `pdf.js`, `sw.js` (+ `idb.js`, `supabase/schema.sql` si « Page ok » persistée)
+- [x] Déplacer la saisie du **statut d'intervention** en tête de l'étape finale (avant les signatures) — `app.js`
+      (bloc « Statut de l'intervention » retiré de `stepInterventionHTML`, rendu en tête de `stepSignHTML`)
+- [x] **Verrouiller les signatures** tant que le statut est « À effectuer » (débloquées si « Effectuée » ou
+      « Effectuée, suite à prévoir ») — `app.js` (`stepSignHTML` boutons désactivés + note ; `wireSignStep` /
+      `applySignLockUI` : réévaluation dynamique au changement de statut, sans re-rendu)
+- [x] Signature **technicien obligatoire** — `app.js` (libellé « (obligatoire) », garde `finishWizard`)
+- [x] Signature **client obligatoire si le client est présent** — `app.js` (`readSignStep` / `finishWizard` :
+      garde conditionnée au commutateur « Client présent »)
+- [x] **« Soumettre pour validation » désactivé** tant que la fiche n'est pas signée (technicien + client si
+      présent) — `app.js` (bouton d'étape finale désactivé dynamiquement via `applySignLockUI`, garde
+      `finishWizard`, et même règle sur le détail d'une fiche brouillon : action `wf` → `a_valider`) ; bouton de
+      page finale renommé « Soumettre pour validation »
+- [x] Ajouter l'indicateur **« Page ok »** — **précision arbitrée le 09/10 (6.9), corrigée le 10/10** : « Page ok »
+      **n'est pas une case à cocher** mais une **information de statut** : le **résumé/attestation que toutes les
+      informations obligatoires sont renseignées** (champs obligatoires des toutes les sections + signatures) ;
+      les champs « obligatoires » **ne bloquent pas le passage à la page suivante**, ils conditionnent le
+      **contrôle de complétude à la validation** ; **conserver l'astérisque** des champs obligatoires
+      (toutes sections : intervention + entretiens). — `app.js` (indicateur calculé sur la page finale :
+      étiquette « Page ok » / « À compléter » + liste des manquants, actualisée par `applySignLockUI` ;
+      `pageOkComputed()` / `pageOkMissingLabels()` / `requiredFieldsMissing()` — nom/adresse/CP/ville/type de
+      bâtiment du client + type d'entretien + signatures ; `readClientStep` ne bloque plus la navigation ;
+      astérisques ajoutés sur les champs client obligatoires), `idb.js` (champ `page_ok` du brouillon persisté
+      tel quel via `putRaw`), `supabase/schema.sql` (colonne `page_ok boolean not null default false`, bloc V3
+      idempotent) ; étiquette « Page ok » affichée sur le détail de fiche
+- [x] « Enregistrer comme brouillon » conservé à la page finale (déjà présent à toutes les étapes — vérifié,
+      footer du wizard inchangé) ; brouillon tolérant : client sans nom créé localement pour ne pas perdre la
+      saisie — `app.js` (`saveBrouillon`)
+- [ ] PDF : figurer ou non l'indicateur « Page ok » sur le PDF généré (à arbitrer) — en l'état : **non figuré** au PDF
+      (portée en attente de clarification client), `pdf.js` inchangé
+- [x] Incrémenter `CACHE_VERSION` dans `sw.js` (→ `climatelec-v18` ; v16/v17 déjà consommées par les points 10-11 et 17)
+
+**Fichiers :** `app.js`, `sw.js`, `idb.js` (aucune modification nécessaire), `supabase/schema.sql` (+ `pdf.js` : arbitrage en attente)
 
 **Points de vigilance (mise à jour 09/10, 6.9 — précision arbitrée au §3.2.14 du PRD) :**
 - « Page ok » = **résumé de la complétude** des champs obligatoires (astérisque conservé) ; les champs
   « obligatoires » ne bloquent **pas la navigation** vers la page suivante, seulement la **validation** finale —
   s'assurer que la validation de complétude est appliquée par page/à la soumission, sur toutes les sections
-  (intervention + entretiens).
+  (intervention + entretiens). **Précision du 10/10** : « Page ok » est une **information de statut** (indicateur
+  calculé : « Page ok » / « À compléter » + liste des manquants), **jamais une case à cocher** utilisateur.
 
 ---
 
