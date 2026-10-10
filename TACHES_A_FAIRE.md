@@ -152,10 +152,10 @@ l'appel est l'origine du flux (relié puis masqué) ; un RDV peut produire une i
 | 9 | ~~Refonte fiche « Entretien Air/Eau-Sol/Eau » (point 11)~~ ✅ (07/10 — ajustements 09/10 au point 18) |
 | 10 | Fin d'intervention commune (point 12) — chantier partagé aux 4 fiches (fiche générique + 3 entretiens) ; « Page ok » précisée (6.9) |
 | 11 | Tableau de bord = accueil (point 13) — re-validé au 09/10, à implémenter (drill-down + tris Nom/CP/Ville) |
-| 12 | ~~Fiche Air/Air — page 5 « Unités intérieures » (point 14)~~ → arbitré 09/10, implémentation au point 17 |
+| 12 | ~~Fiche Air/Air — page 5 « Unités intérieures » (point 14)~~ → arbitré 09/10, implémenté au point 17 ✅ |
 | 13 | Retours 09/10 — fiche générique « Nouvelle intervention » (point 15) |
 | 14 | Retours 09/10 — fiche « Chaudière bois » (point 16) |
-| 15 | Retours 09/10 — fiche « Air/Air » (point 17) |
+| 15 | ~~Retours 09/10 — fiche « Air/Air » (point 17)~~ ✅ |
 | 16 | Retours 09/10 — ajustements fiche « Air/Eau-Sol/Eau » (point 18) |
 | 17 | Unités avant le champ de saisie — tous formulaires (point 19) |
 | 18 | Bouton « + » — retrait « Contrat d'entretien annuel », préparation « Entretien installation solaire » (point 20) |
@@ -375,6 +375,7 @@ sont **conservés** ; seul l'écran ouvert par défaut change. Maquette dédiée
 > (nuance vs la maquette qui prévoyait des T° par unité 1 à 4), équipement = **même bloc que la page 3/6**
 > (la structure dédiée 5 lignes 1 extérieure + 4 intérieures est abandonnée), GWP du fluide rétabli
 > (confirmation client conservée au PRD), « T° d'air extérieur » retirée, CERFA maintenu.
+> → **Implémenté le 09/10/2026** — voir la tâche 17.
 
 ---
 
@@ -429,30 +430,37 @@ sont **conservés** ; seul l'écran ouvert par défaut change. Maquette dédiée
 **Objectif :** appliquer la feuille « Entretien Air.Air » du classeur `Application 20261009.xlsx`
 (arbitrages 6.4/6.5/6.6 ; PRD §3.2.13 ; remplace la tâche 14 ci-dessus).
 
-- [ ] Types d'entretien : **Mono Split · Multi Split · Gainable** — `app.js` (`ENTRETIEN_META.air_air.types`,
-      `type_entretien_detail`) ; fiches existantes (type « Air/Air ») à requalifier à l'ouverture
-- [ ] Page 5 : remplacer « Unités intérieures » (maquette) par **« Vérification Unitée Intérieure »**
+> **Implémenté le 09/10/2026** (comparaison sur la feuille du classeur ; PDF inchangé — le bloc
+> « Mesures » regroupe par section du modèle, les anciens codes passant en « Autres mesures »).
+
+- [x] Types d'entretien : **Mono Split · Multi Split · Gainable** — `app.js` (`ENTRETIEN_META.air_air.types`,
+      `type_entretien_detail`) ; fiches existantes (type « Air/Air ») requalifiées à l'ouverture :
+      l'ancienne valeur reste proposée au sélecteur (option tolérante, même mécanisme que les
+      mesures hors liste) — `app.js` (`stepEntretienHTML`)
+- [x] Page 5 : remplacer « Unités intérieures » (maquette) par **« Vérification Unitée Intérieure »**
       de la feuille 09/10 — tension d'alimentation, tension intercommunication, resserrage des bornes
       électrique, nettoyage filtre (Oui/Non) + état filtre (Bon/Moyen/A remplacer), test évacuation
       condensat (Oui/Non) + état réseau condensat (Bon/Moyen/Très moyen), nettoyage pompe de relevage
       (Oui/Non/Absente) + état pompe de relevage (Bon/Moyen/Très moyen/Absente), **Delta T° d'air**
       (Vérifié/Non vérifié/Non vérifiable), nettoyage unité intérieure (Oui/Non) + état visuel
-      (Bon/Moyen/Très moyen) — `app.js` (`ENTRETIEN_META.air_air` pages 4-5)
-- [ ] Page 4 « Vérification Groupe extérieur » : reprendre le bloc référentiel **moins** les champs
+      (Bon/Moyen/Très moyen) — `app.js` (`ENTRETIEN_META.air_air` pages 4-5, `BLOC_UNITE_INTERIEURE`,
+      listes `ouiNonAbsente` / `etatRelevage` / `verif` ajoutées à `LISTES_MESURES`)
+- [x] Page 4 « Vérification Groupe extérieur » : reprendre le bloc référentiel **moins** les champs
       « Sécurité anti-gel » et « Valeur anti-gel » (retrait en air/air) ; « Vérification de fuite
       frigorigène » **avant** nettoyage/état visuel ; « Différence Entrée / Sortie d'air » en fin de page —
-      `app.js`
-- [ ] Retirer les « T° échange unité 1 à 4 » (remplacés par le **champ unique « Delta T° d'air »**, 6.4)
-      — `app.js`
-- [ ] Équipement (page 3) : abandonner la structure dédiée « 1 extérieure + 4 intérieures » au profit du
+      `app.js` (`BLOC_GROUPE_EXTERIEUR_AIR_AIR`)
+- [x] Retirer les « T° échange unité 1 à 4 » (remplacés par le **champ unique « Delta T° d'air »**, 6.4)
+      — `app.js` (page 5 remplacée ; anciens codes conservés en base sans conversion)
+- [x] Équipement (page 3) : abandonner la structure dédiée « 1 extérieure + 4 intérieures » au profit du
       **même bloc que la page 3/6** de « Nouvelle intervention » (base équipements + rappel, champs
-      Intitulé/Marque/Modèle/N° de série obligatoires — 6.5) — `app.js` (`ENTRETIEN_META.air_air`)
-- [ ] **GWP du fluide** : champ rétabli en page 4 (utile au CERFA ; confirmation client conservée au PRD)
-      — `app.js`, `pdf.js`
-- [ ] « T° d'air extérieur » : absente (retrait conforme aux feuilles 18/09 et 09/10) — rien à ajouter
-- [ ] CERFA n°15497 maintenu (`cerfa: true`) — `app.js`, `pdf.js`
-- [ ] Maquette de documentation « Entretien Air/Air » alignée sur la feuille 09/10 — `Maquettes.html`
-- [ ] Incrémenter `CACHE_VERSION` dans `sw.js` (cumulé)
+      Intitulé/Marque/Modèle/N° de série obligatoires — 6.5) — `app.js` (`ENTRETIEN_META.air_air` :
+      `maxEq` 5 → 3, bloc équipement déjà partagé avec la fiche générique)
+- [x] **GWP du fluide** : champ rétabli en page 4 (utile au CERFA ; confirmation client conservée au PRD)
+      — `app.js` (`ge_gwp_fluide` après « Charge d'usine »), `pdf.js` (rendu générique, rien à faire)
+- [x] « T° d'air extérieur » : absente (retrait conforme aux feuilles 18/09 et 09/10) — rien à ajouter
+- [x] CERFA n°15497 maintenu (`cerfa: true`) — `app.js`, `pdf.js` (inchangé)
+- [x] Maquette de documentation « Entretien Air/Air » alignée sur la feuille 09/10 — `Maquettes.html`
+- [x] Incrémenter `CACHE_VERSION` dans `sw.js` (→ `climatelec-v17`)
 
 **Fichiers :** `app.js`, `pdf.js`, `Maquettes.html`, `sw.js`
 

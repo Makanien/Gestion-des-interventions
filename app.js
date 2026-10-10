@@ -80,12 +80,15 @@ const WORKFLOW_NEXT = {
 };
 
 // ---------------------------------------------------------
-// Modèles de fiches d'entretien (US-19) — refonte 18/09 (§3.2.11 / §3.2.12)
-// Chaque champ de mesure porte soit une liste fermée (`options`, feuille 18/09),
+// Modèles de fiches d'entretien (US-19) — refonte 18/09 (§3.2.11 / §3.2.12),
+// feuilles 09/10 (arbitrages 6.2 → 6.6, §3.2.13 pour l'air/air).
+// Chaque champ de mesure porte soit une liste fermée (`options`, feuille),
 // soit une saisie libre avec unité (`unite`). Les blocs des pages 4-5
 // (« Vérification Groupe extérieur » / « Vérification Module hydraulique »)
 // sont partagés entre les fiches ; la chaudière bois applique la proposition
-// métier du 05/10/2026 (page 4 « Vérification chaudière bois »).
+// métier du 05/10/2026 (page 4 « Vérification chaudière bois ») ; l'air/air
+// reprend le bloc Groupe extérieur référentiel (moins l'anti-gel) et gagne la
+// page 5 « Vérification Unitée Intérieure » de la feuille 09/10.
 // ---------------------------------------------------------
 const LISTES_MESURES = {
   verifFem: ["Absente", "Vérifiée", "Non vérifiée", "Non vérifiable"],
@@ -101,6 +104,9 @@ const LISTES_MESURES = {
   combustion: ["Effectué", "À revoir", "Non effectué"],
   bougie: ["Fonctionne", "À remplacer", "Non concerné"],
   clapet: ["Fonctionne", "À revoir", "Non concerné"],
+  verif: ["Vérifié", "Non vérifié", "Non vérifiable"],
+  ouiNonAbsente: ["Oui", "Non", "Absente"],
+  etatRelevage: ["Bon", "Moyen", "Très moyen", "Absente"],
 };
 
 // Page 4 — « Vérification Groupe extérieur » (valeurs de la feuille Air.Eau Sol.E).
@@ -170,6 +176,46 @@ const BLOC_CHAUDIERE_BOIS = [
   { code: "visuel_silo", libelle: "État visuel silo interne", options: LISTES_MESURES.etatVisuel },
 ];
 
+// Page 4 Air/Air — « Vérification Groupe extérieur » (feuille 09/10, arb. 6.6) :
+// bloc référentiel de l'Air/Eau-Sol/Eau moins « Sécurité anti-gel » et
+// « Valeur anti-gel » (sans objet en air/air) ; « Vérification de fuite
+// frigorigène » placée avant le nettoyage/état visuel ; « Différence Entrée /
+// Sortie d'air » en fin de page ; « GWP du fluide » rétabli (utile au CERFA —
+// confirmation client conservée au PRD).
+const BLOC_GROUPE_EXTERIEUR_AIR_AIR = [
+  { code: "ge_tension_alim", libelle: "Tension d'alimentation", options: LISTES_MESURES.verifFem },
+  { code: "ge_amperage", libelle: "Ampérage de fonctionnement", options: LISTES_MESURES.verifMasc },
+  { code: "ge_tension_intercom", libelle: "Tension intercommunication", options: LISTES_MESURES.verifFem },
+  { code: "ge_resserrage_bornes", libelle: "Resserrage des bornes électrique", options: LISTES_MESURES.ouiNon },
+  { code: "ge_pression_fluide", libelle: "Pression fluide", options: LISTES_MESURES.verifFem },
+  { code: "ge_type_fluide", libelle: "Type de fluide", options: LISTES_MESURES.typeFluide },
+  { code: "ge_charge_usine", libelle: "Charge d'usine", unite: "kg" },
+  { code: "ge_gwp_fluide", libelle: "GWP du fluide" },
+  { code: "ge_verif_fuite", libelle: "Vérification de fuite frigorigène", options: LISTES_MESURES.verifMasc },
+  { code: "ge_nettoyage", libelle: "Nettoyage du groupe extérieur", options: LISTES_MESURES.ouiNon },
+  { code: "ge_visuel", libelle: "État visuel du groupe extérieur", options: LISTES_MESURES.etatVisuel },
+  { code: "ge_diff_entree_sortie_air", libelle: "Différence Entrée / Sortie d'air" },
+];
+
+// Page 5 Air/Air — « Vérification Unitée Intérieure » (feuille 09/10, arb. 6.4) :
+// le bloc hydraulique (sans objet en air/air) disparaît au profit des mesures
+// air/air ; « Delta T° d'air » est un champ unique qui remplace les
+// T° d'échange des unités 1 à 4.
+const BLOC_UNITE_INTERIEURE = [
+  { code: "ui_tension_alim", libelle: "Tension d'alimentation", options: LISTES_MESURES.verifFem },
+  { code: "ui_tension_intercom", libelle: "Tension intercommunication", options: LISTES_MESURES.verifFem },
+  { code: "ui_resserrage_bornes", libelle: "Resserrage des bornes électrique", options: LISTES_MESURES.ouiNon },
+  { code: "ui_nettoyage_filtre", libelle: "Nettoyage filtre", options: LISTES_MESURES.ouiNon },
+  { code: "ui_etat_filtre", libelle: "État filtre", options: LISTES_MESURES.etatRemplacer },
+  { code: "ui_test_condensat", libelle: "Test évacuation condensat", options: LISTES_MESURES.ouiNon },
+  { code: "ui_etat_reseau_condensat", libelle: "État réseau condensat", options: LISTES_MESURES.etatVisuel },
+  { code: "ui_nettoyage_pompe_relevage", libelle: "Nettoyage pompe de relevage", options: LISTES_MESURES.ouiNonAbsente },
+  { code: "ui_etat_pompe_relevage", libelle: "État pompe de relevage", options: LISTES_MESURES.etatRelevage },
+  { code: "ui_delta_t_air", libelle: "Delta T° d'air", options: LISTES_MESURES.verif },
+  { code: "ui_nettoyage_unite", libelle: "Nettoyage de l'unité intérieure", options: LISTES_MESURES.ouiNon },
+  { code: "ui_etat_visuel_unite", libelle: "État visuel de l'unité intérieure", options: LISTES_MESURES.etatVisuel },
+];
+
 const ENTRETIEN_META = {
   air_eau: {
     label: "Entretien Air/Eau - Sol/Eau",
@@ -185,31 +231,16 @@ const ENTRETIEN_META = {
   air_air: {
     label: "Entretien Air/Air",
     icon: "wind",
-    types: ["Air/Air"],
-    maxEq: 5,
+    // Feuille 09/10 (arb. 6.4/6.5/6.6, §3.2.13) : sous-types enfin cohérents
+    // avec une PAC air/air ; les fiches existantes (type « Air/Air ») sont
+    // requalifiées à l'ouverture — l'ancienne valeur reste proposée au
+    // sélecteur, cf. stepEntretienHTML.
+    types: ["Mono Split", "Multi Split", "Gainable"],
+    maxEq: 3, // même bloc de données que la page 3/6 de « Nouvelle intervention » (6.5)
     cerfa: true,
     mesures: [
-      { section: "Groupe extérieur", items: [
-        { code: "tension_alim", libelle: "Tension d'alimentation", unite: "V" },
-        { code: "amperage", libelle: "Ampérage", unite: "A" },
-        { code: "tension_intercom", libelle: "Tension intercommunication", unite: "V" },
-        { code: "resserrage_bornes", libelle: "Resserrage des bornes", unite: "" },
-        { code: "t_echange_ge", libelle: "T° d'échange groupe ext.", unite: "°C" },
-        { code: "t_air_ext", libelle: "T° d'air extérieur", unite: "°C" },
-        { code: "filtres_interieurs", libelle: "Nettoyage / état filtres intérieurs", unite: "" },
-        { code: "pompe_relevage", libelle: "Nettoyage pompe de relevage", unite: "" },
-        { code: "pression_fluide", libelle: "Pression fluide frigo", unite: "bar" },
-        { code: "type_fluide", libelle: "Type de fluide", unite: "" },
-        { code: "charge_usine", libelle: "Charge usine", unite: "kg" },
-        { code: "gwp_fluide", libelle: "GWP fluide", unite: "" },
-        { code: "visuel_ge_ui", libelle: "Nettoyage / état visuel GE & unités int.", unite: "" },
-      ]},
-      { section: "Unités intérieures", items: [
-        { code: "ui1_t", libelle: "T° échange unité 1", unite: "°C" },
-        { code: "ui2_t", libelle: "T° échange unité 2", unite: "°C" },
-        { code: "ui3_t", libelle: "T° échange unité 3", unite: "°C" },
-        { code: "ui4_t", libelle: "T° échange unité 4", unite: "°C" },
-      ]},
+      { section: "Vérification Groupe extérieur", items: BLOC_GROUPE_EXTERIEUR_AIR_AIR },
+      { section: "Vérification Unitée Intérieure", items: BLOC_UNITE_INTERIEURE },
     ],
   },
   chaudiere: {
@@ -760,7 +791,7 @@ function openCreateSheet() {
         { k: "appel", icon: "phone", label: "Nouvel appel", sub: "Enregistrer un contact client entrant" },
         { k: "intervention", icon: "wrench", label: "Nouvelle intervention", sub: "Dépannage, Garantie, Diagnostic" },
         { k: "entretien_air_eau", icon: "droplet", label: "Entretien Air/Eau - Sol/Eau", sub: "PAC géothermie / aérothermie" },
-        { k: "entretien_air_air", icon: "wind", label: "Entretien Air/Air", sub: "Mono-split ou multi-split" },
+        { k: "entretien_air_air", icon: "wind", label: "Entretien Air/Air", sub: "Mono Split, Multi Split ou Gainable" },
         { k: "entretien_chaudiere", icon: "flame", label: "Entretien Chaudière bois", sub: "Granulés, bûches, pellets" },
         { k: "contrat", icon: "file", label: "Contrat d'entretien annuel", sub: "Digitaliser le contrat (US-24)" },
       ].map((o) => `
@@ -1255,11 +1286,18 @@ const ZONES_FORFAIT = ["", "Z0 (Chazé-sur-Argos)", "Z1 (5 à 10 kms)", "Z2 (11 
 function stepEntretienHTML() {
   const meta = draftMeta();
   const d = state.draft;
+  // Fiches existantes : un sous-type enregistré hors liste (ex. « Air/Air »
+  // avant la refonte 09/10) reste proposé au sélecteur pour requalification
+  // manuelle — même tolérance que pour les mesures hors liste.
+  const legacyType = d.type_entretien_detail && !meta.types.includes(d.type_entretien_detail)
+    ? `<option selected>${esc(d.type_entretien_detail)}</option>`
+    : "";
   return `
   <div class="card" style="padding:14px;">
     <div class="field">
       <label>Type d'entretien *</label>
       <select id="f-type-entretien">
+        ${legacyType}
         ${meta.types.map((t) => `<option ${state.draft.type_entretien_detail === t ? "selected" : ""}>${t}</option>`).join("")}
       </select>
     </div>

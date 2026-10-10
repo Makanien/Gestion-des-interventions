@@ -188,7 +188,7 @@ main.content{padding:14px 14px 34px;}
         </button></div><div class="nav-group"><div class="nav-group-label">Entretiens dédiés — refonte 18/09</div><button class="nav-btn" data-screen="entretien_air_eau" onclick="showScreen('entretien_air_eau')">
           <span class="dot"></span><span>Entretien Air/Eau - Sol/Eau <small>feuille de référence</small></span>
         </button><button class="nav-btn" data-screen="entretien_air_air" onclick="showScreen('entretien_air_air')">
-          <span class="dot"></span><span>Entretien Air/Air <small>proposition métier ⚠️</small></span>
+          <span class="dot"></span><span>Entretien Air/Air <small>feuille 09/10 · arbitrée</small></span>
         </button><button class="nav-btn" data-screen="entretien_chaudiere_bois" onclick="showScreen('entretien_chaudiere_bois')">
           <span class="dot"></span><span>Entretien Chaudière bois <small>proposition métier ⚠️</small></span>
         </button></div><div class="nav-group"><div class="nav-group-label">Refonte 18/09 — à valider</div><button class="nav-btn" data-screen="fin_intervention" onclick="showScreen('fin_intervention')">
@@ -412,7 +412,7 @@ const SCREENS = {
     </div>
     <div class="list-item" style="cursor:pointer;">
       <span class="li-dot" style="background:#2f9e5b">🌬️</span>
-      <span class="li-body"><span class="li-name">Nouvel entretien Air/Air</span><span class="li-sub">Mono-split ou multi-split</span></span>
+      <span class="li-body"><span class="li-name">Nouvel entretien Air/Air</span><span class="li-sub">Mono Split · Multi Split · Gainable</span></span>
     </div>
     <div class="list-item" style="cursor:pointer;">
       <span class="li-dot" style="background:#c85f16">🔥</span>
@@ -1029,14 +1029,14 @@ const SCREENS = {
   </main>`
   },
   "entretien_air_air": {
-    title: "Entretien Air/Air — refonte 18/09 · proposition métier",
-    sub: "La feuille « Entretien Air.Air » (« A FAIRE ») copie mot pour mot la fiche hydraulique Air/Eau-Sol/Eau : page 5 « Module hydraulique » sans objet pour une PAC air/air. Maquette = proposition métier ci-dessous, à arbitrer avec le client.",
+    title: "Entretien Air/Air — feuille 09/10 (arbitrée)",
+    sub: "Arbitrages 09/10 (6.4/6.5/6.6) : types Mono Split / Multi Split / Gainable · page 5 « Vérification Unitée Intérieure » (le bloc hydraulique 18/09 sans objet disparaît) · page 4 = bloc référentiel moins l'anti-gel, « Vérification de fuite frigorigène » avant nettoyage/état visuel, « Différence Entrée / Sortie d'air » en fin de page · « GWP du fluide » rétabli · « Delta T° d'air » champ unique · équipement = même bloc que la page 3/6.",
     epic: 'Entretiens dédiés — 18/09',
     us: 'US-19',
     developed: false,
     html: `<div class="topbar"><div class="topbar-row">
       <button style="background:rgba(255,255,255,.1);border:none;color:#fff;width:26px;height:26px;border-radius:7px;">‹</button>
-      <div><h2>Entretien Air/Air</h2><div class="sub">Mono ou multi-split</div></div>
+      <div><h2>Entretien Air/Air</h2><div class="sub">Mono Split · Multi Split · Gainable</div></div>
       <div class="spacer"></div>
       <div class="avatar">JG</div>
     </div>
@@ -1051,36 +1051,40 @@ const SCREENS = {
       <span style="flex:1;height:3px;border-radius:100px;background:#3a5468;"></span>
     </div></div>
   <div style="padding:14px 14px 0;">
-    <div style="font-size:10px;font-family:var(--mono);color:#c85f16;text-transform:uppercase;">Page 5 / 7 — proposition</div>
-    <h2 style="font-size:17px;color:var(--navy);margin:2px 0 12px;">Unités intérieures</h2>
+    <div style="font-size:10px;font-family:var(--mono);color:#c85f16;text-transform:uppercase;">Page 5 / 7 — feuille 09/10</div>
+    <h2 style="font-size:17px;color:var(--navy);margin:2px 0 12px;">Vérification Unitée Intérieure</h2>
   </div>
   <main class="content" style="padding-top:0;">
-    <div class="note">⚠️ La feuille 18/09 reprend la feuille Air/Eau-Sol/Eau : page 5 « Module hydraulique » (filtres à tamis/boue, disconnecteur, aquastats, vannes d'équilibrage, émetteurs, Delta T°, débits, pression d'eau), liste « Aérothermie / Géothermie / Aquathermie », 3 lignes d'équipement — sans objet pour une PAC air/air (pas de circuit d'eau). <strong>Proposition métier</strong> : remplacer la page 5 par « Unités intérieures » et conserver le reste de la structure commune (pagination, listes fermées page 4, fin d'intervention).</div>
+    <div class="note">Feuille 09/10 (arbitrages 6.4/6.5/6.6) : la page 5 « Vérification Unitée Intérieure » remplace le bloc « Module hydraulique » 18/09 (sans objet pour une PAC air/air) et la proposition métier « Unités intérieures ». <strong>« Delta T° d'air » est un champ unique</strong> (remplace les T° d'échange unités 1 à 4). Anciennes fiches type « Air/Air » : requalification manuelle à l'ouverture.</div>
 
-    <div class="section-label">Unités intérieures</div>
+    <div class="section-label">Unitée intérieure</div>
     <div class="row2">
-      <div class="field"><label>Nettoyage des filtres intérieurs</label><select><option selected>Oui</option><option>Non</option><option>Non concerné</option></select></div>
-      <div class="field"><label>État des filtres</label><select><option selected>Bon</option><option>Moyen</option><option>A remplacer</option></select></div>
+      <div class="field"><label>Tension d'alimentation</label><select><option>Vérifiée</option><option>Absente</option><option>Non vérifiée</option><option>Non vérifiable</option></select></div>
+      <div class="field"><label>Tension intercommunication</label><select><option>Vérifiée</option><option>Absente</option><option>Non vérifiée</option><option>Non vérifiable</option></select></div>
     </div>
     <div class="row2">
-      <div class="field"><label>Nettoyage pompe de relevage condensats</label><select><option selected>Oui</option><option>Non</option><option>Non concerné</option></select></div>
-      <div class="field"><label>T° d'échange groupe extérieur</label><input value="52 °C"/></div>
+      <div class="field"><label>Resserrage des bornes électrique</label><select><option selected>Oui</option><option>Non</option></select></div>
+      <div class="field"><label>Nettoyage filtre</label><select><option selected>Oui</option><option>Non</option></select></div>
     </div>
     <div class="row2">
-      <div class="field"><label>T° d'échange unité intérieure 1</label><input value="19 °C"/></div>
-      <div class="field"><label>T° d'échange unité intérieure 2</label><input value="21 °C"/></div>
+      <div class="field"><label>État filtre</label><select><option selected>Bon</option><option>Moyen</option><option>A remplacer</option></select></div>
+      <div class="field"><label>Test évacuation condensat</label><select><option selected>Oui</option><option>Non</option></select></div>
     </div>
     <div class="row2">
-      <div class="field"><label>T° d'échange unité intérieure 3</label><input placeholder="— non concerné —"/></div>
-      <div class="field"><label>T° d'échange unité intérieure 4</label><input placeholder="— non concerné —"/></div>
+      <div class="field"><label>État réseau condensat</label><select><option selected>Bon</option><option>Moyen</option><option>Très moyen</option></select></div>
+      <div class="field"><label>Nettoyage pompe de relevage</label><select><option selected>Oui</option><option>Non</option><option>Absente</option></select></div>
     </div>
     <div class="row2">
-      <div class="field"><label>État visuel des unités intérieures</label><select><option selected>Bon</option><option>Moyen</option><option>Très moyen</option></select></div>
-      <div class="field"><label>T° d'air extérieur</label><input value="14 °C"/></div>
+      <div class="field"><label>État pompe de relevage</label><select><option selected>Bon</option><option>Moyen</option><option>Très moyen</option><option>Absente</option></select></div>
+      <div class="field"><label>Delta T° d'air</label><select><option selected>Vérifié</option><option>Non vérifié</option><option>Non vérifiable</option></select></div>
+    </div>
+    <div class="row2">
+      <div class="field"><label>Nettoyage de l'unité intérieure</label><select><option selected>Oui</option><option>Non</option></select></div>
+      <div class="field"><label>État visuel de l'unité intérieure</label><select><option selected>Bon</option><option>Moyen</option><option>Très moyen</option></select></div>
     </div>
 
-    <div class="note blue">Page 4 « Vérification Groupe extérieur » : identique à la fiche Air/Eau-Sol/Eau (fluides frigorigènes conservés — CERFA n°15497 maintenu). « GWP du fluide » : retiré par la feuille — à confirmer (utile au CERFA).</div>
-    <div class="note">Équipement : proposition — conserver <strong>5 lignes</strong> (1 unité extérieure + jusqu'à 4 unités intérieures) au lieu de 3 (feuille), afin de décrire un multi-split. Option feuille : appliquer la page hydraulique telle quelle — déconseillé.</div>
+    <div class="note blue">Page 4 « Vérification Groupe extérieur » : bloc référentiel de l'Air/Eau-Sol/Eau <strong>moins « Sécurité anti-gel » / « Valeur anti-gel »</strong> — Tension d'alimentation · Ampérage de fonctionnement · Tension intercommunication · Resserrage des bornes électrique · Pression fluide · Type de fluide · Charge d'usine · <strong>GWP du fluide (rétabli, 6.6 — utile au CERFA, confirmation client conservée au PRD)</strong> · Vérification de fuite frigorigène (placée avant le nettoyage/état visuel) · Nettoyage du groupe extérieur · État visuel du groupe extérieur · Différence Entrée / Sortie d'air (en fin de page). CERFA n°15497 maintenu. « T° d'air extérieur » : absente (retrait confirmé 6.6).</div>
+    <div class="note">Équipement (page 3) : <strong>même bloc que la page 3/6</strong> de « Nouvelle intervention » (arbitré 6.5 — base équipements + rappel de l'historique, champs Intitulé / Marque / Modèle / N° de série obligatoires) ; la structure « 1 unité extérieure + 4 unités intérieures » est abandonnée.</div>
     <button class="btn btn-primary">Continuer vers la page 6/7 →</button>
   </main>`
   },
