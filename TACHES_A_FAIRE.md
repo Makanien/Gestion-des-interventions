@@ -1,7 +1,7 @@
 # Tâches à faire — V3 (compléments identifiés)
 
-> Dernière mise à jour : 11/10/2026 (retours 09/10 — point 15 implémenté le 10/10, **point 16
-> implémenté le 11/10** ; arbitrages du classeur
+> Dernière mise à jour : 11/10/2026 (retours 09/10 — point 15 implémenté le 10/10, points 16 et 18
+> implémentés le 11/10 ; arbitrages du classeur
 > « Application 20261009.xlsx », réponses du porteur
 > de projet 6.1 → 6.12 — analyse : `documentation/Application 20261009 analyse retours.md`, PRD v1.27) :
 > **nouveaux points 15 → 20** (fiche générique : types à 5 valeurs + page 3/6 Équipement/Descriptif ;
@@ -158,7 +158,7 @@ l'appel est l'origine du flux (relié puis masqué) ; un RDV peut produire une i
 | 13 | ~~Retours 09/10 — fiche générique « Nouvelle intervention » (point 15)~~ ✅ |
 | 14 | ~~Retours 09/10 — fiche « Chaudière bois » (point 16)~~ ✅ |
 | 15 | ~~Retours 09/10 — fiche « Air/Air » (point 17)~~ ✅ |
-| 16 | Retours 09/10 — ajustements fiche « Air/Eau-Sol/Eau » (point 18) |
+| 16 | ~~Retours 09/10 — ajustements fiche « Air/Eau-Sol/Eau » (point 18)~~ ✅ (11/10) |
 | 17 | Unités avant le champ de saisie — tous formulaires (point 19) |
 | 18 | Bouton « + » — retrait « Contrat d'entretien annuel », préparation « Entretien installation solaire » (point 20) |
 
@@ -537,17 +537,25 @@ sont **conservés** ; seul l'écran ouvert par défaut change. Maquette dédiée
 **Objectif :** la feuille de référence 09/10 est identique au 18/09 — appliquer les arbitrages
 6.6 / 6.7 / 6.8 récents (PRD §3.2.12).
 
-- [ ] Retirer « **T° d'air extérieur** » (`t_air_ext`) de la fin de bloc hydraulique (retrait confirmé
-      au 09/10) — `app.js` (`BLOC_MODULE_HYDRAULIQUE`), `pdf.js`
-- [ ] Ajouter le champ « **GWP du fluide** » à la page 4 « Vérification Groupe extérieur » (saisie,
-      utile au CERFA ; confirmation client conservée au PRD) — `app.js`, `pdf.js`
-- [ ] Champs sans liste de valeurs : saisie libre conservée (6.8), **unités affichées avant le champ**
-      (cf. tâche 19) ; question des unités laissée ouverte (point §11 du PRD)
+> **✅ Implémenté le 11/10/2026** (retrait `t_air_ext`, ajout `ge_gwp_fluide` ; test de fumée `node`
+> du modèle — 22 contrôles OK, dont non-régression Air/Air et Chaudière bois ; `node --check` OK).
+> PDF inchangé : le regroupement est générique — les valeurs `t_air_ext` déjà saisies restent en base
+> sans conversion et sortent sous « Autres mesures » ; le GWP sort dans la section
+> « Vérification Groupe extérieur ».
+
+- [x] Retirer « **T° d'air extérieur** » (`t_air_ext`) de la fin de bloc hydraulique (retrait confirmé
+      au 09/10) — `app.js` (`BLOC_MODULE_HYDRAULIQUE`), `pdf.js` (inchangé : rendu générique, anciens
+      codes sous « Autres mesures »)
+- [x] Ajouter le champ « **GWP du fluide** » à la page 4 « Vérification Groupe extérieur » (saisie,
+      utile au CERFA ; confirmation client conservée au PRD) — `app.js` (`ge_gwp_fluide` après
+      « Charge d'usine », même code/position que la page 4 Air/Air), `pdf.js` (inchangé : rendu générique)
+- [x] Champs sans liste de valeurs : saisie libre conservée (6.8) — rien à faire ; **unités affichées
+      avant le champ** portées par la **tâche 19** ; question des unités laissée ouverte (point §11 du PRD)
 - [x] « Année d'installation » : conservée (6.7) — rien à faire ; « Descriptif » ajouté via la tâche 15
       (héritage page 3/6 des fiches d'entretien) ✅ (10/10 — descriptif obligatoire, partagé, tâche 15)
-- [ ] Incrémenter `CACHE_VERSION` dans `sw.js` (cumulé)
+- [x] Incrémenter `CACHE_VERSION` dans `sw.js` (→ `climatelec-v22`)
 
-**Fichiers :** `app.js`, `pdf.js`, `sw.js`
+**Fichiers :** `app.js`, `pdf.js` (inchangé), `sw.js`
 
 ---
 

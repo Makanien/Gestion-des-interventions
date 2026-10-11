@@ -115,6 +115,8 @@ const LISTES_MESURES = {
 };
 
 // Page 4 — « Vérification Groupe extérieur » (valeurs de la feuille Air.Eau Sol.E).
+// « GWP du fluide » rétabli (arb. 6.6, 09/10 — utile au CERFA ; confirmation
+// client conservée au PRD), même code/placement que la page 4 Air/Air.
 const BLOC_GROUPE_EXTERIEUR = [
   { code: "ge_tension_alim", libelle: "Tension d'alimentation", options: LISTES_MESURES.verifFem },
   { code: "ge_amperage", libelle: "Ampérage de fonctionnement", options: LISTES_MESURES.verifMasc },
@@ -123,6 +125,7 @@ const BLOC_GROUPE_EXTERIEUR = [
   { code: "ge_pression_fluide", libelle: "Pression fluide", options: LISTES_MESURES.verifFem },
   { code: "ge_type_fluide", libelle: "Type de fluide", options: LISTES_MESURES.typeFluide },
   { code: "ge_charge_usine", libelle: "Charge d'usine", unite: "kg" },
+  { code: "ge_gwp_fluide", libelle: "GWP du fluide" },
   { code: "ge_antigel", libelle: "Sécurité anti-gel", options: LISTES_MESURES.presentAbsentNC },
   { code: "ge_valeur_antigel", libelle: "Valeur anti-gel" },
   { code: "ge_diff_entree_sortie_air", libelle: "Différence Entrée / Sortie d'air" },
@@ -132,8 +135,10 @@ const BLOC_GROUPE_EXTERIEUR = [
 ];
 
 // Page 5 — « Vérification Module hydraulique » (valeurs de la feuille).
-// La « T° d'air extérieur » (fiches existantes, absente de la feuille) est
-// conservée en fin de bloc — retrait à confirmer avec le client (§3.2.12).
+// La « T° d'air extérieur » est retirée (arb. 6.6, confirmé 09/10 — absente
+// de la feuille, comme pour les fiches bois et air/air) ; les valeurs déjà
+// saisies sous l'ancien code « t_air_ext » restent en base sans conversion
+// et sont rendues « Autres mesures » au PDF.
 const BLOC_MODULE_HYDRAULIQUE = [
   { code: "mh_tension_alim", libelle: "Tension d'alimentation", options: LISTES_MESURES.verifFem },
   { code: "mh_tension_intercom", libelle: "Tension intercommunication", options: LISTES_MESURES.verifFem },
@@ -157,7 +162,6 @@ const BLOC_MODULE_HYDRAULIQUE = [
   { code: "mh_vanne_z2", libelle: "Vanne d'équilibrage zone 2", options: LISTES_MESURES.presentAbsentNC },
   { code: "mh_emetteur_z1", libelle: "Émetteur zone 1", options: LISTES_MESURES.emetteur },
   { code: "mh_emetteur_z2", libelle: "Émetteur zone 2", options: LISTES_MESURES.emetteur },
-  { code: "t_air_ext", libelle: "T° d'air extérieur", unite: "°C" },
 ];
 
 // Page 4 chaudière bois — « Vérification Chaudière » (feuille « Entretien
