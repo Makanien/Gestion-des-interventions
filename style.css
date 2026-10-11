@@ -431,6 +431,9 @@ main{flex:1;padding:14px 14px calc(90px + var(--safe-bottom));}
   background:#fff;
 }
 .kv .k .hint{font-size:10.5px;color:var(--ce-text-muted);margin-top:0;}
+/* Unité affichée AVANT le champ de saisie (refonte 09/10, arb. 6.8 —
+   convention tous formulaires) : à côté du libellé, jamais en placeholder. */
+.kv .k .unite{font-size:10.5px;color:var(--ce-navy-2);margin-top:0;font-weight:600;white-space:nowrap;}
 
 /* ---------- Toast ---------- */
 .toast{

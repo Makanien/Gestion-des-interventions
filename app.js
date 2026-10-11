@@ -29,6 +29,7 @@ const ICONS = {
   chart: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>`,
   flame: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2c1 3 4 5 4 9a4 4 0 0 1-8 0c0-2 1-4 2-5 0 2 1 3 2 4 0-2-1-4 0-8z"/></svg>`,
   wind: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.6 4.6A2 2 0 1 1 11 8H2"/><path d="M12.6 19.4A2 2 0 1 0 14 16H2"/><path d="M17.5 8a2.5 2.5 0 1 1 1 4.8H2"/></svg>`,
+  sun: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><line x1="12" y1="2.5" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="21.5"/><line x1="2.5" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="21.5" y2="12"/><line x1="5.3" y1="5.3" x2="7" y2="7"/><line x1="17" y1="17" x2="18.7" y2="18.7"/><line x1="17" y1="7" x2="18.7" y2="5.3"/><line x1="5.3" y1="18.7" x2="7" y2="17"/></svg>`,
   upload: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>`,
 };
 
@@ -84,13 +85,17 @@ const WORKFLOW_NEXT = {
 // feuilles 09/10 (arbitrages 6.2 → 6.6, §3.2.13 pour l'air/air, §3.2.11 pour
 // la chaudière bois).
 // Chaque champ de mesure porte soit une liste fermée (`options`, feuille),
-// soit une saisie libre avec unité (`unite`). Les blocs des pages 4-5
-// (« Vérification Groupe extérieur » / « Vérification Module hydraulique »)
-// sont partagés entre les fiches ; la chaudière bois applique la feuille
-// 09/10 sur la base proposition métier du 05/10/2026 (page 4 « Vérification
-// Chaudière », page 5 « Vérification réseau hydraulique » allégée et dédiée) ;
-// l'air/air reprend le bloc Groupe extérieur référentiel (moins l'anti-gel) et
-// gagne la page 5 « Vérification Unitée Intérieure » de la feuille 09/10.
+// soit une saisie libre avec unité (`unite` — affichée à côté du libellé,
+// AVANT le champ, jamais en placeholder : convention 09/10, tous formulaires).
+// Les blocs des pages 4-5 (« Vérification Groupe extérieur » / « Vérification
+// Module hydraulique ») sont partagés entre les fiches ; la chaudière bois
+// applique la feuille 09/10 sur la base proposition métier du 05/10/2026
+// (page 4 « Vérification Chaudière », page 5 « Vérification réseau
+// hydraulique » allégée et dédiée) ; l'air/air reprend le bloc Groupe
+// extérieur référentiel (moins l'anti-gel) et gagne la page 5 « Vérification
+// Unitée Intérieure » de la feuille 09/10. La fiche solaire (arb. 6.10,
+// 09/10 — §3.2.4) est une TRAME : bloc de mesures et liste des types
+// d'installation à venir du client (§11 du PRD).
 // ---------------------------------------------------------
 const LISTES_MESURES = {
   verifFem: ["Absente", "Vérifiée", "Non vérifiée", "Non vérifiable"],
@@ -260,6 +265,13 @@ const BLOC_UNITE_INTERIEURE = [
   { code: "ui_etat_visuel_unite", libelle: "État visuel de l'unité intérieure", options: LISTES_MESURES.etatVisuel },
 ];
 
+// Page 4 « Vérification installation solaire » — TRAME d'attente (arb. 6.10,
+// 09/10 — §3.2.4) : le contenu du bloc est attendu du client (données à venir,
+// §11 du PRD). La page s'affiche en préparation (note explicative) jusqu'à
+// réception des champs ; aucun champ frigorigène — CERFA a priori non
+// applicable.
+const BLOC_INSTALLATION_SOLAIRE = [];
+
 const ENTRETIEN_META = {
   air_eau: {
     label: "Entretien Air/Eau - Sol/Eau",
@@ -302,6 +314,25 @@ const ENTRETIEN_META = {
       { section: "Vérification réseau hydraulique", items: BLOC_RESEAU_HYDRAULIQUE_CHAUDIERE },
     ],
   },
+  // Fiche « Entretien installation solaire » — PRÉPARATION (arb. 6.10, 09/10,
+  // §3.2.4) : entrée activée dans le bouton « + » avec la trame commune des
+  // entretiens (7 pages + fin d'intervention). La liste des types
+  // d'installation et le bloc « Vérification installation solaire » restent
+  // attendus du client (§11 du PRD) : en leur absence le type se saisit
+  // librement (cf. stepEntretienHTML) et la page de mesures affiche la note
+  // de préparation (cf. stepMesuresHTML). Aucun changement de schéma attendu
+  // (`type_entretien` en texte).
+  solaire: {
+    label: "Entretien installation solaire",
+    icon: "sun",
+    types: [], // liste des types d'installation : à venir du client (§11 du PRD)
+    maxEq: 3,
+    cerfa: false, // pas de fluide frigorigène — CERFA n°15497 a priori non applicable (6.10)
+    trameAttente: true, // trame en préparation : données client à venir
+    mesures: [
+      { section: "Vérification installation solaire", items: BLOC_INSTALLATION_SOLAIRE },
+    ],
+  },
 };
 
 // Champs réglementaires CERFA n°15497 (US-25), affichés sur une seule page.
@@ -320,7 +351,7 @@ let state = {
   view: "home",
   tab: "dashboard",      // dashboard | planning | taches | dossiers (défaut : Tableau de bord, §3.2.15)
   draft: null,
-  draftType: "intervention", // intervention | air_eau | air_air | chaudiere
+  draftType: "intervention", // intervention | air_eau | air_air | chaudiere | solaire (préparation 09/10)
   step: 1,
   homeSearch: "",
   planFilter: { type: "", intervenant: "" },
@@ -964,7 +995,11 @@ function openCreateSheet() {
         { k: "entretien_air_eau", icon: "droplet", label: "Entretien Air/Eau - Sol/Eau", sub: "PAC géothermie / aérothermie" },
         { k: "entretien_air_air", icon: "wind", label: "Entretien Air/Air", sub: "Mono Split, Multi Split ou Gainable" },
         { k: "entretien_chaudiere", icon: "flame", label: "Entretien Chaudière bois", sub: "Chaudière Bûches, Granulés ou Déchiquettée" },
-        { k: "contrat", icon: "file", label: "Contrat d'entretien annuel", sub: "Digitaliser le contrat (US-24)" },
+        // Arbitrage 6.10/6.11 (09/10, §3.2.4) : 6e entrée (trame en
+        // préparation, données client à venir) ; l'entrée US-24 du menu est
+        // retirée pour le moment — le flux #/contrat et ses données restent
+        // accessibles.
+        { k: "entretien_solaire", icon: "sun", label: "Entretien installation solaire", sub: "Trame commune — contenu à venir (§11 PRD)" },
       ].map((o) => `
         <button class="sheet-item" data-create="${o.k}">
           <span class="sheet-icon">${ICONS[o.icon]}</span>
@@ -1463,14 +1498,20 @@ function stepEntretienHTML() {
   const legacyType = d.type_entretien_detail && !meta.types.includes(d.type_entretien_detail)
     ? `<option selected>${esc(d.type_entretien_detail)}</option>`
     : "";
+  // Fiche solaire (arb. 6.10, en préparation) : la liste des types
+  // d'installation est attendue du client (§11 du PRD) — saisie libre en
+  // attendant, pour ne pas bloquer la complétude « Page ok ».
+  const typeControl = meta.types.length
+    ? `<select id="f-type-entretien">
+        ${legacyType}
+        ${meta.types.map((t) => `<option ${state.draft.type_entretien_detail === t ? "selected" : ""}>${t}</option>`).join("")}
+      </select>`
+    : `<input id="f-type-entretien" type="text" value="${esc(d.type_entretien_detail)}" placeholder="À préciser (liste à venir du client)" />`;
   return `
   <div class="card" style="padding:14px;">
     <div class="field">
       <label>Type d'entretien *</label>
-      <select id="f-type-entretien">
-        ${legacyType}
-        ${meta.types.map((t) => `<option ${state.draft.type_entretien_detail === t ? "selected" : ""}>${t}</option>`).join("")}
-      </select>
+      ${typeControl}
     </div>
     <div class="field"><label>Date</label><input id="f-date" type="date" value="${esc(d.date)}" /></div>
     <div class="row2">
@@ -1557,7 +1598,7 @@ function captureClientFields() {
   // personnalisée manuellement (pré-remplissage automatique).
   if (!d.client_signature_nom || d.client_signature_nom === prevNom) d.client_signature_nom = d.client.nom;
   if (state.draftType !== "intervention") {
-    d.type_entretien = state.draftType;                          // clé machine (air_eau / air_air / chaudiere)
+    d.type_entretien = state.draftType;                          // clé machine (air_eau / air_air / chaudiere / solaire)
     const sel = $("#f-type-entretien");                          // présent seulement à l'étape Entretien
     if (sel) d.type_entretien_detail = sel.value;
   }
@@ -1808,8 +1849,10 @@ function wireObservationPhotosStep() {
 
 // ---- Étapes Mesures (entretiens — une page par section, refonte 18/09) ----
 // Un champ porte soit une liste fermée (`options`, valeurs de la feuille),
-// soit une saisie libre avec unité (`unite`). Une valeur déjà enregistrée
-// hors liste (ancienne saisie libre) reste sélectionnable.
+// soit une saisie libre avec unité (`unite` — affichée à côté du libellé,
+// avant le champ, jamais en placeholder : convention 09/10, arb. 6.8).
+// Une valeur déjà enregistrée hors liste (ancienne saisie libre) reste
+// sélectionnable.
 function mesureInputHTML(m, valeur) {
   const control = m.options?.length
     ? (() => {
@@ -1821,10 +1864,12 @@ function mesureInputHTML(m, valeur) {
           ${extra}
         </select>`;
       })()
-    : `<input type="text" inputmode="decimal" data-mesure-code="${m.code}" class="mesure-field" placeholder="${esc(m.unite || "")}" value="${esc(valeur)}" />`;
+    // Convention 09/10 (arb. 6.8, §7 du PRD) : l'unité s'affiche AVANT le
+    // champ (à côté du libellé), jamais dans le champ (pas de placeholder).
+    : `<input type="text" inputmode="decimal" data-mesure-code="${m.code}" class="mesure-field" value="${esc(valeur)}" />`;
   return `
     <div class="kv" style="padding:8px 14px;">
-      <div class="k" style="width:auto;flex:1;">${esc(m.libelle)}${m.options?.length ? "" : (m.unite ? ` <span class="hint">(${esc(m.unite)})</span>` : "")}</div>
+      <div class="k" style="width:auto;flex:1;">${esc(m.libelle)}${m.options?.length ? "" : (m.unite ? ` <span class="unite">(${esc(m.unite)})</span>` : "")}</div>
       <div class="v" style="width:130px;flex:none;">${control}</div>
     </div>`;
 }
@@ -1844,12 +1889,17 @@ function stepMesuresHTML(sectionIdx) {
     <div class="card">
       ${CERFA_FIELDS.map((f) => `
         <div class="kv" style="padding:8px 14px;">
-          <div class="k" style="width:auto;flex:1;">${esc(f.libelle)}</div>
-          <div class="v" style="width:130px;flex:none;"><input type="text" data-mesure-code="${f.code}" placeholder="${esc(f.unite)}" value="${esc(val(f.code))}" style="width:100%;padding:8px;border:1px solid var(--ce-border);border-radius:8px;" /></div>
+          <div class="k" style="width:auto;flex:1;">${esc(f.libelle)}${f.unite ? ` <span class="unite">(${esc(f.unite)})</span>` : ""}</div>
+          <div class="v" style="width:130px;flex:none;"><input type="text" data-mesure-code="${f.code}" value="${esc(val(f.code))}" style="width:100%;padding:8px;border:1px solid var(--ce-border);border-radius:8px;" /></div>
         </div>`).join("")}
     </div>
-    <div class="note blue" style="margin-top:10px;">Formulaire CERFA sur une seule page (document officiel).</div>` : "";
-  return `${sectionHTML}${cerfa}`;
+    <div class="note blue" style="margin-top:10px;">Formulaire CERFA sur une seule page (document officiel) — unités affichées à côté du champ, saisie de la valeur seule.</div>` : "";
+  // Fiche solaire (arb. 6.10) : une section en attente du contenu client
+  // (§11 du PRD) s'affiche en note de préparation plutôt qu'une card vide.
+  const attente = meta.trameAttente && !sec.items.length
+    ? `<div class="note blue" style="margin-top:10px;">Bloc « ${esc(sec.section)} » en préparation : contenu attendu du client (§11 du PRD).</div>`
+    : "";
+  return `${sectionHTML}${attente}${cerfa}`;
 }
 function wireMesuresStep() {}
 // Lecture limitée aux champs présents sur la page courante : les mesures des
@@ -2658,7 +2708,7 @@ async function renderContrats() {
             <span class="ii-tags">${ct.client_signature_url ? `<span class="tag done">Signé</span>` : `<span class="tag pending">Non signé</span>`}</span>
           </span>
           ${ICONS.chevron}
-        </button>`).join("") : `<div class="empty-state"><div class="glyph">${ICONS.file}</div><h3>Aucun contrat</h3><p>Créez un contrat d'entretien annuel depuis le bouton +.</p></div>`}
+        </button>`).join("") : `<div class="empty-state"><div class="glyph">${ICONS.file}</div><h3>Aucun contrat</h3><p>Les contrats existants restent consultables ici (US-24) — l'entrée de création dans le bouton + est suspendue (arbitrage 6.11, 09/10).</p></div>`}
     </main>
     <div class="toast" id="toast"></div>
   `);

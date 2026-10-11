@@ -1,6 +1,6 @@
 # Tâches à faire — V3 (compléments identifiés)
 
-> Dernière mise à jour : 11/10/2026 (retours 09/10 — point 15 implémenté le 10/10, points 16 et 18
+> Dernière mise à jour : 11/10/2026 (retours 09/10 — point 15 implémenté le 10/10, points 16, 18, 19 et 20
 > implémentés le 11/10 ; arbitrages du classeur
 > « Application 20261009.xlsx », réponses du porteur
 > de projet 6.1 → 6.12 — analyse : `documentation/Application 20261009 analyse retours.md`, PRD v1.27) :
@@ -159,8 +159,8 @@ l'appel est l'origine du flux (relié puis masqué) ; un RDV peut produire une i
 | 14 | ~~Retours 09/10 — fiche « Chaudière bois » (point 16)~~ ✅ |
 | 15 | ~~Retours 09/10 — fiche « Air/Air » (point 17)~~ ✅ |
 | 16 | ~~Retours 09/10 — ajustements fiche « Air/Eau-Sol/Eau » (point 18)~~ ✅ (11/10) |
-| 17 | Unités avant le champ de saisie — tous formulaires (point 19) |
-| 18 | Bouton « + » — retrait « Contrat d'entretien annuel », préparation « Entretien installation solaire » (point 20) |
+| 17 | ~~Unités avant le champ de saisie — tous formulaires (point 19)~~ ✅ (11/10 — `climatelec-v23`) |
+| 18 | ~~Bouton « + » — retrait « Contrat d'entretien annuel », préparation « Entretien installation solaire » (point 20)~~ ✅ (11/10 — reste : contenu du bloc et liste des types à venir du client, §11 du PRD) |
 
 ---
 
@@ -564,12 +564,19 @@ sont **conservés** ; seul l'écran ouvert par défaut change. Maquette dédiée
 **Objectif :** convention validée par le porteur de projet : **l'unité apparaît avant le champ de saisie,
 pas dans le champ** (pas de placeholder d'unité) — tous formulaires (wizard, mesures, CERFA).
 
-- [ ] `mesureInputHTML` : retirer l'unité du `placeholder` des champs en saisie libre
-      (elle est déjà indiquée à côté du libellé, **avant** le champ — conserver/renforcer cet affichage)
-      — `app.js` (ligne ~1619), `style.css` le cas échéant
-- [ ] Vérifier les autres champs à unité (CERFA : quantité kg, déchets, etc.) pour le même rendu — `app.js`
-- [ ] PDF : unités déjà portées sur les libellés — vérifier qu'elles restent affichées à côté du champ — `pdf.js`
-- [ ] Incrémenter `CACHE_VERSION` dans `sw.js` (cumulé)
+> **✅ Implémenté le 11/10/2026** (`node --check` OK ; test de fumée `node` — 62 contrôles OK,
+> dont vérification placeholder retiré sur les 4 champs libres + 3 CERFA à unité).
+
+- [x] `mesureInputHTML` : retirer l'unité du `placeholder` des champs en saisie libre
+      (elle est déjà indiquée à côté du libellé, **avant** le champ — affichage renforcé via
+      un span dédié `.unite`) — `app.js`, `style.css` (règle `.kv .k .unite`)
+- [x] Vérifier les autres champs à unité (CERFA : quantité kg, déchets, etc.) pour le même rendu :
+      unité affichée à côté du libellé `(kg)` / `(Oui / Non)`, placeholder retiré — `app.js`; les
+      autres formulaires (client, appel, pièces, contrat) n'ont aucun champ à unité
+- [x] PDF : unités déjà portées sur les libellés — vérifiées : la valeur et son unité restent
+      affichées (valeur + unité sur la colonne de droite, `rowMesureWith`) — `pdf.js` **inchangé** ;
+      l'unité « Oui / Non » du CERFA reste une indication de saisie, non imprimée (déjà géré)
+- [x] Incrémenter `CACHE_VERSION` dans `sw.js` (→ `climatelec-v23`, cumulé avec le point 20)
 
 **Fichiers :** `app.js`, `pdf.js`, `style.css`, `sw.js`
 
@@ -579,18 +586,27 @@ pas dans le champ** (pas de placeholder d'unité) — tous formulaires (wizard, 
 
 **Objectif :** appliquer la feuille « Bouton + » du classeur 09/10 arbitrée (6.10, 6.11 ; PRD §3.2.4).
 
-- [ ] Retirer l'entrée « **Contrat d'entretien annuel** » de la feuille d'action du bouton « + » (le flux
-      `#/contrat`, la liste `#/contrats` et les données existantes restent accessibles — US-24 conservée)
-      — `app.js` (menu, ligne ~765)
-- [ ] Ajouter l'entrée « **Entretien installation solaire** » (**préparation** 6.10) : clé `solaire` dans
+> **✅ Implémenté le 11/10/2026** (`node --check` OK ; test de fumée `node` — 62 contrôles OK,
+> dont trame solaire 7 étapes, ventilation « Entretiens », non-régression des 4 fiches en place).
+
+- [x] Retirer l'entrée « **Contrat d'entretien annuel** » de la feuille d'action du bouton « + » (le flux
+      `#/contrat`, la liste `#/contrats` et les données existantes restent accessibles — US-24 conservée) ;
+      libellé de la liste vide actualisé (ne renvoie plus au bouton +) — `app.js` (menu `openCreateSheet`),
+      `documentation/Maquettes.html` (écran bouton_plus actualisé)
+- [x] Ajouter l'entrée « **Entretien installation solaire** » (**préparation** 6.10) : clé `solaire` dans
       `ENTRETIEN_META` (trame commune 7 pages + fin d'intervention, bloc « Vérification installation
       solaire » à renseigner dès réception des données du client, CERFA a priori non applicable) ;
-      l'activer à l'entrée du menu dès la trame en place — `app.js`, `pdf.js` (libellé entretien),
-      `supabase/schema.sql` (aucun changement attendu : `type_entretien` en texte)
-- [ ] Filtres/tris « Entretiens » (planning, tâches, accueil) : prévoir la ventilation du nouveau type
-      solaire — `app.js`
-- [ ] Incrémenter `CACHE_VERSION` dans `sw.js` (cumulé)
+      l'activer à l'entrée du menu dès la trame en place — `app.js` (icône `sun`, `trameAttente` :
+      la page de mesures affiche une note de préparation tant que le bloc est vide ; type
+      d'installation en saisie libre tant que la liste des types manque), `pdf.js` **inchangé**
+      (rendu générique par section du modèle, aucune mesure tant que le bloc attend), `supabase/schema.sql`
+      (aucun changement : `type_entretien` en texte)
+- [x] Filtres/tris « Entretiens » (planning, tâches, accueil) : ventilation OK sans code additionnel —
+      `matchesType` (« Entretiens » = tout `type_entretien`, solaire inclus), libellés dynamiques via
+      `ENTRETIEN_META.solaire.label` (listes, recherche, statistiques « par type ») — `app.js` (vérifié)
+- [x] Incrémenter `CACHE_VERSION` dans `sw.js` (→ `climatelec-v23`, cumulé avec le point 19)
 
-**Fichiers :** `app.js`, `pdf.js`, `Maquettes.html`, `sw.js`
+**Fichiers :** `app.js`, `pdf.js` (inchangé), `style.css`, `Maquettes.html`, `sw.js`
 **Reste attendu du client :** contenu du bloc « Vérification installation solaire » et liste des types
-d'installation (point ouvert §11 du PRD).
+d'installation (point ouvert §11 du PRD) — à l'arrivée : remplir `BLOC_INSTALLATION_SOLAIRE` et
+`ENTRETIEN_META.solaire.types` (le sélecteur redevient une liste fermée automatiquement).
