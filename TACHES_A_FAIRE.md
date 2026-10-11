@@ -1,6 +1,7 @@
 # Tâches à faire — V3 (compléments identifiés)
 
-> Dernière mise à jour : 10/10/2026 (retours 09/10 — point 15 implémenté ; arbitrages du classeur
+> Dernière mise à jour : 11/10/2026 (retours 09/10 — point 15 implémenté le 10/10, **point 16
+> implémenté le 11/10** ; arbitrages du classeur
 > « Application 20261009.xlsx », réponses du porteur
 > de projet 6.1 → 6.12 — analyse : `documentation/Application 20261009 analyse retours.md`, PRD v1.27) :
 > **nouveaux points 15 → 20** (fiche générique : types à 5 valeurs + page 3/6 Équipement/Descriptif ;
@@ -155,7 +156,7 @@ l'appel est l'origine du flux (relié puis masqué) ; un RDV peut produire une i
 | 11 | ~~Tableau de bord = accueil (point 13)~~ ✅ (10/10 — reste : arbitrage du bloc « Devis en cours ») |
 | 12 | ~~Fiche Air/Air — page 5 « Unités intérieures » (point 14)~~ → arbitré 09/10, implémenté au point 17 ✅ |
 | 13 | ~~Retours 09/10 — fiche générique « Nouvelle intervention » (point 15)~~ ✅ |
-| 14 | Retours 09/10 — fiche « Chaudière bois » (point 16) |
+| 14 | ~~Retours 09/10 — fiche « Chaudière bois » (point 16)~~ ✅ |
 | 15 | ~~Retours 09/10 — fiche « Air/Air » (point 17)~~ ✅ |
 | 16 | Retours 09/10 — ajustements fiche « Air/Eau-Sol/Eau » (point 18) |
 | 17 | Unités avant le champ de saisie — tous formulaires (point 19) |
@@ -452,24 +453,43 @@ sont **conservés** ; seul l'écran ouvert par défaut change. Maquette dédiée
 **Objectif :** appliquer la feuille « Entretien Chaudière Bois » du classeur `Application 20261009.xlsx`
 (arbitrage 6.2/6.3 ; PRD §3.2.11). La fiche 07/10 (proposition métier) sert de base.
 
-- [ ] Types d'entretien : passer à **« Chaudière Bûches · Chaudière Granulés · Chaudière Déchiquettée »**
-      (« Pellets » remplacé par « Déchiquettée ») — `app.js` (`ENTRETIEN_META.chaudiere.types`) ;
-      ancien libellé « Pellets » des fiches existantes conservé/toléré à l'ouverture (pas de conversion)
-- [ ] Page 4 « Vérification Chaudière » : intégrer les précisions 09/10 — **état du joint WOS**
-      (Bon/Moyen/A remplacer, champ séparé du nettoyage WOS) et **« Test alimentation granulés »** (Oui/Non) —
-      `app.js` (`BLOC_CHAUDIERE_BOIS`)
-- [ ] Page 5 renommée **« Vérification réseau hydraulique »** et **allégée** (fiche bois uniquement) :
-      retirer « Tension d'alimentation », « Tension intercommunication » (disparait totalement de la fiche
-      bois), « Resserrage des bornes électrique », « Nettoyage du module hydraulique » et « État visuel du
-      module hydraulique » ; ajouter l'option « Non concerné » sur le nettoyage **et** l'état du filtre
-      à tamis — `app.js` (bloc dédié chaudière ; ne pas toucher à `BLOC_MODULE_HYDRAULIQUE` partagé
-      avec l'Air/Eau)
-- [ ] PDF : rendu des libellés « Vérification Chaudière » / « Vérification réseau hydraulique » — `pdf.js`
-- [ ] Incrémenter `CACHE_VERSION` dans `sw.js` (cumulé)
+> **✅ Implémenté le 11/10/2026** (feuille extraite du classeur et collationnée — 17 champs par page 4
+> et page 5 ; test de fumée `node` des rendus/modèle — 47 contrôles OK, dont non-régression Air/Eau
+> et Air/Air ; `syntaxe node --check` OK).
+
+- [x] Types d'entretien : passer à **« Chaudière Bûches · Chaudière Granulés · Chaudière Déchiquettée »**
+      (« Pellets » remplacé par « Déchiquettée ») — `app.js` (`ENTRETIEN_META.chaudiere.types`,
+      sous-titre du bouton « + » aligné) ; ancien libellé « Pellets » des fiches existantes
+      conservé/toléré à l'ouverture — option tolérante au sélecteur `stepEntretienHTML`
+      (pas de conversion, même mécanisme que les types Air/Air)
+- [x] Page 4 « Vérification Chaudière » : intégrer les précisions 09/10 — **état du joint WOS**
+      (Bon/Moyen/A remplacer, code dédié `wos_joint` — l'ancien « État du WOS » disparaît) et
+      **« Test alimentation granulés »** (Oui/Non — libellé remplacé sur le code existant
+      `test_remplissage_granules`, même mesure) ; l'électricité passe côté page 4 : **tension
+      d'alimentation** (codes `mh_tension_alim` conservés pour reprendre les valeurs déjà saisies)
+      et **resserrage des bornes électrique** — `app.js` (`BLOC_CHAUDIERE_BOIS`) ;
+      alignements feuille au passage : **Test combustion (Oui/Non)**, **états chaudière/silo
+      (Bon/Moyen)**, « État du creuset » retiré (absent de la feuille), libellé
+      « Nettoyage sonde Lambda / Fumée » ; aucune occurrence des champs fluides (CERFA non applicable)
+- [x] Page 5 renommée **« Vérification réseau hydraulique »** et **allégée** (fiche bois uniquement) :
+      bloc dédié `BLOC_RESEAU_HYDRAULIQUE_CHAUDIERE` (ordre feuille : pression d'eau, disconnecteur,
+      mitigeur ECS, vannes/émetteurs zones 1-2, aquastats circuits 1-2, filtres tamis/boue, Delta T°
+      et débits primaire/secondaire 1 et 2) — retirés « Tension d'alimentation », « Tension
+      intercommunication » (disparait totalement de la fiche bois), « Resserrage des bornes électrique »,
+      « Nettoyage du module hydraulique », « État visuel du module hydraulique » et « T° d'air
+      extérieur » (absente de la feuille, arb. 6.6) ; option « Non concerné » ajoutée sur le nettoyage
+      **et** l'état du filtre à tamis — `app.js` (`BLOC_MODULE_HYDRAULIQUE` partagé avec l'Air/Eau
+      intact, retrait `T° d'air extérieur` porté par la tâche 18)
+- [x] PDF : rendu des libellés « Vérification Chaudière » / « Vérification réseau hydraulique » —
+      regroupement générique par section du modèle (`metaITV.mesures`), aucun libellé codé en dur
+      ; anciens codes des fiches existantes (état du WOS, état du creuset, électricité module…)
+      rendus sous « Autres mesures », valeurs sans conversion — `pdf.js` (commentaire actualisé)
+- [x] Incrémenter `CACHE_VERSION` dans `sw.js` (→ `climatelec-v21`)
 
 **Fichiers :** `app.js`, `pdf.js`, `sw.js`
 
 ---
+
 
 ## 17. Fiche « Entretien Air/Air » — feuille 09/10 (arbitrée)
 

@@ -269,8 +269,8 @@ async function generateInterventionPDF(itv, client) {
     };
     if (metaITV) {
       // Regroupement par page du modèle (Vérification Groupe extérieur / Module
-      // hydraulique / Vérification chaudière bois…), puis mesures orphelines
-      // (anciens codes) sous « Autres mesures ».
+      // hydraulique / Vérification Chaudière / réseau hydraulique…), puis
+      // mesures orphelines (anciens codes) sous « Autres mesures ».
       const used = new Set();
       for (const s of metaITV.mesures) {
         const items = mesures.filter((m) => s.items.some((i) => i.code === m.code));
