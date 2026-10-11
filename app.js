@@ -29,6 +29,7 @@ const ICONS = {
   chart: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>`,
   flame: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2c1 3 4 5 4 9a4 4 0 0 1-8 0c0-2 1-4 2-5 0 2 1 3 2 4 0-2-1-4 0-8z"/></svg>`,
   wind: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.6 4.6A2 2 0 1 1 11 8H2"/><path d="M12.6 19.4A2 2 0 1 0 14 16H2"/><path d="M17.5 8a2.5 2.5 0 1 1 1 4.8H2"/></svg>`,
+  sun: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><line x1="12" y1="2.5" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="21.5"/><line x1="2.5" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="21.5" y2="12"/><line x1="5.3" y1="5.3" x2="7" y2="7"/><line x1="17" y1="17" x2="18.7" y2="18.7"/><line x1="17" y1="7" x2="18.7" y2="5.3"/><line x1="5.3" y1="18.7" x2="7" y2="17"/></svg>`,
   upload: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>`,
 };
 
@@ -80,113 +81,256 @@ const WORKFLOW_NEXT = {
 };
 
 // ---------------------------------------------------------
-// Modèles de fiches d'entretien (US-19)
+// Modèles de fiches d'entretien (US-19) — refonte 18/09 (§3.2.11 / §3.2.12),
+// feuilles 09/10 (arbitrages 6.2 → 6.6, §3.2.13 pour l'air/air, §3.2.11 pour
+// la chaudière bois).
+// Chaque champ de mesure porte soit une liste fermée (`options`, feuille),
+// soit une saisie libre avec unité (`unite` — affichée à côté du libellé,
+// AVANT le champ, jamais en placeholder : convention 09/10, tous formulaires).
+// Les blocs des pages 4-5 (« Vérification Groupe extérieur » / « Vérification
+// Module hydraulique ») sont partagés entre les fiches ; la chaudière bois
+// applique la feuille 09/10 sur la base proposition métier du 05/10/2026
+// (page 4 « Vérification Chaudière », page 5 « Vérification réseau
+// hydraulique » allégée et dédiée) ; l'air/air reprend le bloc Groupe
+// extérieur référentiel (moins l'anti-gel) et gagne la page 5 « Vérification
+// Unitée Intérieure » de la feuille 09/10. La fiche solaire (arb. 6.10,
+// 09/10 — §3.2.4) est une TRAME : bloc de mesures et liste des types
+// d'installation à venir du client (§11 du PRD).
 // ---------------------------------------------------------
+const LISTES_MESURES = {
+  verifFem: ["Absente", "Vérifiée", "Non vérifiée", "Non vérifiable"],
+  verifMasc: ["Absent", "Vérifié", "Non vérifié", "Non vérifiable"],
+  verifNC: ["Vérifié", "Non vérifié", "Non vérifiable", "Non concerné"],
+  ouiNon: ["Oui", "Non"],
+  ouiNonNC: ["Oui", "Non", "Non concerné"],
+  typeFluide: ["R410A", "R407C", "R32", "R290"],
+  presentAbsent: ["Présent", "Absent"],
+  presentAbsentNC: ["Présent", "Absent", "Non concerné"],
+  etatVisuel: ["Bon", "Moyen", "Très moyen"],
+  etatRemplacer: ["Bon", "Moyen", "A remplacer"],
+  etatRemplacerNC: ["Bon", "Moyen", "A remplacer", "Non concerné"],
+  etatSimple: ["Bon", "Moyen"],
+  emetteur: ["P. Chauffant", "Radiateurs"],
+  combustion: ["Effectué", "À revoir", "Non effectué"],
+  bougie: ["Fonctionne", "À remplacer", "Non concerné"],
+  clapet: ["Fonctionne", "À revoir", "Non concerné"],
+  verif: ["Vérifié", "Non vérifié", "Non vérifiable"],
+  ouiNonAbsente: ["Oui", "Non", "Absente"],
+  etatRelevage: ["Bon", "Moyen", "Très moyen", "Absente"],
+};
+
+// Page 4 — « Vérification Groupe extérieur » (valeurs de la feuille Air.Eau Sol.E).
+// « GWP du fluide » rétabli (arb. 6.6, 09/10 — utile au CERFA ; confirmation
+// client conservée au PRD), même code/placement que la page 4 Air/Air.
+const BLOC_GROUPE_EXTERIEUR = [
+  { code: "ge_tension_alim", libelle: "Tension d'alimentation", options: LISTES_MESURES.verifFem },
+  { code: "ge_amperage", libelle: "Ampérage de fonctionnement", options: LISTES_MESURES.verifMasc },
+  { code: "ge_tension_intercom", libelle: "Tension intercommunication", options: LISTES_MESURES.verifFem },
+  { code: "ge_resserrage_bornes", libelle: "Resserrage des bornes électrique", options: LISTES_MESURES.ouiNon },
+  { code: "ge_pression_fluide", libelle: "Pression fluide", options: LISTES_MESURES.verifFem },
+  { code: "ge_type_fluide", libelle: "Type de fluide", options: LISTES_MESURES.typeFluide },
+  { code: "ge_charge_usine", libelle: "Charge d'usine", unite: "kg" },
+  { code: "ge_gwp_fluide", libelle: "GWP du fluide" },
+  { code: "ge_antigel", libelle: "Sécurité anti-gel", options: LISTES_MESURES.presentAbsentNC },
+  { code: "ge_valeur_antigel", libelle: "Valeur anti-gel" },
+  { code: "ge_diff_entree_sortie_air", libelle: "Différence Entrée / Sortie d'air" },
+  { code: "ge_nettoyage", libelle: "Nettoyage du groupe extérieur", options: LISTES_MESURES.ouiNon },
+  { code: "ge_visuel", libelle: "État visuel du groupe extérieur", options: LISTES_MESURES.etatVisuel },
+  { code: "ge_verif_fuite", libelle: "Vérification de fuite frigorigène", options: LISTES_MESURES.verifMasc },
+];
+
+// Page 5 — « Vérification Module hydraulique » (valeurs de la feuille).
+// La « T° d'air extérieur » est retirée (arb. 6.6, confirmé 09/10 — absente
+// de la feuille, comme pour les fiches bois et air/air) ; les valeurs déjà
+// saisies sous l'ancien code « t_air_ext » restent en base sans conversion
+// et sont rendues « Autres mesures » au PDF.
+const BLOC_MODULE_HYDRAULIQUE = [
+  { code: "mh_tension_alim", libelle: "Tension d'alimentation", options: LISTES_MESURES.verifFem },
+  { code: "mh_tension_intercom", libelle: "Tension intercommunication", options: LISTES_MESURES.verifFem },
+  { code: "mh_resserrage_bornes", libelle: "Resserrage des bornes électrique", options: LISTES_MESURES.ouiNon },
+  { code: "mh_delta_t_primaire", libelle: "Delta T° d'eau primaire", options: LISTES_MESURES.verif},
+  { code: "mh_delta_t_secondaire", libelle: "Delta T° d'eau secondaire 1 et 2", options: LISTES_MESURES.verifNC },
+  { code: "mh_debit_primaire", libelle: "Débit d'eau primaire", options: LISTES_MESURES.verifMasc },
+  { code: "mh_debit_secondaire", libelle: "Débit d'eau secondaire 1 et 2", options: LISTES_MESURES.verifNC },
+  { code: "mh_pression_eau", libelle: "Pression d'eau", unite: "bar" },
+  { code: "mh_nettoyage_tamis", libelle: "Nettoyage filtre à tamis", options: LISTES_MESURES.ouiNon },
+  { code: "mh_etat_tamis", libelle: "État filtre à tamis", options: LISTES_MESURES.etatRemplacer },
+  { code: "mh_nettoyage_boue", libelle: "Nettoyage filtre à boue", options: LISTES_MESURES.ouiNon },
+  { code: "mh_etat_boue", libelle: "État filtre à boue", options: LISTES_MESURES.etatRemplacer },
+  { code: "mh_disconnecteur", libelle: "Disconnecteur", options: LISTES_MESURES.presentAbsent },
+  { code: "mh_mitigeur_ecs", libelle: "Mitigeur ECS", options: LISTES_MESURES.presentAbsentNC },
+  { code: "mh_aquastat_c1", libelle: "Aquastat de sécurité circuit 1", options: LISTES_MESURES.presentAbsentNC },
+  { code: "mh_aquastat_c2", libelle: "Aquastat de sécurité circuit 2", options: LISTES_MESURES.presentAbsentNC },
+  { code: "mh_nettoyage_module", libelle: "Nettoyage du module hydraulique", options: LISTES_MESURES.ouiNon },
+  { code: "mh_visuel_module", libelle: "État visuel du module hydraulique", options: LISTES_MESURES.etatVisuel },
+  { code: "mh_vanne_z1", libelle: "Vanne d'équilibrage zone 1", options: LISTES_MESURES.presentAbsentNC },
+  { code: "mh_vanne_z2", libelle: "Vanne d'équilibrage zone 2", options: LISTES_MESURES.presentAbsentNC },
+  { code: "mh_emetteur_z1", libelle: "Émetteur zone 1", options: LISTES_MESURES.emetteur },
+  { code: "mh_emetteur_z2", libelle: "Émetteur zone 2", options: LISTES_MESURES.emetteur },
+];
+
+// Page 4 chaudière bois — « Vérification Chaudière » (feuille « Entretien
+// Chaudière Bois » du classeur 20261009, arb. 6.2/6.3, §3.2.11 — base
+// proposition métier 07/10) : l'électricité passe côté page 4, les codes
+// « mh_tension_alim » / « mh_resserrage_bornes » sont conservés pour reprendre
+// les valeurs déjà saisies ; « Test remplissage granulés » devient
+// « Test alimentation granulés » (même mesure), « État du WOS » cède la place
+// à l'« État du joint WOS » (code dédié), l'état du creuset disparaît (absent
+// de la feuille). Valeurs saisies sous un ancien code : conservées en base
+// sans conversion — rendues « Autres mesures » au PDF.
+const BLOC_CHAUDIERE_BOIS = [
+  { code: "mh_tension_alim", libelle: "Tension d'alimentation", options: LISTES_MESURES.verifFem },
+  { code: "mh_resserrage_bornes", libelle: "Resserrage des bornes électrique", options: LISTES_MESURES.ouiNon },
+  { code: "etalonnage_granules", libelle: "Étalonnage granulés", options: LISTES_MESURES.ouiNon },
+  { code: "test_remplissage_granules", libelle: "Test alimentation granulés", options: LISTES_MESURES.ouiNon },
+  { code: "wos_nettoyage", libelle: "Nettoyage WOS", options: LISTES_MESURES.ouiNon },
+  { code: "wos_joint", libelle: "État du joint WOS", options: LISTES_MESURES.etatRemplacer },
+  { code: "creuset_nettoyage", libelle: "Nettoyage creuset", options: LISTES_MESURES.ouiNon },
+  { code: "cendrier_nettoyage", libelle: "Nettoyage cendrier", options: LISTES_MESURES.ouiNon },
+  { code: "chambre_combustion", libelle: "Nettoyage chambre de combustion", options: LISTES_MESURES.ouiNon },
+  { code: "sonde_lambda", libelle: "Nettoyage sonde Lambda / Fumée", options: LISTES_MESURES.ouiNon },
+  { code: "test_combustion", libelle: "Test combustion", options: LISTES_MESURES.ouiNon },
+  { code: "chaudiere_nettoyage", libelle: "Nettoyage chaudière", options: LISTES_MESURES.ouiNon },
+  { code: "visuel_chaudiere", libelle: "État chaudière", options: LISTES_MESURES.etatSimple },
+  { code: "silo_nettoyage", libelle: "Nettoyage silo", options: LISTES_MESURES.ouiNon },
+  { code: "visuel_silo", libelle: "État silo", options: LISTES_MESURES.etatSimple },
+  { code: "test_clapet", libelle: "Test clapet coupe-feu", options: LISTES_MESURES.ouiNon },
+  { code: "test_bougie", libelle: "Test bougie d'allumage", options: LISTES_MESURES.ouiNon },
+];
+
+// Page 5 chaudière bois — « Vérification réseau hydraulique » (feuille 09/10) :
+// bloc allégé dédié à la fiche bois — électricité déplacée en page 4,
+// « Tension intercommunication » disparaît totalement de la fiche, duo
+// « Nettoyage / État visuel du module hydraulique » retiré, « Non concerné »
+// ajouté sur le nettoyage et l'état du filtre à tamis, « T° d'air extérieur »
+// absente de la feuille. Le bloc « Vérification Module hydraulique » partagé
+// avec l'Air/Eau-Sol/Eau reste complet (cf. tâche 18).
+const BLOC_RESEAU_HYDRAULIQUE_CHAUDIERE = [
+  { code: "mh_pression_eau", libelle: "Pression d'eau", unite: "bar" },
+  { code: "mh_disconnecteur", libelle: "Disconnecteur", options: LISTES_MESURES.presentAbsent },
+  { code: "mh_mitigeur_ecs", libelle: "Mitigeur ECS", options: LISTES_MESURES.presentAbsentNC },
+  { code: "mh_vanne_z1", libelle: "Vanne d'équilibrage zone 1", options: LISTES_MESURES.presentAbsentNC },
+  { code: "mh_vanne_z2", libelle: "Vanne d'équilibrage zone 2", options: LISTES_MESURES.presentAbsentNC },
+  { code: "mh_emetteur_z1", libelle: "Émetteur zone 1", options: LISTES_MESURES.emetteur },
+  { code: "mh_emetteur_z2", libelle: "Émetteur zone 2", options: LISTES_MESURES.emetteur },
+  { code: "mh_aquastat_c1", libelle: "Aquastat de sécurité circuit 1", options: LISTES_MESURES.presentAbsentNC },
+  { code: "mh_aquastat_c2", libelle: "Aquastat de sécurité circuit 2", options: LISTES_MESURES.presentAbsentNC },
+  { code: "mh_nettoyage_tamis", libelle: "Nettoyage filtre à tamis", options: LISTES_MESURES.ouiNonNC },
+  { code: "mh_etat_tamis", libelle: "État filtre à tamis", options: LISTES_MESURES.etatRemplacerNC },
+  { code: "mh_nettoyage_boue", libelle: "Nettoyage filtre à boue", options: LISTES_MESURES.ouiNon },
+  { code: "mh_etat_boue", libelle: "État filtre à boue", options: LISTES_MESURES.etatRemplacer },
+  { code: "mh_delta_t_primaire", libelle: "Delta T° d'eau primaire", options: LISTES_MESURES.verif },
+  { code: "mh_delta_t_secondaire", libelle: "Delta T° d'eau secondaire 1 et 2", options: LISTES_MESURES.verifNC },
+  { code: "mh_debit_primaire", libelle: "Débit d'eau primaire", options: LISTES_MESURES.verif },
+  { code: "mh_debit_secondaire", libelle: "Débit d'eau secondaire 1 et 2", options: LISTES_MESURES.verifNC },
+];
+
+// Page 4 Air/Air — « Vérification Groupe extérieur » (feuille 09/10, arb. 6.6) :
+// bloc référentiel de l'Air/Eau-Sol/Eau moins « Sécurité anti-gel » et
+// « Valeur anti-gel » (sans objet en air/air) ; « Vérification de fuite
+// frigorigène » placée avant le nettoyage/état visuel ; « Différence Entrée /
+// Sortie d'air » en fin de page ; « GWP du fluide » rétabli (utile au CERFA —
+// confirmation client conservée au PRD).
+const BLOC_GROUPE_EXTERIEUR_AIR_AIR = [
+  { code: "ge_tension_alim", libelle: "Tension d'alimentation", options: LISTES_MESURES.verifFem },
+  { code: "ge_amperage", libelle: "Ampérage de fonctionnement", options: LISTES_MESURES.verifMasc },
+  { code: "ge_tension_intercom", libelle: "Tension intercommunication", options: LISTES_MESURES.verifFem },
+  { code: "ge_resserrage_bornes", libelle: "Resserrage des bornes électrique", options: LISTES_MESURES.ouiNon },
+  { code: "ge_pression_fluide", libelle: "Pression fluide", options: LISTES_MESURES.verifFem },
+  { code: "ge_type_fluide", libelle: "Type de fluide", options: LISTES_MESURES.typeFluide },
+  { code: "ge_charge_usine", libelle: "Charge d'usine", unite: "kg" },
+  { code: "ge_gwp_fluide", libelle: "GWP du fluide" },
+  { code: "ge_verif_fuite", libelle: "Vérification de fuite frigorigène", options: LISTES_MESURES.verifMasc },
+  { code: "ge_nettoyage", libelle: "Nettoyage du groupe extérieur", options: LISTES_MESURES.ouiNon },
+  { code: "ge_visuel", libelle: "État visuel du groupe extérieur", options: LISTES_MESURES.etatVisuel },
+  { code: "ge_diff_entree_sortie_air", libelle: "Différence Entrée / Sortie d'air" },
+];
+
+// Page 5 Air/Air — « Vérification Unitée Intérieure » (feuille 09/10, arb. 6.4) :
+// le bloc hydraulique (sans objet en air/air) disparaît au profit des mesures
+// air/air ; « Delta T° d'air » est un champ unique qui remplace les
+// T° d'échange des unités 1 à 4.
+const BLOC_UNITE_INTERIEURE = [
+  { code: "ui_tension_alim", libelle: "Tension d'alimentation", options: LISTES_MESURES.verifFem },
+  { code: "ui_tension_intercom", libelle: "Tension intercommunication", options: LISTES_MESURES.verifFem },
+  { code: "ui_resserrage_bornes", libelle: "Resserrage des bornes électrique", options: LISTES_MESURES.ouiNon },
+  { code: "ui_nettoyage_filtre", libelle: "Nettoyage filtre", options: LISTES_MESURES.ouiNon },
+  { code: "ui_etat_filtre", libelle: "État filtre", options: LISTES_MESURES.etatRemplacer },
+  { code: "ui_test_condensat", libelle: "Test évacuation condensat", options: LISTES_MESURES.ouiNon },
+  { code: "ui_etat_reseau_condensat", libelle: "État réseau condensat", options: LISTES_MESURES.etatVisuel },
+  { code: "ui_nettoyage_pompe_relevage", libelle: "Nettoyage pompe de relevage", options: LISTES_MESURES.ouiNonAbsente },
+  { code: "ui_etat_pompe_relevage", libelle: "État pompe de relevage", options: LISTES_MESURES.etatRelevage },
+  { code: "ui_delta_t_air", libelle: "Delta T° d'air", options: LISTES_MESURES.verif },
+  { code: "ui_nettoyage_unite", libelle: "Nettoyage de l'unité intérieure", options: LISTES_MESURES.ouiNon },
+  { code: "ui_etat_visuel_unite", libelle: "État visuel de l'unité intérieure", options: LISTES_MESURES.etatVisuel },
+];
+
+// Page 4 « Vérification installation solaire » — TRAME d'attente (arb. 6.10,
+// 09/10 — §3.2.4) : le contenu du bloc est attendu du client (données à venir,
+// §11 du PRD). La page s'affiche en préparation (note explicative) jusqu'à
+// réception des champs ; aucun champ frigorigène — CERFA a priori non
+// applicable.
+const BLOC_INSTALLATION_SOLAIRE = [];
+
 const ENTRETIEN_META = {
   air_eau: {
     label: "Entretien Air/Eau - Sol/Eau",
     icon: "droplet",
-    types: ["Air/Eau (aérothermie)", "Sol/Eau (géothermie)"],
+    types: ["Aérothermie", "Géothermie", "Aquathermie"],
     maxEq: 3,
     cerfa: true,
     mesures: [
-      { section: "Groupe extérieur", items: [
-        { code: "tension_alim", libelle: "Tension d'alimentation", unite: "V" },
-        { code: "amperage", libelle: "Ampérage de fonctionnement", unite: "A" },
-        { code: "tension_intercom", libelle: "Tension intercommunication", unite: "V" },
-        { code: "pression_fluide", libelle: "Pression fluide frigo", unite: "bar" },
-        { code: "type_fluide", libelle: "Type de fluide", unite: "" },
-        { code: "charge_usine", libelle: "Charge d'usine", unite: "kg" },
-        { code: "debit_eau_primaire", libelle: "Débit eau primaire", unite: "m³/h" },
-        { code: "t_entree_air_ge", libelle: "T° entrée d'air groupe ext.", unite: "°C" },
-        { code: "t_sortie_air_ge", libelle: "T° sortie d'air groupe ext.", unite: "°C" },
-      ]},
-      { section: "Circuit eau & divers", items: [
-        { code: "t_eau_aller_primaire", libelle: "T° eau aller primaire", unite: "°C" },
-        { code: "t_eau_retour_primaire", libelle: "T° eau retour primaire", unite: "°C" },
-        { code: "t_eau_aller_sec1", libelle: "T° eau aller secondaire 1", unite: "°C" },
-        { code: "t_eau_retour_sec1", libelle: "T° eau retour secondaire 1", unite: "°C" },
-        { code: "t_eau_aller_sec2", libelle: "T° eau aller secondaire 2", unite: "°C" },
-        { code: "t_eau_retour_sec2", libelle: "T° eau retour secondaire 2", unite: "°C" },
-        { code: "debits_eau_sec", libelle: "Débits eau secondaires", unite: "m³/h" },
-        { code: "pression_eau", libelle: "Pression d'eau", unite: "bar" },
-        { code: "t_air_ext", libelle: "T° d'air extérieur", unite: "°C" },
-        { code: "filtres", libelle: "Nettoyage / état filtres (tamis, boue)", unite: "" },
-        { code: "disconnecteur", libelle: "Disconnecteur", unite: "" },
-        { code: "mitigeur_ecs", libelle: "Mitigeur ECS", unite: "" },
-        { code: "antigel", libelle: "Sécurité anti-gel", unite: "" },
-        { code: "aquastat", libelle: "Aquastat de sécurité", unite: "" },
-        { code: "visuel_ge_ui", libelle: "Nettoyage / état visuel GE & unité int.", unite: "" },
-        { code: "resserrage_bornes", libelle: "Resserrage des bornes électriques", unite: "" },
-        { code: "vannes_equilibrage", libelle: "Vannes d'équilibrage", unite: "" },
-        { code: "emetteurs_z1", libelle: "Émetteurs zone 1", unite: "" },
-        { code: "emetteurs_z2", libelle: "Émetteurs zone 2", unite: "" },
-      ]},
+      { section: "Vérification Groupe extérieur", items: BLOC_GROUPE_EXTERIEUR },
+      { section: "Vérification Module hydraulique", items: BLOC_MODULE_HYDRAULIQUE },
     ],
   },
   air_air: {
     label: "Entretien Air/Air",
     icon: "wind",
-    types: ["Air/Air"],
-    maxEq: 5,
+    // Feuille 09/10 (arb. 6.4/6.5/6.6, §3.2.13) : sous-types enfin cohérents
+    // avec une PAC air/air ; les fiches existantes (type « Air/Air ») sont
+    // requalifiées à l'ouverture — l'ancienne valeur reste proposée au
+    // sélecteur, cf. stepEntretienHTML.
+    types: ["Mono Split", "Multi Split", "Gainable"],
+    maxEq: 3, // même bloc de données que la page 3/6 de « Nouvelle intervention » (6.5)
     cerfa: true,
     mesures: [
-      { section: "Groupe extérieur", items: [
-        { code: "tension_alim", libelle: "Tension d'alimentation", unite: "V" },
-        { code: "amperage", libelle: "Ampérage", unite: "A" },
-        { code: "tension_intercom", libelle: "Tension intercommunication", unite: "V" },
-        { code: "resserrage_bornes", libelle: "Resserrage des bornes", unite: "" },
-        { code: "t_echange_ge", libelle: "T° d'échange groupe ext.", unite: "°C" },
-        { code: "t_air_ext", libelle: "T° d'air extérieur", unite: "°C" },
-        { code: "filtres_interieurs", libelle: "Nettoyage / état filtres intérieurs", unite: "" },
-        { code: "pompe_relevage", libelle: "Nettoyage pompe de relevage", unite: "" },
-        { code: "pression_fluide", libelle: "Pression fluide frigo", unite: "bar" },
-        { code: "type_fluide", libelle: "Type de fluide", unite: "" },
-        { code: "charge_usine", libelle: "Charge usine", unite: "kg" },
-        { code: "gwp_fluide", libelle: "GWP fluide", unite: "" },
-        { code: "visuel_ge_ui", libelle: "Nettoyage / état visuel GE & unités int.", unite: "" },
-      ]},
-      { section: "Unités intérieures", items: [
-        { code: "ui1_t", libelle: "T° échange unité 1", unite: "°C" },
-        { code: "ui2_t", libelle: "T° échange unité 2", unite: "°C" },
-        { code: "ui3_t", libelle: "T° échange unité 3", unite: "°C" },
-        { code: "ui4_t", libelle: "T° échange unité 4", unite: "°C" },
-      ]},
+      { section: "Vérification Groupe extérieur", items: BLOC_GROUPE_EXTERIEUR_AIR_AIR },
+      { section: "Vérification Unitée Intérieure", items: BLOC_UNITE_INTERIEURE },
     ],
   },
   chaudiere: {
     label: "Entretien Chaudière bois",
     icon: "flame",
-    types: ["Granulés", "Bûches", "Pellets"],
+    // Feuille 09/10 (arb. 6.2) : « Chaudière Déchiquettée » remplace « Pellets » ;
+    // les anciens libellés (Granulés, Bûches, Pellets) des fiches existantes
+    // restent proposés au sélecteur (option tolérante, cf. stepEntretienHTML).
+    types: ["Chaudière Bûches", "Chaudière Granulés", "Chaudière Déchiquettée"],
     maxEq: 3,
-    cerfa: false,
-    prochaine: true,
+    cerfa: false, // aucun champ fluide frigorigène — CERFA n°15497 non applicable (confirmé 09/10)
+    prochaine: true, // « Prochaine intervention prévue » conservée (arb. 6.3)
     mesures: [
-      { section: "Électrique / hydraulique", items: [
-        { code: "tension_alim", libelle: "Tension d'alimentation", unite: "V" },
-        { code: "resserrage_bornes", libelle: "Resserrage des bornes", unite: "" },
-        { code: "vannes_equilibrage", libelle: "Vannes d'équilibrage", unite: "" },
-        { code: "emetteurs_z1", libelle: "Émetteurs zone 1", unite: "" },
-        { code: "emetteurs_z2", libelle: "Émetteurs zone 2", unite: "" },
-        { code: "t_air_ext", libelle: "T° d'air extérieur", unite: "°C" },
-        { code: "filtres_boue", libelle: "Nettoyage / état filtres & filtre à boue", unite: "" },
-        { code: "pression_eau", libelle: "Pression eau", unite: "bar" },
-        { code: "disconnecteur", libelle: "Disconnecteur", unite: "" },
-        { code: "mitigeur_ecs", libelle: "Mitigeur ECS", unite: "" },
-      ]},
-      { section: "Combustion & nettoyage", items: [
-        { code: "etalonnage_granules", libelle: "Étalonnage & test remplissage granulés", unite: "" },
-        { code: "wos", libelle: "Nettoyage & état du WOS (échangeur)", unite: "" },
-        { code: "creuset", libelle: "Nettoyage creuset / cendrier", unite: "" },
-        { code: "sonde_lambda", libelle: "Nettoyage sonde lambda", unite: "" },
-        { code: "chambre_combustion", libelle: "Nettoyage chambre de combustion", unite: "" },
-        { code: "chaudiere", libelle: "Nettoyage chaudière", unite: "" },
-        { code: "silo_interne", libelle: "Nettoyage silo interne", unite: "" },
-        { code: "test_combustion", libelle: "Test de combustion", unite: "" },
-        { code: "test_clapet", libelle: "Test clapet coupe-feu", unite: "" },
-        { code: "test_bougie", libelle: "Test bougie d'allumage", unite: "" },
-        { code: "visuel_chaudiere", libelle: "État visuel chaudière & silo interne", unite: "" },
-      ]},
+      { section: "Vérification Chaudière", items: BLOC_CHAUDIERE_BOIS },
+      { section: "Vérification réseau hydraulique", items: BLOC_RESEAU_HYDRAULIQUE_CHAUDIERE },
+    ],
+  },
+  // Fiche « Entretien installation solaire » — PRÉPARATION (arb. 6.10, 09/10,
+  // §3.2.4) : entrée activée dans le bouton « + » avec la trame commune des
+  // entretiens (7 pages + fin d'intervention). La liste des types
+  // d'installation et le bloc « Vérification installation solaire » restent
+  // attendus du client (§11 du PRD) : en leur absence le type se saisit
+  // librement (cf. stepEntretienHTML) et la page de mesures affiche la note
+  // de préparation (cf. stepMesuresHTML). Aucun changement de schéma attendu
+  // (`type_entretien` en texte).
+  solaire: {
+    label: "Entretien installation solaire",
+    icon: "sun",
+    types: [], // liste des types d'installation : à venir du client (§11 du PRD)
+    maxEq: 3,
+    cerfa: false, // pas de fluide frigorigène — CERFA n°15497 a priori non applicable (6.10)
+    trameAttente: true, // trame en préparation : données client à venir
+    mesures: [
+      { section: "Vérification installation solaire", items: BLOC_INSTALLATION_SOLAIRE },
     ],
   },
 };
@@ -205,13 +349,17 @@ const CERFA_FIELDS = [
 // ---------------------------------------------------------
 let state = {
   view: "home",
-  tab: "planning",       // planning | taches | dossiers
+  tab: "dashboard",      // dashboard | planning | taches | clients (défaut : Tableau de bord, §3.2.15)
   draft: null,
-  draftType: "intervention", // intervention | air_eau | air_air | chaudiere
+  draftType: "intervention", // intervention | air_eau | air_air | chaudiere | solaire (préparation 09/10)
   step: 1,
   homeSearch: "",
+  clientSearch: "",
   planFilter: { type: "", intervenant: "" },
   tachesFilter: { type: "", intervenant: "" },
+  dashFilter: { type: "", intervenant: "" }, // filtres type / intervenant du Tableau de bord
+  dashSort: "",          // tri du Tableau de bord : "" (date récente) | nom | cp | ville (arb. 6.12)
+  dossiersOpen: {},      // sections dépliées du Tableau de bord (clé = "dash:<statut>" ou "dash:appels")
   clientsCache: [],
   auth: null,
   team: [],
@@ -304,6 +452,7 @@ function emptyDraft(type) {
     devis_souhaite: false,
     devis_commentaire: "",
     prochaine_intervention_prevue: false,
+    page_ok: false, // « Page ok » (§3.2.14, arb. 6.9) — indicateur de complétude calculé, persisté
     technicien_nom: localStorage.getItem("ce_technicien_nom") || state.auth?.profile?.full_name || "",
     client_present: true,
     client_signature_nom: "",
@@ -348,6 +497,7 @@ async function loadDraftFromIntervention(id) {
     devis_souhaite: itv.devis_souhaite || false,
     devis_commentaire: itv.devis_commentaire,
     prochaine_intervention_prevue: itv.prochaine_intervention_prevue || false,
+    page_ok: itv.page_ok || false,
     technicien_nom: itv.technicien_nom || "",
     client_present: itv.client_present !== false,
     client_signature_nom: itv.client_signature_nom || "",
@@ -357,6 +507,14 @@ async function loadDraftFromIntervention(id) {
   const client = itv.client_id ? await DB.getClient(itv.client_id) : itv.client;
   d.client = { id: client?.id, nom: client?.nom || "", adresse: client?.adresse || "", code_postal: client?.code_postal || "", ville: client?.ville || "", mail: client?.mail || "", tel: client?.tel || "", type_batiment: client?.type_batiment || "" };
   if (!d.client_id) d.client_id = client?.id || null;
+  // Refonte 18/09 : migration douce des anciens libellés d'entretien
+  // (« Air/Eau (aérothermie) » / « Sol/Eau (géothermie) ») vers la liste cible.
+  const etm = ENTRETIEN_META[state.draftType];
+  if (etm && d.type_entretien_detail && !etm.types.includes(d.type_entretien_detail)) {
+    const legacyMapping = { "Air/Eau (aérothermie)": "Aérothermie", "Sol/Eau (géothermie)": "Géothermie" };
+    const mapped = legacyMapping[d.type_entretien_detail];
+    if (mapped && etm.types.includes(mapped)) d.type_entretien_detail = mapped;
+  }
   state.draft = d;
   state.step = 1;
 }
@@ -398,6 +556,11 @@ async function route() {
     await renderContrat(parts[1] || null);
   } else if (parts[0] === "detail-contrat" && parts[1]) {
     await renderDetailContrat(parts[1]);
+  } else if (parts[0] === "clients") {
+    state.tab = "clients";
+    await renderHome();
+  } else if (parts[0] === "client" && parts[1]) {
+    await renderClientDetail(parts[1]);
   } else if (parts[0] === "stats") {
     await renderStats();
   } else if (parts[0] === "account") {
@@ -467,17 +630,22 @@ function updateOfflinePill() {
 }
 
 // ---------------------------------------------------------
-// HOME (Planning / Tâches / Dossiers)
+// HOME (Tableau de bord / Planning / Tâches / Clients)
 // ---------------------------------------------------------
 async function renderHome() {
   const [interventions, rendezvous] = await Promise.all([DB.listInterventions(), DB.listRendezvous()]);
+  // Sous-titre Tableau de bord (maquette : « Accueil · N dossiers en cours ») —
+  // hors dossiers clôturés, dans le périmètre du rôle connecté.
+  const enCours = scopeInterventions(interventions).filter((i) => (i.statut_dossier || "a_valider") !== "cloturee").length;
+  const subtitle = enCours ? `${todayLabel()} · ${enCours} dossier${enCours > 1 ? "s" : ""} en cours` : todayLabel();
   const tabs = [
+    { id: "dashboard", label: "Tableau de bord" },
     { id: "planning", label: "Planning" },
     { id: "taches", label: "Tâches" },
-    { id: "dossiers", label: "Dossiers" },
+    { id: "clients", label: "Clients" },
   ];
   setApp(`
-    ${topbar({ title: "Climat Elec", subtitle: todayLabel(), onHome: false, actions: `<button class="icon-btn" data-nav="stats" title="Statistiques">${ICONS.chart}</button>` })}
+    ${topbar({ title: "Climat Elec", subtitle, onHome: false, actions: `<button class="icon-btn" data-nav="stats" title="Statistiques">${ICONS.chart}</button>` })}
     <div class="home-tabs">
       ${tabs.map((t) => `<button class="home-tab ${state.tab === t.id ? "active" : ""}" data-tab="${t.id}">${t.label}</button>`).join("")}
     </div>
@@ -500,9 +668,11 @@ function todayLabel() {
 
 async function renderTab() {
   const root = $("#tab-content");
-  if (state.tab === "planning") root.innerHTML = await planningHTML();
+  if (state.tab === "dashboard") root.innerHTML = await dashboardHTML(); // Tableau de bord (§3.2.15) = vue par défaut
+  else if (state.tab === "planning") root.innerHTML = await planningHTML();
   else if (state.tab === "taches") root.innerHTML = await tachesHTML();
-  else root.innerHTML = await dossiersHTML();
+  else if (state.tab === "clients") root.innerHTML = await clientsTabHTML();
+  else { state.tab = "dashboard"; root.innerHTML = await dashboardHTML(); } // fallback (onglet Dossiers supprimé)
   wireTab();
 }
 
@@ -519,6 +689,25 @@ function wireTab() {
   bind("#pf-tech", "change", (e) => { state.planFilter.intervenant = e.target.value; renderTab(); });
   bind("#tf-type", "change", (e) => { state.tachesFilter.type = e.target.value; renderTab(); });
   bind("#tf-tech", "change", (e) => { state.tachesFilter.intervenant = e.target.value; renderTab(); });
+  bind("#client-search", "input", async (e) => {
+    state.clientSearch = e.target.value;
+    await renderTab();
+    const el = $("#client-search");
+    if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); }
+  });
+  // Onglet Tableau de bord : tri Nom / Code postal / Ville (arb. 6.12) + filtres
+  bind("#df-sort", "change", (e) => { state.dashSort = e.target.value; renderTab(); });
+  bind("#df-type", "change", (e) => { state.dashFilter.type = e.target.value; renderTab(); });
+  bind("#df-tech", "change", (e) => { state.dashFilter.intervenant = e.target.value; renderTab(); });
+  // Tableau de bord : le clic sur un titre de groupe déplie le drill-down
+  // (liste des dossiers de ce statut — arb. 6.12)
+  $all(".status-head[data-toggle]").forEach((el) => el.addEventListener("click", () => {
+    const k = el.dataset.toggle;
+    const open = !state.dossiersOpen[k];
+    state.dossiersOpen[k] = open;
+    el.setAttribute("aria-expanded", String(open));
+    el.closest(".status-block").classList.toggle("open", open);
+  }));
 }
 
 async function planningHTML() {
@@ -597,7 +786,7 @@ async function tachesHTML() {
     <div class="filter-row">
       <select class="filter-select" id="tf-type">
         <option value="">Type : tous</option>
-        ${["Dépannage", "Garantie", "Diagnostic", "Entretiens"].map((t) => `<option value="${t}" ${f.type === t ? "selected" : ""}>${t}</option>`).join("")}
+        ${["Sav", "Garantie", "Dépannage", "Diagnostic", "Sur devis", "Entretiens"].map((t) => `<option value="${t}" ${f.type === t ? "selected" : ""}>${t}</option>`).join("")}
       </select>
       ${isManager() ? `
       <select class="filter-select" id="tf-tech">
@@ -633,33 +822,118 @@ function itemHTML(itv) {
   </button>`;
 }
 
-async function dossiersHTML() {
+// ---------------------------------------------------------
+// Tableau de bord = écran d'accueil (US-13 · US-15, §3.2.15)
+// Vue synthèse groupée par statut du workflow, « Appels — À traiter » en tête
+// (les appels « Enregistrer sans planifier » y arrivent jusqu'à ce qu'un RDV
+// ou une fiche soit créé depuis eux). Arbitrages 09/10 (6.12) : le clic sur
+// un groupe de statut ouvre le drill-down — la liste des dossiers de ce
+// statut — avec tris Nom / Code postal / Ville en plus des filtres type /
+// intervenant ; ces éléments valent aussi pour le technicien, dans son
+// périmètre (règles §3.2.2 conservées). Bloc « Devis en cours » (maquette) :
+// fiches portant l'indicateur « devis souhaité » — à arbitrer avec le client,
+// le workflow (§3.3.4) n'ayant pas de statut « devis ».
+// ---------------------------------------------------------
+
+// Périmètre du rôle connecté : toute l'équipe (Régis / Delphine) ou, pour le
+// technicien, uniquement ses propres lignes (même règle que l'onglet Tâches).
+function scopeInterventions(list) {
+  if (isManager()) return list;
+  const uid = state.auth?.user?.id;
+  return list.filter((i) => !i.technicien_id || i.technicien_id === uid);
+}
+
+function cmpFr(a, b) {
+  return (a || "").localeCompare(b || "", "fr", { sensitivity: "base" });
+}
+// Tri d'une liste de dossiers : défaut « date récente », sinon Nom / CP / Ville.
+function sortDossiersPar(list, mode) {
+  const arr = [...list];
+  if (mode === "nom") arr.sort((a, b) => cmpFr(a.client?.nom, b.client?.nom) || cmpFr(a.client?.ville, b.client?.ville));
+  else if (mode === "cp") arr.sort((a, b) => cmpFr(a.client?.code_postal, b.client?.code_postal) || cmpFr(a.client?.ville, b.client?.ville) || cmpFr(a.client?.nom, b.client?.nom));
+  else if (mode === "ville") arr.sort((a, b) => cmpFr(a.client?.ville, b.client?.ville) || cmpFr(a.client?.nom, b.client?.nom));
+  else arr.sort((a, b) => (b.date || "").localeCompare(a.date || "") || cmpFr(a.client?.nom, b.client?.nom));
+  return arr;
+}
+
+async function dashboardHTML() {
   const [interventions, appels] = await Promise.all([DB.listInterventions(), DB.listAppels()]);
-  // Cycle de vie de l'appel : les appels ayant déjà produit un RDV ou une fiche
-  // sont reliés puis retirés de la liste active (bloc « Appels »).
-  const appelsEnAttente = appels.filter((a) => !a.rendezvous_id && !a.intervention_id);
-  const order = Object.keys(WORKFLOW_NEXT);
+  const uid = state.auth?.user?.id;
+  const q = state.homeSearch.trim().toLowerCase();
+  const f = state.dashFilter;
+
+  // Bloc « Appels — À traiter » : appel non relié à un RDV ni à une fiche
+  // (cycle de vie §3.2.5) ; périmètre technicien = ses propres appels (RLS).
+  const appelsATraiter = appels
+    .filter((a) => !a.rendezvous_id && !a.intervention_id)
+    .filter((a) => isManager() || (a.created_by || "") === uid)
+    .filter((a) => !q || (a.nom || "").toLowerCase().includes(q))
+    .sort((a, b) => (b.created_at || "").localeCompare(a.created_at || ""));
+
+  // Dossiers « en cours » (hors clôturées)
+  let dossiers = scopeInterventions(interventions).filter((i) => (i.statut_dossier || "a_valider") !== "cloturee");
+  if (f.type) dossiers = dossiers.filter((i) => matchesType(i, f.type));
+  if (f.intervenant) dossiers = dossiers.filter((i) => matchesIntervenant(i, f.intervenant));
+  if (q) dossiers = dossiers.filter((i) => (i.client?.nom || "").toLowerCase().includes(q));
+  const dossiersDevis = dossiers.filter((i) => i.devis_souhaite);
+
+  // Groupes par statut, dans l'ordre du workflow (hors clôturées) ; le bloc
+  // « Devis en cours » est inséré après « À valider » (position de la maquette).
   const byStatut = {};
-  for (const itv of interventions) {
+  for (const itv of dossiers) {
     const s = itv.statut_dossier || "a_valider";
     (byStatut[s] = byStatut[s] || []).push(itv);
   }
-  const keys = order.filter((k) => byStatut[k]?.length);
-  // ajouter les statuts inconnus
-  for (const k of Object.keys(byStatut)) if (!keys.includes(k)) keys.push(k);
+  const groups = Object.keys(WORKFLOW_NEXT).filter((s) => s !== "cloturee" && byStatut[s]?.length)
+    .map((s) => ({ key: s, cls: statutDossierCls(s), label: statutDossierLabel(s), items: sortDossiersPar(byStatut[s], state.dashSort) }));
+  if (dossiersDevis.length) {
+    const i = groups.findIndex((g) => g.key === "a_valider");
+    groups.splice(i + 1, 0, { key: "devis", cls: "violet", label: "Devis en cours", items: sortDossiersPar(dossiersDevis, state.dashSort) });
+  }
 
-  const appelsBlock = appelsEnAttente.length ? `
-    <div class="status-block">
-      <div class="status-head"><span class="sw sw-appel"></span><h3>Appels</h3><span class="n">${appelsEnAttente.length}</span></div>
-      ${appelsEnAttente.map(appelHTML).join("")}
-    </div>` : "";
+  const filterBar = `
+    <div class="filter-row">
+      <select class="filter-select" id="df-sort">
+        <option value="" ${state.dashSort ? "" : "selected"}>Trier : date récente</option>
+        <option value="nom" ${state.dashSort === "nom" ? "selected" : ""}>Trier : nom</option>
+        <option value="cp" ${state.dashSort === "cp" ? "selected" : ""}>Trier : code postal</option>
+        <option value="ville" ${state.dashSort === "ville" ? "selected" : ""}>Trier : ville</option>
+      </select>
+      <select class="filter-select" id="df-type">
+        <option value="">Type : tous</option>
+        ${["Sav", "Garantie", "Dépannage", "Diagnostic", "Sur devis", "Entretiens"].map((t) => `<option value="${t}" ${f.type === t ? "selected" : ""}>${t}</option>`).join("")}
+      </select>
+      ${isManager() ? `
+      <select class="filter-select" id="df-tech">
+        <option value="">Intervenant : tous</option>
+        ${["Jérémy", "Régis", "Delphine"].map((t) => `<option value="${t}" ${f.intervenant === t ? "selected" : ""}>${t}</option>`).join("")}
+      </select>` : ""}
+    </div>`;
 
-  if (!keys.length && !appelsEnAttente.length) return `<div class="empty-state"><div class="glyph">${ICONS.file}</div><h3>Aucun dossier</h3><p>Les fiches terminées apparaissent ici, classées par statut.</p></div>`;
-  return appelsBlock + keys.map((k) => `
-    <div class="status-block">
-      <div class="status-head"><span class="sw sw-${statutDossierCls(k)}"></span><h3>${statutDossierLabel(k)}</h3><span class="n">${byStatut[k].length}</span></div>
-      ${byStatut[k].map(itemHTML).join("")}
-    </div>`).join("");
+  // Section repliée par défaut : le clic sur le titre ouvre le drill-down du
+  // groupe (clés préfixées « dash: »).
+  const block = (key, cls, label, itemsHtml, count) => {
+    if (!count) return "";
+    const open = !!state.dossiersOpen[`dash:${key}`];
+    return `
+    <div class="status-block ${open ? "open" : ""}" data-block="dash-${key}">
+      <div class="status-head" data-toggle="dash:${key}" role="button" aria-expanded="${open}">
+        <span class="sw sw-${cls}"></span>
+        <h3>${label}</h3>
+        <span class="n">${count}</span>
+        <span class="chev">${ICONS.chevron}</span>
+      </div>
+      <div class="status-items">${itemsHtml}</div>
+    </div>`;
+  };
+
+  const body = block("appels", "appel", "Appels — À traiter", appelsATraiter.map(appelHTML).join(""), appelsATraiter.length)
+    + groups.map((g) => block(g.key, g.cls, g.label, g.items.map(itemHTML).join(""), g.items.length)).join("");
+  const filtered = !!(q || f.type || f.intervenant);
+
+  return `<div class="search-wrap">${ICONS.search}<input id="home-search" type="text" placeholder="Rechercher un client…" value="${esc(state.homeSearch)}" /></div>
+    ${filterBar}
+    ${body || `<div class="empty-state"><div class="glyph">${ICONS.file}</div><h3>${filtered ? "Aucun résultat" : "Rien à traiter"}</h3><p>${filtered ? "Aucun dossier ou appel avec ces critères." : "Les dossiers en cours apparaissent ici, groupés par statut du workflow."}</p></div>`}`;
 }
 
 function appelHTML(a) {
@@ -682,6 +956,132 @@ function appelHTML(a) {
 }
 
 // ---------------------------------------------------------
+// Onglet Clients — annuaire (liste, recherche, fiche client)
+// ---------------------------------------------------------
+async function clientsTabHTML() {
+  const [clients, interventions] = await Promise.all([DB.listClients(), DB.listInterventions()]);
+  const counts = {};
+  for (const i of interventions) {
+    if (i.client_id) counts[i.client_id] = (counts[i.client_id] || 0) + 1;
+  }
+  const q = state.clientSearch.trim().toLowerCase();
+  let visible = clients;
+  if (q) visible = clients.filter((c) => `${c.nom || ""} ${c.ville || ""} ${c.tel || ""} ${c.code_postal || ""}`.toLowerCase().includes(q));
+  return `
+    <div class="search-wrap">${ICONS.search}<input id="client-search" type="text" placeholder="Rechercher un client, une ville…" value="${esc(state.clientSearch)}" /></div>
+    ${visible.length ? visible.map((c) => clientItemHTML(c, counts[c.id] || 0)).join("") : `<div class="empty-state"><div class="glyph">${ICONS.user}</div><h3>Aucun client</h3><p>${q ? "Aucun résultat avec ces critères." : "Les clients se créent automatiquement lors d'un nouvel appel ou d'une intervention."}</p></div>`}`;
+}
+
+function clientItemHTML(c, n) {
+  return `
+  <button class="intervention-item" data-nav="client-open" data-id="${c.id}">
+    <span class="status-dot">${ICONS.user}</span>
+    <span class="ii-body">
+      <span class="ii-top">
+        <span class="ii-client">${esc(c.nom || "Client")}</span>
+        <span class="ii-date">${n} dossier${n === 1 ? "" : "s"}</span>
+      </span>
+      <span class="ii-type">${esc([c.ville, c.tel].filter(Boolean).join(" · ") || "—")}</span>
+    </span>
+    ${ICONS.chevron}
+  </button>`;
+}
+
+// ---------------------------------------------------------
+// Fiche client — détail + dossiers du client
+// ---------------------------------------------------------
+async function renderClientDetail(id) {
+  const client = await DB.getClient(id);
+  if (!client) { go("#/"); return; }
+  const interventions = await DB.listInterventions();
+  const dossiers = interventions
+    .filter((i) => i.client_id === id)
+    .sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+  // Équipements connus = historique client (copies sans fiche) + équipements
+  // de toutes les fiches du client. L'historisation à la finalisation ne copie
+  // que les lignes avec n° de série : la liste fusionne donc les deux sources
+  // (dédupliquées) pour couvrir tous les équipements de tous les dossiers.
+  const eqRows = [...(await DB.listEquipementsForClient(id))];
+  for (const d of dossiers) {
+    const rows = await DB.listEquipementsForIntervention(d.id);
+    eqRows.push(...rows);
+  }
+  const equipements = mergeEquipements(eqRows);
+
+  setApp(`
+    <div class="topbar">
+      <div class="topbar-row">
+        <button class="back-btn" data-nav="back">${ICONS.back}</button>
+        <div><h1>${esc(client.nom || "Client")}</h1><div class="subtitle">Fiche client</div></div>
+      </div>
+    </div>
+    <main>
+      <div class="detail-header">
+        <div class="meta">${dossiers.length} dossier${dossiers.length === 1 ? "" : "s"} enregistré${dossiers.length === 1 ? "" : "s"}</div>
+        ${client.type_batiment ? `<div class="ii-tags" style="margin-top:10px;"><span class="tag">${esc(client.type_batiment)}</span></div>` : ""}
+      </div>
+
+      <div class="section-label">Coordonnées</div>
+      <div class="card">
+        <div class="kv"><div class="k">Adresse</div><div class="v">${esc([client.adresse, client.code_postal, client.ville].filter(Boolean).join(" ") || "-")}</div></div>
+        <div class="kv"><div class="k">Téléphone</div><div class="v">${esc(client.tel || "-")}</div></div>
+        <div class="kv"><div class="k">Mail</div><div class="v">${esc(client.mail || "-")}</div></div>
+        <div class="kv"><div class="k">Type de bâtiment</div><div class="v">${esc(client.type_batiment || "-")}</div></div>
+      </div>
+
+      ${equipements.length ? `
+      <div class="section-label">Équipements connus</div>
+      <div class="card">
+        ${equipements.map((eq) => `<div class="kv"><div class="k">${esc(eq.intitule || "Équipement")}</div><div class="v">${esc([eq.marque, eq.modele].filter(Boolean).join(" "))}${eq.numero_serie ? ` · N° ${esc(eq.numero_serie)}` : ""}</div></div>`).join("")}
+      </div>` : ""}
+
+      <div class="section-label">Dossiers</div>
+      ${dossiers.length ? dossiers.map(clientDossierHTML).join("") : `<div class="card"><div class="block-text">Aucun dossier pour ce client.</div></div>`}
+    </main>
+    <div class="toast" id="toast"></div>
+  `);
+}
+
+// Fusionne l'historique client et les équipements des fiches en dédupliquant
+// (intitulé + marque + modèle + n° de série, insensible à la casse/espaces) ;
+// ignore les lignes vides et les tombstones résiduels.
+function mergeEquipements(rows) {
+  const key = (eq) => [eq.intitule, eq.marque, eq.modele, eq.numero_serie]
+    .map((x) => (x ?? "").toString().trim().toLowerCase()).join("|");
+  const seen = new Map();
+  for (const eq of rows) {
+    if (!eq || eq._deleted) continue;
+    const fields = [eq.intitule, eq.marque, eq.modele, eq.numero_serie];
+    if (!fields.some((x) => (x ?? "").toString().trim())) continue;
+    const k = key(eq);
+    if (!seen.has(k)) seen.set(k, eq);
+  }
+  return [...seen.values()];
+}
+
+function clientDossierHTML(itv) {
+  const dot = statutDossierDot(itv.statut_dossier);
+  const label = itv.type_entretien ? (ENTRETIEN_META[itv.type_entretien]?.label || "Entretien") : (itv.type_intervention || "-");
+  return `
+  <button class="intervention-item" data-nav="detail" data-id="${itv.id}">
+    <span class="status-dot ${dot.cls}">${dot.svg}</span>
+    <span class="ii-body">
+      <span class="ii-top">
+        <span class="ii-client">${esc(label)}</span>
+        <span class="ii-date">${fmtDateShort(itv.date)}</span>
+      </span>
+      <span class="ii-type">${esc(itv.type_entretien_detail || itv.technicien_nom || "")}</span>
+      <span class="ii-tags">
+        <span class="tag ${statutDossierCls(itv.statut_dossier)}">${statutDossierLabel(itv.statut_dossier)}</span>
+        ${itv.numero ? `<span class="tag">${esc(itv.numero)}</span>` : ""}
+        ${itv.devis_souhaite ? `<span class="tag">Devis souhaité</span>` : ""}
+      </span>
+    </span>
+    ${ICONS.chevron}
+  </button>`;
+}
+
+// ---------------------------------------------------------
 // Bouton "+" — point d'entrée unique (US-18)
 // ---------------------------------------------------------
 function openCreateSheet() {
@@ -692,11 +1092,15 @@ function openCreateSheet() {
       <div class="sheet-head"><h3>Créer</h3><button class="icon-btn" id="sheet-close">${ICONS.close}</button></div>
       ${[
         { k: "appel", icon: "phone", label: "Nouvel appel", sub: "Enregistrer un contact client entrant" },
-        { k: "intervention", icon: "wrench", label: "Nouvelle intervention", sub: "Dépannage, Garantie, Diagnostic" },
+        { k: "intervention", icon: "wrench", label: "Nouvelle intervention", sub: "Sav, Garantie, Dépannage, Diagnostic, Sur devis" },
         { k: "entretien_air_eau", icon: "droplet", label: "Entretien Air/Eau - Sol/Eau", sub: "PAC géothermie / aérothermie" },
-        { k: "entretien_air_air", icon: "wind", label: "Entretien Air/Air", sub: "Mono-split ou multi-split" },
-        { k: "entretien_chaudiere", icon: "flame", label: "Entretien Chaudière bois", sub: "Granulés, bûches, pellets" },
-        { k: "contrat", icon: "file", label: "Contrat d'entretien annuel", sub: "Digitaliser le contrat (US-24)" },
+        { k: "entretien_air_air", icon: "wind", label: "Entretien Air/Air", sub: "Mono Split, Multi Split ou Gainable" },
+        { k: "entretien_chaudiere", icon: "flame", label: "Entretien Chaudière bois", sub: "Chaudière Bûches, Granulés ou Déchiquettée" },
+        // Arbitrage 6.10/6.11 (09/10, §3.2.4) : 6e entrée (trame en
+        // préparation, données client à venir) ; l'entrée US-24 du menu est
+        // retirée pour le moment — le flux #/contrat et ses données restent
+        // accessibles.
+        { k: "entretien_solaire", icon: "sun", label: "Entretien installation solaire", sub: "Trame commune — contenu à venir (§11 PRD)" },
       ].map((o) => `
         <button class="sheet-item" data-create="${o.k}">
           <span class="sheet-icon">${ICONS[o.icon]}</span>
@@ -781,7 +1185,7 @@ async function renderAppel(isEdit = false) {
         </div>
         <div class="field"><label>Motif de l'appel *</label><textarea id="a-motif">${esc(d.motif)}</textarea></div>
         <div class="field"><label>Type de bâtiment *</label>
-          <select id="a-bat">${["Professionnel", "- de 2 ans", "+ de 2 ans"].map((t) => `<option ${d.type_batiment === t ? "selected" : ""}>${t}</option>`).join("")}</select>
+          <select id="a-bat">${["Professionnel", "- de 2 ans", "+ de 2 ans", "+ de 15 ans"].map((t) => `<option ${d.type_batiment === t ? "selected" : ""}>${t}</option>`).join("")}</select>
         </div>
         <div class="field"><label>Type d'intervention *</label>
           <select id="a-type">${["Devis", "Dépannage", "Garantie", "Entretien", "Diagnostic"].map((t) => `<option ${d.type_intervention === t ? "selected" : ""}>${t}</option>`).join("")}</select>
@@ -894,7 +1298,7 @@ async function saveAppelFromDraft(action) {
     state.draft.client = { id: clientId, nom: d.nom, adresse: d.adresse, code_postal: d.code_postal, ville: d.ville, mail: d.mail, tel: d.tel, type_batiment: d.type_batiment };
     state.draft.client_id = clientId;
     state.draft.client_signature_nom = d.nom || "";
-    state.draft.type_intervention = ["Dépannage", "Garantie", "Diagnostic"].includes(d.type_intervention) ? d.type_intervention : "Dépannage";
+    state.draft.type_intervention = ["Sav", "Garantie", "Dépannage", "Diagnostic", "Sur devis"].includes(d.type_intervention) ? d.type_intervention : "Dépannage";
     if (d.motif) state.draft.descriptif_demande = d.motif;
     clearAppelDraft();
     go("#/new/2");
@@ -1071,7 +1475,7 @@ async function rdvToIntervention(id) {
   const techName = resolveTechFullName(rdv.technicien_id, rdv.intervenant);
   if (techName) state.draft.technicien_nom = techName;
   if (client?.nom) state.draft.client_signature_nom = client.nom;
-  state.draft.type_intervention = rdv.type === "depannage" ? "Dépannage" : "Diagnostic";
+  state.draft.type_intervention = rdv.type === "depannage" ? "Dépannage" : rdv.type === "rdv_devis" ? "Sur devis" : "Diagnostic";
   if (rdv.note) state.draft.descriptif_demande = rdv.note;
   if (rdv.date) state.draft.date = rdv.date;
   go(client ? "#/new/2" : "#/new/1");
@@ -1091,11 +1495,25 @@ function wizardSteps() {
       { id: "signature", title: "Devis & signature", render: stepSignHTML, wire: wireSignStep, read: readSignStep },
     ];
   }
+  // Structure feuille 18/09 : 7 pages + fin d'intervention (§3.2.11 / §3.2.12) —
+  // 1 Client · 2 Entretien · 3 Équipement · 4-5 Mesures (une page par section,
+  // la page 5 — dernière — portant le CERFA le cas échéant) · 6 Observation & photos ·
+  // 7 Pièces utilisées · fin Devis & signature.
+  const meta = ENTRETIEN_META[state.draftType];
+  const mesuresSteps = meta.mesures.map((s, i) => ({
+    id: `mesures_${i + 1}`,
+    title: s.section,
+    render: () => stepMesuresHTML(i),
+    wire: wireMesuresStep,
+    read: () => readMesuresSectionStep(i),
+  }));
   return [
-    { id: "client_entretien", title: "Client & entretien", render: stepClientEntretienHTML, wire: wireClientEntretienStep, read: readClientEntretienStep },
-    { id: "equipement", title: "Équipement", render: stepEquipHTML, wire: wireEquipStep, read: readEquipStep },
-    { id: "mesures", title: "Mesures", render: stepMesuresHTML, wire: wireMesuresStep, read: readMesuresStep },
-    { id: "remarque_pieces", title: "Remarque & pièces", render: stepRemarquePiecesHTML, wire: wireRemarquePiecesStep, read: readRemarquePiecesStep },
+    { id: "client", title: "Client", render: stepClientHTML, wire: wireClientStep, read: readClientStep },
+    { id: "entretien", title: "Entretien", render: stepEntretienHTML, wire: wireEntretienStep, read: readEntretienStep },
+    { id: "equipement", title: "Équipement & demande", render: stepEquipHTML, wire: wireEquipStep, read: readEquipStep },
+    ...mesuresSteps,
+    { id: "observation_photos", title: "Observation & photos", render: stepObservationPhotosHTML, wire: wireObservationPhotosStep, read: readObservationStep },
+    { id: "pieces", title: "Pièces utilisées", render: stepPiecesHTML, wire: wirePiecesStep, read: readPiecesStep },
     { id: "signature", title: "Devis & signature", render: stepSignHTML, wire: wireSignStep, read: readSignStep },
   ];
 }
@@ -1129,7 +1547,7 @@ async function renderWizard() {
       ${state.step > 1 ? `<button class="btn btn-ghost" data-nav="prev">${ICONS.back} Retour</button>` : ""}
       <button class="btn btn-ghost" data-nav="brouillon">${ICONS.file} Enregistrer le brouillon</button>
       <button class="btn ${state.step === steps.length ? "btn-accent" : "btn-primary"}" data-nav="${state.step === steps.length ? "finish" : "next"}">
-        ${state.step === steps.length ? `${ICONS.check} Valider la fiche` : "Continuer"}
+        ${state.step === steps.length ? `${ICONS.check} Soumettre pour validation` : "Continuer"}
       </button>
     </div>
     <div class="toast" id="toast"></div>
@@ -1149,19 +1567,19 @@ function clientFieldsHTML(c) {
       <input id="f-nom" type="text" autocomplete="off" placeholder="Rechercher ou saisir un nouveau nom" value="${esc(c.nom)}" />
       <div class="combo-list" id="combo-list" style="display:none;"></div>
     </div>
-    <div class="field"><label>Adresse</label><input id="f-adresse" type="text" value="${esc(c.adresse)}" /></div>
+    <div class="field"><label>Adresse *</label><input id="f-adresse" type="text" value="${esc(c.adresse)}" /></div>
     <div class="row2">
-      <div class="field"><label>Code postal</label><input id="f-cp" type="text" inputmode="numeric" value="${esc(c.code_postal)}" /></div>
-      <div class="field"><label>Ville</label><input id="f-ville" type="text" value="${esc(c.ville)}" /></div>
+      <div class="field"><label>Code postal *</label><input id="f-cp" type="text" inputmode="numeric" value="${esc(c.code_postal)}" /></div>
+      <div class="field"><label>Ville *</label><input id="f-ville" type="text" value="${esc(c.ville)}" /></div>
     </div>
     <div class="row2">
       <div class="field"><label>Téléphone</label><input id="f-tel" type="tel" value="${esc(c.tel)}" /></div>
       <div class="field"><label>Mail</label><input id="f-mail" type="email" value="${esc(c.mail)}" /></div>
     </div>
     <div class="field">
-      <label>Type de bâtiment</label>
+      <label>Type de bâtiment *</label>
       <select id="f-type-bat">
-        ${["", "Professionnel", "- de 2 ans", "+ de 2 ans"].map((t) => `<option value="${esc(t)}" ${c.type_batiment === t ? "selected" : ""}>${t || "Non précisé"}</option>`).join("")}
+        ${["", "Professionnel", "- de 2 ans", "+ de 2 ans", "+ de 15 ans"].map((t) => `<option value="${esc(t)}" ${c.type_batiment === t ? "selected" : ""}>${t || "Non précisé"}</option>`).join("")}
       </select>
     </div>`;
 }
@@ -1170,22 +1588,62 @@ function stepClientHTML() {
   return `<div class="card" style="padding:14px;">${clientFieldsHTML(state.draft.client)}</div>`;
 }
 
-function stepClientEntretienHTML() {
+// ---- Étape Entretien (page 2 feuille 18/09 : type, date, heures, forfait) ----
+const ZONES_FORFAIT = ["", "Z0 (Chazé-sur-Argos)", "Z1 (5 à 10 kms)", "Z2 (11 à 30 kms)", "Z3 (31 à 50 kms)", "Forfait"];
+function stepEntretienHTML() {
   const meta = draftMeta();
+  const d = state.draft;
+  // Fiches existantes : un sous-type enregistré hors liste (ex. « Air/Air »
+  // avant la refonte 09/10) reste proposé au sélecteur pour requalification
+  // manuelle — même tolérance que pour les mesures hors liste.
+  const legacyType = d.type_entretien_detail && !meta.types.includes(d.type_entretien_detail)
+    ? `<option selected>${esc(d.type_entretien_detail)}</option>`
+    : "";
+  // Fiche solaire (arb. 6.10, en préparation) : la liste des types
+  // d'installation est attendue du client (§11 du PRD) — saisie libre en
+  // attendant, pour ne pas bloquer la complétude « Page ok ».
+  const typeControl = meta.types.length
+    ? `<select id="f-type-entretien">
+        ${legacyType}
+        ${meta.types.map((t) => `<option ${state.draft.type_entretien_detail === t ? "selected" : ""}>${t}</option>`).join("")}
+      </select>`
+    : `<input id="f-type-entretien" type="text" value="${esc(d.type_entretien_detail)}" placeholder="À préciser (liste à venir du client)" />`;
   return `
   <div class="card" style="padding:14px;">
-    ${clientFieldsHTML(state.draft.client)}
-    <div class="field" style="margin-bottom:0;">
+    <div class="field">
       <label>Type d'entretien *</label>
-      <select id="f-type-entretien">
-        ${meta.types.map((t) => `<option ${state.draft.type_entretien_detail === t ? "selected" : ""}>${t}</option>`).join("")}
+      ${typeControl}
+    </div>
+    <div class="field"><label>Date</label><input id="f-date" type="date" value="${esc(d.date)}" /></div>
+    <div class="row2">
+      <div class="field"><label>Heure d'arrivée</label><input id="f-h-arr" type="time" value="${esc(d.heure_arrivee)}" /></div>
+      <div class="field"><label>Heure de départ</label><input id="f-h-dep" type="time" value="${esc(d.heure_depart)}" /></div>
+    </div>
+    <div class="field" style="margin-bottom:0;">
+      <label>Forfait déplacement</label>
+      <select id="f-forfait">
+        ${ZONES_FORFAIT.map((z) => `<option value="${esc(z)}" ${d.forfait_deplacement === z ? "selected" : ""}>${z || "Non précisé"}</option>`).join("")}
       </select>
     </div>
   </div>`;
 }
+function wireEntretienStep() {}
+function readEntretienStep() {
+  const d = state.draft;
+  const sel = $("#f-type-entretien");
+  if (sel) d.type_entretien_detail = sel.value;
+  d.date = $("#f-date").value || todayISO();
+  d.heure_arrivee = $("#f-h-arr").value;
+  d.heure_depart = $("#f-h-dep").value;
+  // D4 : renseigne `temps_intervention` (calculé à partir des heures saisies)
+  // au lieu de laisser la colonne vide — le même calcul alimente le PDF.
+  const dur = computeDuration(d.heure_arrivee, d.heure_depart);
+  d.temps_intervention = dur === "-" ? "" : dur;
+  d.forfait_deplacement = $("#f-forfait").value;
+  return true;
+}
 
 function wireClientStep() { wireClientCombo(); }
-function wireClientEntretienStep() { wireClientCombo(); }
 
 function wireClientCombo() {
   const input = $("#f-nom");
@@ -1241,18 +1699,16 @@ function captureClientFields() {
   // personnalisée manuellement (pré-remplissage automatique).
   if (!d.client_signature_nom || d.client_signature_nom === prevNom) d.client_signature_nom = d.client.nom;
   if (state.draftType !== "intervention") {
-    d.type_entretien = state.draftType;                          // clé machine (air_eau / air_air / chaudiere)
-    d.type_entretien_detail = $("#f-type-entretien")?.value || "";
+    d.type_entretien = state.draftType;                          // clé machine (air_eau / air_air / chaudiere / solaire)
+    const sel = $("#f-type-entretien");                          // présent seulement à l'étape Entretien
+    if (sel) d.type_entretien_detail = sel.value;
   }
 }
+// Arbitrage 6.9 (§3.2.14) : les champs obligatoires (astérisque) ne bloquent
+// pas le passage à la page suivante — le contrôle de complétude est appliqué
+// à la validation finale (finishWizard, « Page ok »).
 function readClientStep() {
   captureClientFields();
-  if (!state.draft.client.nom) { toast("Merci d'indiquer le nom du client", true); return false; }
-  return true;
-}
-function readClientEntretienStep() {
-  captureClientFields();
-  if (!state.draft.client.nom) { toast("Merci d'indiquer le nom du client", true); return false; }
   return true;
 }
 
@@ -1267,7 +1723,8 @@ function interventionStatutCls(s) {
 }
 function stepInterventionHTML() {
   const d = state.draft;
-  const types = ["Dépannage", "Garantie", "Diagnostic"];
+  // Arb. 6.1 (09/10, §3.2.6) : liste à 5 valeurs — orthographe « Diagnostic ».
+  const types = ["Sav", "Garantie", "Dépannage", "Diagnostic", "Sur devis"];
   return `
   <div class="card" style="padding:14px;">
     <div class="field">
@@ -1282,23 +1739,12 @@ function stepInterventionHTML() {
     <div class="field" style="margin-bottom:0;">
       <label>Forfait déplacement</label>
       <select id="f-forfait">
-        ${["", "Z0 (Chazé-sur-Argos)", "Z1 (5 à 10 kms)", "Z2 (11 à 30 kms)", "Z3 (31 à 50 kms)", "Forfait"].map((z) => `<option value="${esc(z)}" ${d.forfait_deplacement === z ? "selected" : ""}>${z || "Non précisé"}</option>`).join("")}
+        ${ZONES_FORFAIT.map((z) => `<option value="${esc(z)}" ${d.forfait_deplacement === z ? "selected" : ""}>${z || "Non précisé"}</option>`).join("")}
       </select>
     </div>
-  </div>
-  <div class="section-label">Statut de l'intervention</div>
-  <div class="segmented" id="f-statut">
-    <button type="button" data-v="a_prevoir" class="${d.statut === "a_prevoir" ? "active" : ""}">À effectuer</button>
-    <button type="button" data-v="terminee" class="${d.statut === "terminee" ? "active" : ""}">Effectuée</button>
-    <button type="button" data-v="terminee_suite" class="${d.statut === "terminee_suite" ? "active" : ""}">Effectuée, suite à prévoir</button>
   </div>`;
 }
-function wireInterventionStep() {
-  $all("#f-statut button").forEach((b) => b.addEventListener("click", () => {
-    $all("#f-statut button").forEach((x) => x.classList.remove("active"));
-    b.classList.add("active");
-  }));
-}
+function wireInterventionStep() {}
 function readInterventionStep() {
   const d = state.draft;
   d.type_intervention = $("#f-type-itv").value;
@@ -1310,21 +1756,25 @@ function readInterventionStep() {
   const dur = computeDuration(d.heure_arrivee, d.heure_depart);
   d.temps_intervention = dur === "-" ? "" : dur;
   d.forfait_deplacement = $("#f-forfait").value;
-  d.statut = $("#f-statut .active")?.dataset.v || "a_prevoir";
+  // Le statut est désormais saisi en tête de la page finale (§3.2.14, point 12).
   return true;
 }
 
 // ---- Étape Équipement + descriptif ----
+// Page 3/6 (arb. 2.2/6.5/6.7 du 09/10, §3.2.6) : Équipement + Descriptif sur
+// la même page, descriptif obligatoire, champs Intitulé / Marque / Modèle /
+// N° de série obligatoires — page de référence partagée par les fiches
+// d'entretien (« comme page 3/6 de Nouvelle intervention »).
 function equipLineHTML(eq, idx) {
   return `
   <div class="line-group" data-eq="${idx}">
     <div class="line-group-head"><span>Équipement ${idx + 1}</span><button type="button" class="remove-line" data-remove-eq="${idx}">${ICONS.trash.replace('width="24" height="24"', 'width="13" height="13"')} Supprimer</button></div>
-    <div class="field" style="margin-bottom:10px;"><label>Intitulé</label><input type="text" data-eq-f="intitule" data-eq-i="${idx}" value="${esc(eq.intitule)}" placeholder="Ex : Pompe à chaleur air/eau" /></div>
+    <div class="field" style="margin-bottom:10px;"><label>Intitulé *</label><input type="text" data-eq-f="intitule" data-eq-i="${idx}" value="${esc(eq.intitule)}" placeholder="Ex : Pompe à chaleur air/eau" /></div>
     <div class="row2">
-      <div class="field" style="margin-bottom:0;"><label>Marque</label><input type="text" data-eq-f="marque" data-eq-i="${idx}" value="${esc(eq.marque)}" /></div>
-      <div class="field" style="margin-bottom:0;"><label>Modèle</label><input type="text" data-eq-f="modele" data-eq-i="${idx}" value="${esc(eq.modele)}" /></div>
+      <div class="field" style="margin-bottom:0;"><label>Marque *</label><input type="text" data-eq-f="marque" data-eq-i="${idx}" value="${esc(eq.marque)}" /></div>
+      <div class="field" style="margin-bottom:0;"><label>Modèle *</label><input type="text" data-eq-f="modele" data-eq-i="${idx}" value="${esc(eq.modele)}" /></div>
     </div>
-    <div class="field" style="margin-top:10px;margin-bottom:0;"><label>N° de série</label><input type="text" data-eq-f="numero_serie" data-eq-i="${idx}" value="${esc(eq.numero_serie)}" /></div>
+    <div class="field" style="margin-top:10px;margin-bottom:0;"><label>N° de série *</label><input type="text" data-eq-f="numero_serie" data-eq-i="${idx}" value="${esc(eq.numero_serie)}" /></div>
   </div>`;
 }
 
@@ -1335,10 +1785,10 @@ function stepEquipHTML() {
   return `
   ${meta ? `<div class="card" style="padding:14px;margin-bottom:12px;"><div class="field" style="margin-bottom:0;"><label>Année d'installation</label><input id="f-annee" type="text" inputmode="numeric" placeholder="Ex : 2021" value="${esc(d.annee_installation)}" /></div></div>` : ""}
   <div id="eq-reuse"></div>
-  <div class="section-label">Équipement(s) concerné(s)</div>
+  <div class="section-label">Équipement(s) concerné(s) *</div>
   <div id="eq-list">${d.equipements.map(equipLineHTML).join("")}</div>
   <button type="button" class="add-line-btn" id="add-eq">${ICONS.plus} Ajouter un équipement</button>
-  ${state.draftType === "intervention" ? `<div class="section-label">Descriptif de la demande</div><textarea id="f-descriptif" placeholder="Ce que signale ou demande le client…">${esc(d.descriptif_demande)}</textarea>` : ""}`;
+  <div class="section-label">Descriptif de la demande *</div><textarea id="f-descriptif" placeholder="Ce que signale ou demande le client…">${esc(d.descriptif_demande)}</textarea>`;
 }
 function wireEquipStep() {
   $("#add-eq").addEventListener("click", () => {
@@ -1350,7 +1800,7 @@ function wireEquipStep() {
   });
   wireEquipLines();
   maybeShowEquipHistory();
-  if (state.draftType === "intervention") autoResize("f-descriptif");
+  autoResize("f-descriptif");
 }
 
 // Réutilisation de l'historique équipements du client (V2, point 5)
@@ -1393,7 +1843,7 @@ function wireEquipLines() {
   }));
 }
 function readEquipStep() {
-  if (state.draftType === "intervention") state.draft.descriptif_demande = cleanText($("#f-descriptif").value);
+  state.draft.descriptif_demande = cleanText($("#f-descriptif")?.value || "");
   if (draftMeta()) state.draft.annee_installation = $("#f-annee")?.value.trim() || "";
   return true;
 }
@@ -1418,10 +1868,16 @@ function stepActionHTML() {
   <div id="piece-list">${d.pieces.map(pieceLineHTML).join("")}</div>
   <button type="button" class="add-line-btn" id="add-piece">${ICONS.plus} Ajouter une pièce</button>`;
 }
-function stepRemarquePiecesHTML() {
+// Pages 6 (Observation & photos) et 7 (Pièces utilisées) des fiches d'entretien.
+function stepObservationPhotosHTML() {
   const d = state.draft;
   return `
-  <div class="section-label">Remarque / Observation</div><textarea id="f-action" placeholder="Observations de l'entretien…">${esc(d.action_realisee)}</textarea>
+  <div class="section-label">Observation</div><textarea id="f-action" placeholder="Observations de l'entretien…">${esc(d.action_realisee)}</textarea>
+  ${stepPhotosHTML()}`;
+}
+function stepPiecesHTML() {
+  const d = state.draft;
+  return `
   <div class="section-label">Pièces utilisées</div>
   <div id="piece-list">${d.pieces.map(pieceLineHTML).join("")}</div>
   <button type="button" class="add-line-btn" id="add-piece">${ICONS.plus} Ajouter une pièce</button>`;
@@ -1482,51 +1938,88 @@ function readActionStep() {
   state.draft.action_realisee = cleanText($("#f-action").value);
   return true;
 }
-function readRemarquePiecesStep() {
+function readObservationStep() {
   state.draft.action_realisee = cleanText($("#f-action").value);
   return true;
 }
+function readPiecesStep() { return true; }
+function wireObservationPhotosStep() {
+  wirePhotosStep();
+  autoResize("f-action");
+}
 
-// ---- Étape Mesures (entretiens) ----
-function stepMesuresHTML() {
+// ---- Étapes Mesures (entretiens — une page par section, refonte 18/09) ----
+// Un champ porte soit une liste fermée (`options`, valeurs de la feuille),
+// soit une saisie libre avec unité (`unite` — affichée à côté du libellé,
+// avant le champ, jamais en placeholder : convention 09/10, arb. 6.8).
+// Une valeur déjà enregistrée hors liste (ancienne saisie libre) reste
+// sélectionnable.
+function mesureInputHTML(m, valeur) {
+  const control = m.options?.length
+    ? (() => {
+        const listed = m.options.includes(valeur);
+        const extra = valeur && !listed ? `<option selected>${esc(valeur)}</option>` : "";
+        return `<select data-mesure-code="${m.code}" class="mesure-field">
+          <option value="">—</option>
+          ${m.options.map((o) => `<option ${valeur === o ? "selected" : ""}>${esc(o)}</option>`).join("")}
+          ${extra}
+        </select>`;
+      })()
+    // Convention 09/10 (arb. 6.8, §7 du PRD) : l'unité s'affiche AVANT le
+    // champ (à côté du libellé), jamais dans le champ (pas de placeholder).
+    : `<input type="text" inputmode="decimal" data-mesure-code="${m.code}" class="mesure-field" value="${esc(valeur)}" />`;
+  return `
+    <div class="kv" style="padding:8px 14px;">
+      <div class="k" style="width:auto;flex:1;">${esc(m.libelle)}${m.options?.length ? "" : (m.unite ? ` <span class="unite">(${esc(m.unite)})</span>` : "")}</div>
+      <div class="v" style="width:130px;flex:none;">${control}</div>
+    </div>`;
+}
+
+function stepMesuresHTML(sectionIdx) {
   const meta = draftMeta();
   const d = state.draft;
   const val = (code) => (d.mesures.find((m) => m.code === code)?.valeur || "");
-  const sections = meta.mesures.map((s) => `
-    <div class="section-label">${esc(s.section)}</div>
+  const sec = meta.mesures[sectionIdx];
+  const sectionHTML = `
     <div class="card">
-      ${s.items.map((m) => `
-        <div class="kv" style="padding:8px 14px;">
-          <div class="k" style="width:auto;flex:1;">${esc(m.libelle)}</div>
-          <div class="v" style="width:110px;flex:none;"><input type="text" inputmode="decimal" data-mesure-code="${m.code}" placeholder="${esc(m.unite)}" value="${esc(val(m.code))}" style="width:100%;padding:8px;border:1px solid var(--ce-border);border-radius:8px;" /></div>
-        </div>`).join("")}
-    </div>`).join("");
-
-  const cerfa = meta.cerfa ? `
+      ${sec.items.map((m) => mesureInputHTML(m, val(m.code))).join("")}
+    </div>`;
+  const isLast = sectionIdx === meta.mesures.length - 1;
+  const cerfa = meta.cerfa && isLast ? `
     <div class="section-label">CERFA n°15497 — fluides frigorigènes</div>
     <div class="card">
       ${CERFA_FIELDS.map((f) => `
         <div class="kv" style="padding:8px 14px;">
-          <div class="k" style="width:auto;flex:1;">${esc(f.libelle)}</div>
-          <div class="v" style="width:110px;flex:none;"><input type="text" data-mesure-code="${f.code}" placeholder="${esc(f.unite)}" value="${esc(val(f.code))}" style="width:100%;padding:8px;border:1px solid var(--ce-border);border-radius:8px;" /></div>
+          <div class="k" style="width:auto;flex:1;">${esc(f.libelle)}${f.unite ? ` <span class="unite">(${esc(f.unite)})</span>` : ""}</div>
+          <div class="v" style="width:130px;flex:none;"><input type="text" data-mesure-code="${f.code}" value="${esc(val(f.code))}" style="width:100%;padding:8px;border:1px solid var(--ce-border);border-radius:8px;" /></div>
         </div>`).join("")}
-    </div>` : "";
-  return `<div class="note blue">Formulaire CERFA sur une seule page (document officiel).</div>${sections}${cerfa}`;
+    </div>
+    <div class="note blue" style="margin-top:10px;">Formulaire CERFA sur une seule page (document officiel) — unités affichées à côté du champ, saisie de la valeur seule.</div>` : "";
+  // Fiche solaire (arb. 6.10) : une section en attente du contenu client
+  // (§11 du PRD) s'affiche en note de préparation plutôt qu'une card vide.
+  const attente = meta.trameAttente && !sec.items.length
+    ? `<div class="note blue" style="margin-top:10px;">Bloc « ${esc(sec.section)} » en préparation : contenu attendu du client (§11 du PRD).</div>`
+    : "";
+  return `${sectionHTML}${attente}${cerfa}`;
 }
 function wireMesuresStep() {}
-function readMesuresStep() {
+// Lecture limitée aux champs présents sur la page courante : les mesures des
+// autres pages (et les anciens codes hors modèle) restent inchangées.
+function readMesuresSectionStep(sectionIdx) {
   const meta = draftMeta();
-  const codes = [];
-  meta.mesures.forEach((s) => s.items.forEach((m) => codes.push(m)));
-  if (meta.cerfa) CERFA_FIELDS.forEach((f) => codes.push(f));
+  const sec = meta.mesures[sectionIdx];
+  if (!sec) return true;
+  const items = [...sec.items];
+  if (meta.cerfa && sectionIdx === meta.mesures.length - 1) CERFA_FIELDS.forEach((f) => items.push(f));
   const map = new Map();
   state.draft.mesures.forEach((m) => map.set(m.code, m));
-  for (const m of codes) {
+  for (const m of items) {
     const input = document.querySelector(`[data-mesure-code="${m.code}"]`);
-    const valeur = input ? input.value.trim() : "";
+    if (!input) continue;
+    const valeur = input.value.trim();
     const libelle = m.libelle;
     if (map.has(m.code)) map.get(m.code).valeur = valeur;
-    else map.set(m.code, { code: m.code, libelle, valeur, unite: m.unite, type_entretien: state.draftType });
+    else map.set(m.code, { code: m.code, libelle, valeur, unite: m.unite || "", type_entretien: state.draftType });
   }
   // on conserve toutes les mesures (même vides) pour la ré-édition
   state.draft.mesures = [...map.values()];
@@ -1603,23 +2096,23 @@ function wirePhotoLines() {
 }
 
 // ---- Étape Devis & signature ----
+// Page finale commune à la fiche générique et aux 3 fiches d'entretien
+// (§3.2.14 — feuille 18/09, précisions 09/10 arb. 6.9) : le statut est saisi
+// en tête, avant les signatures ; les signatures ne sont possibles que si la
+// fiche est terminée ; « Page ok » atteste la complétude des champs
+// obligatoires (contrôle appliqué à la soumission, pas à la navigation).
 function stepSignHTML() {
   const d = state.draft;
   const meta = draftMeta();
+  const locked = d.statut === "a_prevoir";
   return `
-  <div class="toggle-row">
-    <div><div class="t-label">Le client souhaite-t-il un devis</div><div class="t-hint">Une action de suivi sera à prévoir</div></div>
-    <button class="switch ${d.devis_souhaite ? "on" : ""}" id="f-devis" type="button"></button>
+  <div class="section-label">Statut de l'intervention</div>
+  <div class="segmented" id="f-statut">
+    <button type="button" data-v="a_prevoir" class="${locked ? "active" : ""}">À effectuer</button>
+    <button type="button" data-v="terminee" class="${d.statut === "terminee" ? "active" : ""}">Effectuée</button>
+    <button type="button" data-v="terminee_suite" class="${d.statut === "terminee_suite" ? "active" : ""}">Effectuée, suite à prévoir</button>
   </div>
-  <div class="card" style="padding:14px;margin-bottom:18px;">
-    <div class="field" style="margin-bottom:0;"><label>Commentaire devis (optionnel)</label><textarea id="f-devis-com" placeholder="Précisions à conserver pour le devis…">${esc(d.devis_commentaire)}</textarea></div>
-  </div>
-
-  ${meta?.prochaine ? `
-  <div class="toggle-row">
-    <div><div class="t-label">Prochaine intervention prévue</div><div class="t-hint">En plus du statut d'intervention</div></div>
-    <button class="switch ${d.prochaine_intervention_prevue ? "on" : ""}" id="f-prochaine" type="button"></button>
-  </div>` : ""}
+  <div class="hint" id="sig-lock-note" style="display:${locked ? "block" : "none"};">Les signatures sont débloquées une fois la fiche marquée « Effectuée » ou « Effectuée, suite à prévoir ».</div>
 
   <div class="section-label">Signatures</div>
   <div class="card" style="padding:14px;">
@@ -1634,16 +2127,33 @@ function stepSignHTML() {
     <div class="field" style="margin-bottom:0;" id="wrap-client-sig">
       <label>Nom du client (signature)</label>
       <input id="f-client-sig" type="text" value="${esc(d.client_signature_nom || d.client.nom)}" placeholder="${d.client.nom ? esc(d.client.nom) : "Nom du client"}" />
-      <div class="hint">La signature électronique tactile est disponible.</div>
+      <div class="hint">Signature obligatoire si le client est présent — signature électronique tactile disponible.</div>
     </div>
-    <button type="button" class="add-line-btn" id="btn-client-sign" style="margin-top:10px;">${ICONS.pencil.replace('width="24" height="24"', 'width="15" height="15"')} Signer (client)</button>
+    <button type="button" class="add-line-btn" id="btn-client-sign" style="margin-top:10px;"${locked ? " disabled" : ""}>${ICONS.pencil.replace('width="24" height="24"', 'width="15" height="15"')} Signer (client)</button>
     <div class="sig-preview" id="client-sig-preview" style="display:${d.client_signature_url ? "block" : "none"};margin-top:10px;"><img id="client-sig-img" src="${d.client_signature_url ? esc(d.client_signature_url) : ""}" alt="Signature client" /></div>
     <div class="field" style="margin-top:12px;">
-      <label>Signature technicien (facultative)</label>
-      <button type="button" class="add-line-btn" id="btn-tech-sign" style="margin-top:6px;">${ICONS.pencil.replace('width="24" height="24"', 'width="15" height="15"')} Signer (technicien)</button>
+      <label>Signature technicien (obligatoire)</label>
+      <button type="button" class="add-line-btn" id="btn-tech-sign" style="margin-top:6px;"${locked ? " disabled" : ""}>${ICONS.pencil.replace('width="24" height="24"', 'width="15" height="15"')} Signer (technicien)</button>
       <div class="sig-preview" id="tech-sig-preview" style="display:${d.technicien_signature_url ? "block" : "none"};margin-top:10px;"><img id="tech-sig-img" src="${d.technicien_signature_url ? esc(d.technicien_signature_url) : ""}" alt="Signature technicien" /></div>
     </div>
   </div>
+
+  <div class="section-label">Devis & confirmation</div>
+  <div class="toggle-row">
+    <div><div class="t-label">Le client souhaite-t-il un devis</div><div class="t-hint">Une action de suivi sera à prévoir</div></div>
+    <button class="switch ${d.devis_souhaite ? "on" : ""}" id="f-devis" type="button"></button>
+  </div>
+  <div class="card" style="padding:14px;margin-bottom:18px;">
+    <div class="field" style="margin-bottom:0;"><label>Commentaire devis (optionnel)</label><textarea id="f-devis-com" placeholder="Précisions à conserver pour le devis…">${esc(d.devis_commentaire)}</textarea></div>
+  </div>
+
+  ${meta?.prochaine ? `
+  <div class="toggle-row">
+    <div><div class="t-label">Prochaine intervention prévue</div><div class="t-hint">En plus du statut d'intervention</div></div>
+    <button class="switch ${d.prochaine_intervention_prevue ? "on" : ""}" id="f-prochaine" type="button"></button>
+  </div>` : ""}
+
+  ${pageOkStatusHTML()}
 
   <div class="section-label">Récapitulatif</div>
   <div class="card">
@@ -1656,15 +2166,28 @@ function stepSignHTML() {
     <div class="kv"><div class="k">Photos</div><div class="v">${d.photos.length || 0}</div></div>
   </div>`;
 }
+// Verrouillage dynamique de la page finale (§3.2.14) : signatures possibles
+// seulement si le statut est « Effectuée » ou « Effectuée, suite à prévoir » ;
+// « Soumettre pour validation » possible seulement si la fiche est signée
+// (technicien + client si présent). Applique aussi l'état initial au rendu.
 function wireSignStep() {
+  $all("#f-statut button").forEach((b) => b.addEventListener("click", () => {
+    $all("#f-statut button").forEach((x) => x.classList.remove("active"));
+    b.classList.add("active");
+    state.draft.statut = b.dataset.v;
+    applySignLockUI();
+  }));
   $("#f-devis").addEventListener("click", (e) => e.currentTarget.classList.toggle("on"));
   $("#f-prochaine")?.addEventListener("click", (e) => e.currentTarget.classList.toggle("on"));
+  // « Page ok » : indicateur de statut calculé (aucun câblage utilisateur).
   $("#f-present").addEventListener("click", (e) => {
     e.currentTarget.classList.toggle("on");
     $("#wrap-client-sig").style.display = e.currentTarget.classList.contains("on") ? "block" : "none";
+    applySignLockUI();
   });
   if (!state.draft.client_present) $("#wrap-client-sig").style.display = "none";
   autoResize("f-devis-com");
+  applySignLockUI();
 
   $("#btn-client-sign")?.addEventListener("click", async () => {
     const blob = await signatureModal({ title: "Signature du client" });
@@ -1676,6 +2199,7 @@ function wireSignStep() {
     const prev = $("#client-sig-preview");
     prev.style.display = "block";
     $("#client-sig-img").src = state.draft.client_signature_url;
+    applySignLockUI();
     if (Supabase.configured() && navigator.onLine && oldUrl && oldUrl.startsWith("http")) {
       try { await Supabase.removeSignature(oldUrl); } catch (e) { console.warn("Suppression ancienne signature client échouée", e); }
     }
@@ -1689,19 +2213,79 @@ function wireSignStep() {
     const prev = $("#tech-sig-preview");
     prev.style.display = "block";
     $("#tech-sig-img").src = state.draft.technicien_signature_url;
+    applySignLockUI();
     if (Supabase.configured() && navigator.onLine && oldUrl && oldUrl.startsWith("http")) {
       try { await Supabase.removeSignature(oldUrl); } catch (e) { console.warn("Suppression ancienne signature technicien échouée", e); }
     }
   });
 }
+function applySignLockUI() {
+  const d = state.draft;
+  const locked = d.statut === "a_prevoir";
+  const present = signClientPresent();
+  $("#btn-client-sign")?.toggleAttribute("disabled", locked);
+  $("#btn-tech-sign")?.toggleAttribute("disabled", locked);
+  const note = $("#sig-lock-note");
+  if (note) note.style.display = locked ? "block" : "none";
+  // Indicateur de statut « Page ok » : complétude des informations obligatoires
+  const missing = pageOkMissingLabels();
+  const pageOkState = $("#page-ok-state");
+  const pageOkHint = $("#page-ok-hint");
+  if (pageOkState) {
+    pageOkState.className = `tag ${missing.length ? "muted" : "done"}`;
+    pageOkState.textContent = pageOkStateText(missing);
+  }
+  if (pageOkHint) pageOkHint.textContent = pageOkHintText(missing);
+  const signee = !!d.technicien_signature_url && (!present || !!d.client_signature_url);
+  const finish = document.querySelector('.wizard-footer [data-nav="finish"]');
+  if (finish) {
+    finish.toggleAttribute("disabled", !signee);
+    finish.title = signee ? "" : "Signature requise (technicien + client si présent) — la fiche doit être marquée « Effectuée » pour signer";
+  }
+}
+// « Page ok » (§3.2.14, arb. 6.9) — indicateur de statut, pas une case à
+// cocher : c'est le résumé que toutes les informations obligatoires sont
+// renseignées (champs obligatoires de toutes les sections + signatures).
+// Calculé à l'affichage et actualisé à chaque changement sur la page finale.
+function signClientPresent() {
+  return $("#f-present") ? $("#f-present").classList.contains("on") : state.draft.client_present;
+}
+function pageOkMissingLabels() {
+  const d = state.draft;
+  const present = signClientPresent();
+  const manquants = [...requiredFieldsMissing()];
+  if (!d.technicien_signature_url) manquants.push("Signature du technicien");
+  if (present && !d.client_signature_url) manquants.push("Signature du client");
+  return manquants;
+}
+function pageOkComputed() {
+  return pageOkMissingLabels().length === 0;
+}
+function pageOkStateText(missing) {
+  return missing.length ? "À compléter" : "Page ok";
+}
+function pageOkHintText(missing) {
+  return missing.length ? `À renseigner : ${missing.join(", ")}` : "Toutes les informations obligatoires (*) de toutes les pages sont renseignées.";
+}
+function pageOkStatusHTML() {
+  const missing = pageOkMissingLabels();
+  return `
+  <div class="toggle-row" id="page-ok-row">
+    <div><div class="t-label">Page ok</div><div class="t-hint" id="page-ok-hint">${esc(pageOkHintText(missing))}</div></div>
+    <span id="page-ok-state" class="tag ${missing.length ? "muted" : "done"}">${esc(pageOkStateText(missing))}</span>
+  </div>`;
+}
 function readSignStep() {
   const d = state.draft;
+  d.statut = $("#f-statut .active")?.dataset.v || d.statut;
   d.devis_souhaite = $("#f-devis").classList.contains("on");
   d.devis_commentaire = cleanText($("#f-devis-com").value);
   if ($("#f-prochaine")) d.prochaine_intervention_prevue = $("#f-prochaine").classList.contains("on");
   d.technicien_nom = $("#f-tech").value.trim();
-  d.client_present = $("#f-present").classList.contains("on");
+  d.client_present = signClientPresent();
   d.client_signature_nom = $("#f-client-sig").value.trim();
+  // Statut « Page ok » calculé (complétude obligatoires + signatures) — persisté.
+  d.page_ok = pageOkComputed();
   if (d.technicien_nom) localStorage.setItem("ce_technicien_nom", d.technicien_nom);
   return true;
 }
@@ -1722,6 +2306,34 @@ function readStepIntoDraft(step) {
   return true;
 }
 
+// Contrôle de complétude des champs obligatoires — arbitrage 6.9 (§3.2.14) :
+// les champs marqués d'un astérisque ne bloquent pas la navigation entre les
+// pages, ils conditionnent la soumission finale. Valable pour la fiche
+// générique comme pour les fiches d'entretien.
+function requiredFieldsMissing() {
+  const d = state.draft;
+  const manquants = [];
+  if (!(d.client.nom || "").trim()) manquants.push("Nom du client");
+  if (!(d.client.adresse || "").trim()) manquants.push("Adresse");
+  if (!(d.client.code_postal || "").trim()) manquants.push("Code postal");
+  if (!(d.client.ville || "").trim()) manquants.push("Ville");
+  if (!(d.client.type_batiment || "").trim()) manquants.push("Type de bâtiment");
+  if (draftMeta() && !(d.type_entretien_detail || "").trim()) manquants.push("Type d'entretien");
+  // Page 3/6 (arbitrages 09/10 — 2.2, 6.5, 6.7 ; §3.2.6) : « Équipement
+  // concerné(s) » et « Descriptif de la demande » obligatoires, champs
+  // Intitulé / Marque / Modèle / N° de série obligatoires sur chaque ligne.
+  if (!(d.descriptif_demande || "").trim()) manquants.push("Descriptif de la demande");
+  if (!d.equipements?.length) manquants.push("Équipement concerné");
+  d.equipements.forEach((eq, i) => {
+    const n = i + 1;
+    if (!(eq.intitule || "").trim()) manquants.push(`Intitulé (équipement ${n})`);
+    if (!(eq.marque || "").trim()) manquants.push(`Marque (équipement ${n})`);
+    if (!(eq.modele || "").trim()) manquants.push(`Modèle (équipement ${n})`);
+    if (!(eq.numero_serie || "").trim()) manquants.push(`N° de série (équipement ${n})`);
+  });
+  return manquants;
+}
+
 async function finishWizard() {
   if (!readStepIntoDraft(state.step)) return;
   const d = state.draft;
@@ -1729,6 +2341,29 @@ async function finishWizard() {
   const rdvId = d.rdv_id || null;
   const isEdit = !!d.id;
   const steps = wizardSteps();
+
+  // Fin d'intervention commune (§3.2.14) : la fiche doit être terminée et
+  // signée — technicien obligatoire, client obligatoire si présent — pour
+  // être soumise à la validation (brouillon → à valider).
+  if (d.statut === "a_prevoir") {
+    toast("La fiche doit être marquée « Effectuée » ou « Effectuée, suite à prévoir » pour être signée et soumise", true);
+    return;
+  }
+  if (!d.technicien_signature_url) {
+    toast("Signature du technicien obligatoire avant de soumettre la fiche", true);
+    return;
+  }
+  if (d.client_present && !d.client_signature_url) {
+    toast("Signature du client obligatoire (client présent)", true);
+    return;
+  }
+  // Champs obligatoires de toutes les sections : vérifiés ici seulement
+  // (jamais pendant la navigation, cf. arbitrage 6.9 — « Page ok »).
+  const manquants = requiredFieldsMissing();
+  if (manquants.length) {
+    toast(`Fiche incomplète : ${manquants.join(", ")}`, true);
+    return;
+  }
 
   // Upload des signatures tactiles vers Supabase Storage (si configuré).
   if (Supabase.configured() && state.auth && navigator.onLine) {
@@ -1787,15 +2422,17 @@ async function saveBrouillon() {
   const steps = wizardSteps();
   const s = steps[state.step - 1];
   try {
-    if (s.id === "client" || s.id === "client_entretien") captureClientFields();
+    if (s.id === "client") captureClientFields();
     else if (s.read) s.read();
   } catch (e) { /* brouillon tolérant */ }
   const d = state.draft;
   const appelId = d.appel_id || null;
   const rdvId = d.rdv_id || null;
-  const savedClient = d.client_id
-    ? await DB.saveClient({ ...d.client })
-    : await DB.findOrCreateClientByName({ ...d.client });
+  // Brouillon tolérant (arbitrage 6.9) : jamais bloqué — un client sans nom
+  // est créé localement, les champs obligatoires seront contrôlés à la
+  // validation finale (finishWizard).
+  const savedClient = (d.client_id ? await DB.saveClient({ ...d.client }) : await DB.findOrCreateClientByName({ ...d.client }))
+    || await DB.saveClient({ ...d.client });
   d.client_id = savedClient.id;
   d.client = savedClient;
   const itv = { ...d, _brouillon: true };
@@ -1840,6 +2477,7 @@ async function renderDetail(id) {
           <span class="tag ${interventionStatutCls(itv.statut)}">${interventionStatutLabel(itv.statut)}</span>
           ${itv.devis_souhaite ? `<span class="tag">Devis souhaité</span>` : ""}
           ${itv.prochaine_intervention_prevue ? `<span class="tag">Prochaine intervention prévue</span>` : ""}
+          ${itv.page_ok ? `<span class="tag">Page ok</span>` : ""}
         </div>
       </div>
 
@@ -2171,7 +2809,7 @@ async function renderContrats() {
             <span class="ii-tags">${ct.client_signature_url ? `<span class="tag done">Signé</span>` : `<span class="tag pending">Non signé</span>`}</span>
           </span>
           ${ICONS.chevron}
-        </button>`).join("") : `<div class="empty-state"><div class="glyph">${ICONS.file}</div><h3>Aucun contrat</h3><p>Créez un contrat d'entretien annuel depuis le bouton +.</p></div>`}
+        </button>`).join("") : `<div class="empty-state"><div class="glyph">${ICONS.file}</div><h3>Aucun contrat</h3><p>Les contrats existants restent consultables ici (US-24) — l'entrée de création dans le bouton + est suspendue (arbitrage 6.11, 09/10).</p></div>`}
     </main>
     <div class="toast" id="toast"></div>
   `);
@@ -2225,12 +2863,22 @@ document.addEventListener("click", async (e) => {
   const action = nav.dataset.nav;
 
   if (action === "detail") go(`#/detail/${nav.dataset.id}`);
+  else if (action === "client-open") go(`#/client/${nav.dataset.id}`);
   else if (action === "edit") {
     if (state.draft && state.draft.id !== nav.dataset.id) state.draft = null;
     goReplace(`#/edit/${nav.dataset.id}`);
   }
   else if (action === "duplicate") duplicateIntervention(nav.dataset.id);
   else if (action === "wf") {
+    // « Soumettre pour validation » (§3.2.14) : impossible tant que la fiche
+    // n'est pas signée (technicien + client si présent).
+    if (nav.dataset.to === "a_valider") {
+      const fiche = await DB.getIntervention(nav.dataset.id);
+      if (!fiche || !fiche.technicien_signature_url || (fiche.client_present !== false && !fiche.client_signature_url)) {
+        toast("La fiche doit être signée (technicien + client si présent) avant d'être soumise pour validation", true);
+        return;
+      }
+    }
     if (nav.dataset.to === "facture_verifiee") {
       const itv = await DB.getIntervention(nav.dataset.id);
       if (!(itv.documents || []).some((d) => d.type === "facture" && d.data_url)) {

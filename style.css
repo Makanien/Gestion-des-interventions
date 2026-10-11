@@ -368,6 +368,9 @@ main{flex:1;padding:14px 14px calc(90px + var(--safe-bottom));}
 }
 .add-line-btn svg{width:15px;height:15px;}
 .add-line-btn:active{background:#eef2f4;}
+/* Fin d'intervention commune (§3.2.14) : signatures verrouillées tant que le
+   statut d'intervention est « À effectuer » — boutons de signature désactivés. */
+.add-line-btn:disabled{opacity:.45;cursor:not-allowed;}
 .reuse-block{display:flex;align-items:center;gap:10px;background:#fff8e6;border:1px solid #f2d98a;border-radius:var(--ce-radius-sm);padding:10px 12px;margin-bottom:12px;}
 .reuse-block .reuse-info{flex:1;font-size:13px;color:#8a6d1a;font-weight:600;}
 .reuse-block .btn{width:auto;padding:10px 12px;font-size:13px;white-space:nowrap;}
@@ -416,6 +419,21 @@ main{flex:1;padding:14px 14px calc(90px + var(--safe-bottom));}
 .kv .v{color:var(--ce-text);font-weight:500;word-break:break-word;}
 .block-title{font-weight:700;font-size:13px;color:var(--ce-navy-2);padding:12px 14px 6px;}
 .block-text{padding:0 14px 14px;font-size:14px;line-height:1.55;color:var(--ce-text);white-space:pre-wrap;}
+
+/* ---------- Mesures des fiches d'entretien (refonte 18/09) ---------- */
+.mesure-field{
+  width:100%;
+  padding:8px 9px;
+  border:1px solid var(--ce-border);
+  border-radius:8px;
+  font-size:13.5px;
+  color:var(--ce-text);
+  background:#fff;
+}
+.kv .k .hint{font-size:10.5px;color:var(--ce-text-muted);margin-top:0;}
+/* Unité affichée AVANT le champ de saisie (refonte 09/10, arb. 6.8 —
+   convention tous formulaires) : à côté du libellé, jamais en placeholder. */
+.kv .k .unite{font-size:10.5px;color:var(--ce-navy-2);margin-top:0;font-weight:600;white-space:nowrap;}
 
 /* ---------- Toast ---------- */
 .toast{
@@ -498,9 +516,11 @@ main{flex:1;padding:14px 14px calc(90px + var(--safe-bottom));}
 .home-tabs{
   display:flex;gap:4px;background:#0f2431;padding:8px 14px 0;
 }
+/* 4 onglets (Tableau de bord / Planning / Tâches / Dossiers) : libellés
+   pouvant passer sur deux lignes sur petits écrans */
 .home-tab{
   flex:1;border:none;background:transparent;color:#b9cbd6;
-  padding:9px 4px 11px;font-size:13px;font-weight:600;border-bottom:2px solid transparent;
+  padding:9px 2px 11px;font-size:12.5px;line-height:1.2;font-weight:600;border-bottom:2px solid transparent;
 }
 .home-tab.active{color:#fff;border-bottom-color:var(--ce-orange);}
 
@@ -521,12 +541,30 @@ main{flex:1;padding:14px 14px calc(90px + var(--safe-bottom));}
 .rdv-sub{font-size:12px;color:var(--ce-text-muted);}
 .rdv-body .ii-tags{margin-top:4px;}
 
-/* Dossiers (statuts) */
-.status-block{margin-bottom:18px;}
-.status-head{display:flex;align-items:center;gap:8px;margin:0 2px 8px;}
-.status-head .sw{width:9px;height:9px;border-radius:50%;flex:none;}
-.status-head h3{font-size:13px;color:var(--ce-navy);flex:1;margin:0;}
-.status-head .n{font-size:11px;color:var(--ce-text-muted);font-family:var(--ce-font-mono);}
+/* Dossiers (statuts) — en-têtes d'accordéon visibles (cartes cliquables),
+   badge de nombre, chevron dédié, dépliage au clic */
+.status-block{margin-bottom:14px;}
+.status-head{
+  display:flex;align-items:center;gap:10px;margin:0;padding:13px 14px;
+  background:var(--ce-card);border:1px solid var(--ce-border);
+  border-radius:var(--ce-radius);box-shadow:var(--ce-shadow);
+  cursor:pointer;user-select:none;
+  transition:background .12s ease;
+}
+.status-head:active{background:#f0f3f4;}
+.status-head .sw{width:10px;height:10px;border-radius:50%;flex:none;}
+.status-head h3{font-size:14px;color:var(--ce-navy);flex:1;margin:0;}
+.status-head .n{font-size:11px;line-height:1;min-width:24px;text-align:center;padding:5px 8px;border-radius:999px;background:#eef2f4;color:var(--ce-text-muted);font-family:var(--ce-font-mono);}
+.status-head .chev{
+  width:24px;height:24px;flex:none;border-radius:50%;
+  background:#eef2f4;color:var(--ce-text-muted);
+  display:flex;align-items:center;justify-content:center;
+  transform:rotate(90deg);transition:transform .18s ease;
+}
+.status-head .chev svg{width:14px;height:14px;}
+.status-items{display:none;padding:10px 9px 0;}
+.status-block.open .status-items{display:block;}
+.status-block.open .status-head .chev{transform:rotate(-90deg);}
 .sw-muted{background:#8a94a0;}
 .sw-pending{background:var(--ce-pending);}
 .sw-blue{background:var(--ce-blue);}
