@@ -2,6 +2,8 @@
 
 > Dernière mise à jour : 11/10/2026 (retours 09/10 — point 15 implémenté le 10/10, points 16, 18, 19 et 20
 > implémentés le 11/10 ; arbitrages du classeur
+> Historique : 08/10/2026 (point 15 — annuaire clients : onglet Clients,
+> fiche client et dossiers par client, cf. §3.4 du PRD).
 > « Application 20261009.xlsx », réponses du porteur
 > de projet 6.1 → 6.12 — analyse : `documentation/Application 20261009 analyse retours.md`, PRD v1.27) :
 > **nouveaux points 15 → 20** (fiche générique : types à 5 valeurs + page 3/6 Équipement/Descriptif ;
@@ -137,8 +139,6 @@ l'appel est l'origine du flux (relié puis masqué) ; un RDV peut produire une i
 
 **Fichiers :** `app.js`, `idb.js`, `supabase/schema.sql`, `sw.js`
 
----
-
 ## Résumé des prochaines étapes prioritaires
 
 | Priorité | Tâche |
@@ -161,6 +161,7 @@ l'appel est l'origine du flux (relié puis masqué) ; un RDV peut produire une i
 | 16 | ~~Retours 09/10 — ajustements fiche « Air/Eau-Sol/Eau » (point 18)~~ ✅ (11/10) |
 | 17 | ~~Unités avant le champ de saisie — tous formulaires (point 19)~~ ✅ (11/10 — `climatelec-v23`) |
 | 18 | ~~Bouton « + » — retrait « Contrat d'entretien annuel », préparation « Entretien installation solaire » (point 20)~~ ✅ (11/10 — reste : contenu du bloc et liste des types à venir du client, §11 du PRD) |
+| 19 | ~~Annuaire clients : liste → fiche client → dossiers (point 21)~~ ✅ |
 
 ---
 
@@ -610,3 +611,31 @@ pas dans le champ** (pas de placeholder d'unité) — tous formulaires (wizard, 
 **Reste attendu du client :** contenu du bloc « Vérification installation solaire » et liste des types
 d'installation (point ouvert §11 du PRD) — à l'arrivée : remplir `BLOC_INSTALLATION_SOLAIRE` et
 `ENTRETIEN_META.solaire.types` (le sélecteur redevient une liste fermée automatiquement).
+## 21. Annuaire clients — liste, fiche client, dossiers du client (08/10/2026)
+
+**Objectif :** naviguer par client : liste des clients → fiche client (coordonnées + historique
+équipements) → liste des dossiers du client → détail d'un dossier. Demandé par le porteur de projet
+le 08/10/2026 ; décrit au **§3.4 du PRD** (« Annuaire clients »).
+
+- [x] **Onglet « Clients »** (4e onglet de l'accueil) : liste alphabétique des clients
+      (`DB.listClients`), recherche (nom, ville, téléphone, CP) et compteur de dossiers par client —
+      `app.js` (`clientsTabHTML`, `clientItemHTML`, onglets `renderHome`, `renderTab`)
+- [x] Recherche persistée dans `state.clientSearch` + câblage de `#client-search` dans `wireTab`
+- [x] **Fiche client** : route `#/client/:id` (`renderClientDetail`) — coordonnées (adresse, CP/ville,
+      tél, mail, type de bâtiment), **équipements connus** fusionnés : historique client
+      (`DB.listEquipementsForClient`) **+ équipements de toutes les fiches du client**
+      (`DB.listEquipementsForIntervention` par fiche), dédupliqués par intitulé+marque+modèle+n° de série
+      (`mergeEquipements`) — couvre les équipements non historisés (sans n° de série, fiches antérieures
+      à la V2) ; section masquée si vide
+- [x] **Liste des dossiers du client** : fiches (interventions + entretiens) filtrées par `client_id`,
+      tri **date décroissante**, statut du workflow, référence `FIC/ENT`, indicateur « Devis souhaité » —
+      `app.js` (`clientDossierHTML`)
+- [x] **Clic sur un dossier** → détail de fiche existant `#/detail/:id` (`data-nav="detail"`,
+      délégation globale). Nav `client-open` ajoutée à la délégation
+- [x] Route `#/clients` (deep-link : ouvre l'accueil sur l'onglet Clients) — `app.js` (`route`)
+- [x] Incrémenter `CACHE_VERSION` dans `sw.js` (→ `climatelec-v16`)
+
+Sans modification : `idb.js`, `supabase/schema.sql`, `style.css` (classes existantes réutilisées),
+`pdf.js`. Aucun changement de schéma (jointure `client_id` existante).
+
+**Fichiers :** `app.js`, `sw.js`, `PRD_App_Interventions_Climat_Elec.md`
