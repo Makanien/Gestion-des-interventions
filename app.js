@@ -349,7 +349,7 @@ const CERFA_FIELDS = [
 // ---------------------------------------------------------
 let state = {
   view: "home",
-  tab: "dashboard",      // dashboard | planning | taches | dossiers (défaut : Tableau de bord, §3.2.15)
+  tab: "dashboard",      // dashboard | planning | taches | clients (défaut : Tableau de bord, §3.2.15)
   draft: null,
   draftType: "intervention", // intervention | air_eau | air_air | chaudiere | solaire (préparation 09/10)
   step: 1,
@@ -359,7 +359,7 @@ let state = {
   tachesFilter: { type: "", intervenant: "" },
   dashFilter: { type: "", intervenant: "" }, // filtres type / intervenant du Tableau de bord
   dashSort: "",          // tri du Tableau de bord : "" (date récente) | nom | cp | ville (arb. 6.12)
-  dossiersOpen: {},      // sections dépliées des onglets Dossiers / Tableau de bord (clé = statut ou "appels")
+  dossiersOpen: {},      // sections dépliées du Tableau de bord (clé = "dash:<statut>" ou "dash:appels")
   clientsCache: [],
   auth: null,
   team: [],
@@ -630,7 +630,7 @@ function updateOfflinePill() {
 }
 
 // ---------------------------------------------------------
-// HOME (Tableau de bord / Planning / Tâches / Dossiers)
+// HOME (Tableau de bord / Planning / Tâches / Clients)
 // ---------------------------------------------------------
 async function renderHome() {
   const [interventions, rendezvous] = await Promise.all([DB.listInterventions(), DB.listRendezvous()]);
@@ -642,7 +642,6 @@ async function renderHome() {
     { id: "dashboard", label: "Tableau de bord" },
     { id: "planning", label: "Planning" },
     { id: "taches", label: "Tâches" },
-    { id: "dossiers", label: "Dossiers" },
     { id: "clients", label: "Clients" },
   ];
   setApp(`
@@ -673,7 +672,7 @@ async function renderTab() {
   else if (state.tab === "planning") root.innerHTML = await planningHTML();
   else if (state.tab === "taches") root.innerHTML = await tachesHTML();
   else if (state.tab === "clients") root.innerHTML = await clientsTabHTML();
-  else root.innerHTML = await dossiersHTML();
+  else { state.tab = "dashboard"; root.innerHTML = await dashboardHTML(); } // fallback (onglet Dossiers supprimé)
   wireTab();
 }
 
@@ -700,8 +699,8 @@ function wireTab() {
   bind("#df-sort", "change", (e) => { state.dashSort = e.target.value; renderTab(); });
   bind("#df-type", "change", (e) => { state.dashFilter.type = e.target.value; renderTab(); });
   bind("#df-tech", "change", (e) => { state.dashFilter.intervenant = e.target.value; renderTab(); });
-  // Onglets Dossiers / Tableau de bord : le clic sur un titre de groupe
-  // déplie le drill-down (liste des dossiers de ce statut — arb. 6.12)
+  // Tableau de bord : le clic sur un titre de groupe déplie le drill-down
+  // (liste des dossiers de ce statut — arb. 6.12)
   $all(".status-head[data-toggle]").forEach((el) => el.addEventListener("click", () => {
     const k = el.dataset.toggle;
     const open = !state.dossiersOpen[k];
@@ -871,7 +870,7 @@ async function dashboardHTML() {
     .filter((a) => !q || (a.nom || "").toLowerCase().includes(q))
     .sort((a, b) => (b.created_at || "").localeCompare(a.created_at || ""));
 
-  // Dossiers « en cours » (hors clôturées — l'onglet Dossiers reste exhaustif)
+  // Dossiers « en cours » (hors clôturées)
   let dossiers = scopeInterventions(interventions).filter((i) => (i.statut_dossier || "a_valider") !== "cloturee");
   if (f.type) dossiers = dossiers.filter((i) => matchesType(i, f.type));
   if (f.intervenant) dossiers = dossiers.filter((i) => matchesIntervenant(i, f.intervenant));
@@ -912,7 +911,7 @@ async function dashboardHTML() {
     </div>`;
 
   // Section repliée par défaut : le clic sur le titre ouvre le drill-down du
-  // groupe (même mécanique que l'onglet Dossiers, clés préfixées « dash: »).
+  // groupe (clés préfixées « dash: »).
   const block = (key, cls, label, itemsHtml, count) => {
     if (!count) return "";
     const open = !!state.dossiersOpen[`dash:${key}`];
@@ -935,44 +934,6 @@ async function dashboardHTML() {
   return `<div class="search-wrap">${ICONS.search}<input id="home-search" type="text" placeholder="Rechercher un client…" value="${esc(state.homeSearch)}" /></div>
     ${filterBar}
     ${body || `<div class="empty-state"><div class="glyph">${ICONS.file}</div><h3>${filtered ? "Aucun résultat" : "Rien à traiter"}</h3><p>${filtered ? "Aucun dossier ou appel avec ces critères." : "Les dossiers en cours apparaissent ici, groupés par statut du workflow."}</p></div>`}`;
-}
-
-async function dossiersHTML() {
-  const [interventions, appels] = await Promise.all([DB.listInterventions(), DB.listAppels()]);
-  // Cycle de vie de l'appel : les appels ayant déjà produit un RDV ou une fiche
-  // sont reliés puis retirés de la liste active (bloc « Appels »).
-  const appelsEnAttente = appels.filter((a) => !a.rendezvous_id && !a.intervention_id);
-  const order = Object.keys(WORKFLOW_NEXT);
-  const byStatut = {};
-  for (const itv of interventions) {
-    const s = itv.statut_dossier || "a_valider";
-    (byStatut[s] = byStatut[s] || []).push(itv);
-  }
-  const keys = order.filter((k) => byStatut[k]?.length);
-  // ajouter les statuts inconnus
-  for (const k of Object.keys(byStatut)) if (!keys.includes(k)) keys.push(k);
-
-  if (!keys.length && !appelsEnAttente.length) return `<div class="empty-state"><div class="glyph">${ICONS.file}</div><h3>Aucun dossier</h3><p>Les fiches terminées apparaissent ici, classées par statut.</p></div>`;
-
-  // Sections repliées par défaut : seul le titre (avec badge du nombre de
-  // dossiers) est visible ; le clic sur le titre déplie les sous-dossiers.
-  const block = (key, cls, label, items, count) => {
-    if (!count) return "";
-    const open = !!state.dossiersOpen[key];
-    return `
-    <div class="status-block ${open ? "open" : ""}" data-block="${key}">
-      <div class="status-head" data-toggle="${key}" role="button" aria-expanded="${open}">
-        <span class="sw sw-${cls}"></span>
-        <h3>${label}</h3>
-        <span class="n">${count}</span>
-        <span class="chev">${ICONS.chevron}</span>
-      </div>
-      <div class="status-items">${items}</div>
-    </div>`;
-  };
-
-  return block("appels", "appel", "Appels", appelsEnAttente.map(appelHTML).join(""), appelsEnAttente.length)
-    + keys.map((k) => block(k, statutDossierCls(k), statutDossierLabel(k), byStatut[k].map(itemHTML).join(""), byStatut[k].length)).join("");
 }
 
 function appelHTML(a) {
