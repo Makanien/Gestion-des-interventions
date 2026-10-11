@@ -82,6 +82,9 @@ alter table public.interventions add column if not exists type_entretien text no
 alter table public.interventions add column if not exists type_entretien_detail text not null default '';
 alter table public.interventions add column if not exists prochaine_intervention_prevue boolean not null default false;
 alter table public.interventions add column if not exists annee_installation text not null default '';
+-- Fin d'intervention commune (§3.2.14, arb. 6.9) : case « Page ok » — attestation
+-- que toutes les informations obligatoires sont renseignées (contrôle à la validation).
+alter table public.interventions add column if not exists page_ok boolean not null default false;
 
 create index if not exists interventions_statut_dossier_idx on public.interventions(statut_dossier);
 
