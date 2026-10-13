@@ -1,10 +1,12 @@
 # PRD — Application de gestion des fiches d'intervention
 ## Climat Elec (Chazé-sur-Argos)
 
-**Version du document :** 1.27
-**Date :** 09/10/2026
+**Version du document :** 1.28
+**Date :** 13/10/2026
 **Auteur :** Rédigé avec Claude, sur la base des échanges avec le porteur de projet
 
+> **Changelog 1.28 (13/10/2026) :** **simplification du workflow de dossier** — les 9 statuts (Brouillon → … → Clôturée) sont ramenés à **4** : **Brouillon → À valider → À facturer → Terminé** (§3.3.3-§3.3.4). Validation par **Régis ou Delphine** ; renvoi en brouillon avec **motif libre** ; **Terminé** réouvrable par **Régis seul** ; plus d'import de facture ni de fusion fiche + facture (seule la **génération du PDF de la fiche** est conservée) ; US-10 et US-11 abandonnées. Impacts : §1, §2, §3.2.15, §3.3, §3.4, §5.2, §9, §10, §11, §12.
+>
 > **Changelog 1.27 (09/10/2026) :** intégration des **arbitrages du classeur « Application 20261009.xlsx »** (analyse : `documentation/Application 20261009 analyse retours.md`) — « Type d'intervention » à 5 valeurs, page 3/6 Équipement + Descriptif obligatoire (champs équipements obligatoires), fiches Chaudière bois et Air/Air alignées sur les feuilles 09/10 (types, pages 4-5), GWP du fluide rétabli (confirmation client conservée), « Page ok » précisée (complétude à la validation), Tableau de bord (drill-down + tris Nom/CP/Ville, valables pour le technicien dans son périmètre), bouton « + » (« Entretien installation solaire » préparé, l'entrée « Contrat d'entretien annuel » retirée du menu), unités affichées avant le champ de saisie (tous formulaires). Développement : points 15 → 20 de `TACHES_A_FAIRE.md`.
 
 ---
@@ -21,7 +23,7 @@ Climat Elec est une entreprise artisanale spécialisée en géothermie, climatis
 - **(Nouveau — 16/08/2026)** Couvrir la **prise de contact et la planification** (appel client, création de rendez-vous, planning par technicien) avec synchronisation Google Agenda — objectif confirmé par le client, mais dont le contenu précis et la date d'intégration restent à définir (voir §3.2). Ceci lève le non-objectif "Planning / prise de rendez-vous" de la version précédente du PRD.
 
 ### Non-objectifs (explicitement hors périmètre)
-- Génération de devis / factures : réalisée par un **logiciel externe**. L'application ne fait qu'**importer le PDF** produit et l'attacher au dossier (cf. §3.3). La case « devis souhaité » reste une simple indication.
+- Génération de devis / factures : réalisée par un **logiciel externe**. L'application **n'importe aucune facture** (depuis le 13/10/2026) ; seul le PDF de devis peut être attaché au dossier (cf. §3.3). La case « devis souhaité » reste une simple indication.
 - Envoi automatique d'email au client : reporté — l'envoi reste manuel via le partage natif du téléphone.
 - Synchronisation Google Agenda : reportée — fonctionnement à clarifier (cf. §11).
 - Gestion de stock de pièces détachées : seule une base « désignation » de pièces est prévue (cf. §3.3).
@@ -34,7 +36,7 @@ Climat Elec est une entreprise artisanale spécialisée en géothermie, climatis
 |---|---|---|
 | Technicien terrain (Jérémy) | Utilise l'appli sur son téléphone pendant l'intervention, souvent sans réseau | Saisie rapide, fiable, hors ligne ; ne voit que son propre planning et ses propres tâches |
 | Responsable (Régis) | Intervient aussi sur le terrain, mais a aussi besoin d'une vue globale | Vue sur l'ensemble des interventions et du planning de toute l'équipe, avec filtres |
-| **(Nouveau) Secrétaire (Delphine)** | Gère la partie administrative et la facturation | Compte utilisateur à part entière ; valide la génération des factures ; vue équipe comme Régis |
+| **(Nouveau) Secrétaire (Delphine)** | Gère la partie administrative et la facturation | Compte utilisateur à part entière ; valide les fiches et marque les dossiers comme facturés ; vue équipe comme Régis |
 | Client final | Reçoit la fiche | Reçoit un PDF clair et professionnel (envoi manuel par le technicien) |
 
 > **Terminologie des rôles (Supabase / RLS) :** les trois comptes internes correspondent à l'enum `profiles.role` — `responsable` (Régis), `technicien` (Jérémy), `secretaire` (Delphine). Le **responsable** et la **secrétaire** voient toute l'équipe (`is_manager()`), le **technicien** ne voit que ses propres interventions et son planning. Voir `supabase/schema.sql` (fichier maître unique, section RLS par rôle).
@@ -43,7 +45,7 @@ Climat Elec est une entreprise artisanale spécialisée en géothermie, climatis
 
 ## 3. Découpage en versions
 
-> **État d'implémentation (21/08/2026) :** La **V1 (MVP)** et la **V2** sont **implémentées et mergées** (branche `synchro-supabase` fusionnée dans `dev`). La **V3** est **spécifiée, arbitrée et son développement est largement avancé** sur la branche `application-v3` : schéma de données, planning/appels, fiches d'entretien dédiées + CERFA, workflow de dossier avec import PDF, dossier final fusionné, statistiques, brouillon et numérotation sont livrés (détail au **§3.4**). Le détail de ce qui est réellement livré figure au **§3.1** (V2) et au **§3.4** (V3). Les maquettes de documentation (`documentation/Maquettes.html`, maj 05/10/2026) portent désormais un groupe « Refonte 18/09 — à valider » : Tableau de bord en accueil (§3.2.15), fin d'intervention commune (§3.2.14) et fiches d'entretien réalignées (§3.2.11 → §3.2.13).
+> **État d'implémentation (21/08/2026) :** La **V1 (MVP)** et la **V2** sont **implémentées et mergées** (branche `synchro-supabase` fusionnée dans `dev`). La **V3** est **spécifiée, arbitrée et son développement est largement avancé** sur la branche `application-v3` : schéma de données, planning/appels, fiches d'entretien dédiées + CERFA, workflow de dossier (simplifié à 4 statuts le 13/10/2026), statistiques, brouillon et numérotation sont livrés (détail au **§3.4**). Le détail de ce qui est réellement livré figure au **§3.1** (V2) et au **§3.4** (V3). Les maquettes de documentation (`documentation/Maquettes.html`, maj 05/10/2026) portent désormais un groupe « Refonte 18/09 — à valider » : Tableau de bord en accueil (§3.2.15), fin d'intervention commune (§3.2.14) et fiches d'entretien réalignées (§3.2.11 → §3.2.13).
 
 ### V1 — MVP (cible immédiate)
 - **1 seul technicien**, usage mono-appareil.
@@ -61,7 +63,7 @@ Climat Elec est une entreprise artisanale spécialisée en géothermie, climatis
 - Historique des équipements par client (équipement déjà installé, réutilisable à chaque nouvelle visite).
 
 ### V3 — Définition (arbitrée)
-Le contenu de la V3, arbitré le 19/08/2026, est détaillé au **§3.3**. En résumé : prise de contact & planification (sans Google Agenda), fiches d'entretien dédiées + CERFA + contrat d'entretien, workflow validation/facturation avec **import PDF** (le devis/facture reste produit par un logiciel externe), statistiques, mode brouillon et numérotation des documents.
+Le contenu de la V3, arbitré le 19/08/2026, est détaillé au **§3.3**. En résumé : prise de contact & planification (sans Google Agenda), fiches d'entretien dédiées + CERFA + contrat d'entretien, workflow de dossier simplifié en **4 statuts** (Brouillon → À valider → À facturer → Terminé — devis/facture produits par un logiciel externe, aucun import de facture), statistiques, mode brouillon et numérotation des documents.
 
 ### Au-delà de V3 (reporté, non planifié)
 - Synchronisation Google Agenda (US-14) — fonctionnement à clarifier (cf. §11).
@@ -109,7 +111,7 @@ Récapitulatif des changements fonctionnels et techniques effectivement dévelop
 > **Statut : arbitrées le 19/08/2026 → intégrées en V3.** Les éléments ci-dessous documentent les demandes du client (échange du 16/08/2026, fichier Excel `Application.xlsx` + fiches papier d'entretien fournies). Elles sont désormais **intégrées à la V3** (cf. **§3.3**), **à l'exception** de la synchronisation Google Agenda (§3.2.3) qui est **reportée** (fonctionnement à clarifier, cf. §11) et de l'envoi automatique d'email qui reste manuel.
 
 ### 3.2.1 Compte utilisateur Delphine — US-16
-Delphine (secrétaire) aura un **compte utilisateur à part entière**, au même titre que Régis et Jérémy. Elle gère la partie administrative et la facturation, et doit pouvoir **valider la génération des factures**. Côté visualisation (planning, accueil), elle a les mêmes droits que Régis : vue sur toute l'équipe.
+Delphine (secrétaire) aura un **compte utilisateur à part entière**, au même titre que Régis et Jérémy. Elle gère la partie administrative et la facturation, et doit pouvoir **valider les fiches et marquer les dossiers comme facturés**. Côté visualisation (planning, accueil), elle a les mêmes droits que Régis : vue sur toute l'équipe.
 
 ### 3.2.2 Écran d'accueil = Planning — US-17
 L'écran d'accueil de l'application devient le **planning journalier**, avec une ligne par intervenant/type :
@@ -367,7 +369,7 @@ Tension d'alimentation (Absente / Vérifiée / Non vérifiée / Non vérifiable)
 >
 > **Suivi développement :** tâche 13 de `TACHES_A_FAIRE.md` — **implémentée le 10/10/2026** : le Tableau de bord ouvre l'accueil par défaut (1er onglet du bandeau, devant Planning / Tâches / Dossiers conservés à l'identique) ; bloc **« Appels — À traiter »** en tête (appels non reliés, issus de « Enregistrer sans planifier ») ; blocs par statut **en cours** dans l'ordre du workflow (hors clôturées — l'onglet Dossiers reste exhaustif, clôturées comprises) ; **drill-down par statut** : clic sur un groupe → liste des dossiers de ce statut, avec tri **Nom / Code postal / Ville** (défaut « date récente ») et filtres type / intervenant — valables aussi pour le technicien dans son périmètre (règles §3.2.2) ; recherche par client ; sous-titre « N dossiers en cours ». Bloc « Devis en cours » (maquette) livré à titre conservatoire : fiches portant l'indicateur « devis souhaité » encore en cours, affiché seulement si de telles fiches existent — **retrait à arbitrer avec le client** (le workflow §3.3.4 n'a pas d'état « devis »).
 
-- **L'accueil s'ouvre sur un Tableau de bord** (US-13 · US-15) : vue synthèse groupée par **statut du workflow** (§3.3.4 — À valider, À facturer, À vérifier, À envoyer…) plutôt qu'un planning journalier ;
+- **L'accueil s'ouvre sur un Tableau de bord** (US-13 · US-15) : vue synthèse groupée par **statut du workflow** (§3.3.4 — Brouillon, À valider, À facturer, Terminé) plutôt qu'un planning journalier ;
 - **Bloc « Appels — À traiter »** en tête : les appels « Enregistrer sans planifier » (§3.2.5) y arrivent jusqu'à ce qu'un RDV ou une fiche soit créé depuis eux (cycle de vie, §3.2.5) ;
 - **Vue par rôle** : équipe pour Régis/Delphine, propres lignes pour Jérémy (règles §3.2.2 inchangées) ;
 - **Retour 09/10 (arbitré)** : **drill-down par statut** — cliquer sur un groupe de statut ouvre la liste des dossiers de ce statut ; **listes de tri Nom / Code postal / Ville** en plus des tris type/intervenant existants (§3.2.2 / §3.4) ; ces éléments valent **aussi pour le technicien, dans son périmètre** (arbitré 6.12) ;
@@ -398,30 +400,48 @@ Tension d'alimentation (Absente / Vérifiée / Non vérifiée / Non vérifiable)
 - **Mode brouillon** : reprendre une fiche non terminée plus tard — fiche générique + les 3 fiches d'entretien ; brouillon enregistrable à chaque étape du wizard et visible dans l'onglet Tâches (cf. §3.4).
 - **Numérotation** : référence unique séquentielle sur tous les documents (fiches, dossier).
 
-### 3.3.3 Validation & facturation (épopées 3-4-5) — sans génération de documents
-> **Décision clé :** le devis et la facture sont réalisés par un **logiciel externe**. L'application ne fait qu'**importer le PDF** produit (sélecteur de fichiers ou scan caméra) et l'**attacher au dossier**. Elle ne génère ni devis, ni facture chiffrée.
-- **Validation des fiches** (US-05) : Régis valide chaque fiche terminée.
+### 3.3.3 Validation & facturation (épopées 3-4-5) — workflow simplifié en 4 statuts (13/10/2026)
+> **Décision clé (révisée le 13/10/2026) :** le devis et la facture sont réalisés par un **logiciel externe**. L'application **n'importe ni ne fusionne aucune facture** : elle ne suit que l'**état du dossier**. Le PDF de devis peut rester attaché au dossier ; le seul PDF produit par l'application est celui de la **fiche d'intervention/entretien**.
+- **Soumission** : le technicien (ou le créateur) enregistre la fiche en **brouillon**, puis la **soumet pour validation** → « À valider ».
+- **Validation des fiches** (US-05) : **Régis ou Delphine** valident la fiche (→ « À facturer ») ou la **renvoient en brouillon avec un motif libre**.
 - **Devis** (US-06/US-07) : indication « devis nécessaire » + import du PDF de devis, **sans jamais bloquer la facturation**.
-- **Facturation** (US-09/US-10/US-11) : marquage « à facturer » → import du PDF de facture → vérification → fusion avec la fiche pour constituer le dossier final.
-- **Envoi & clôture** (US-12) : **envoi manuel** (partage natif du téléphone) — l'envoi automatique par email est reporté.
-- **Statuts** (US-13) : workflow complet ci-dessous.
+- **Facturation** (US-09) : la facture est faite dans le logiciel externe ; Delphine (ou Régis) clique sur « **Marquer comme facturé** » → « Terminé ». Aucun fichier à importer.
+- **Envoi** (US-12) : **envoi manuel** du PDF de la fiche (partage natif du téléphone), disponible sur les fiches « À facturer » et « Terminé » ; ce n'est plus un statut. L'envoi automatique par email reste reporté.
+- **Réouverture** : un dossier « Terminé » peut être **rouvert par Régis uniquement** (motif libre).
+- **Statuts** (US-13) : workflow à 4 statuts ci-dessous.
 - **Classement automatique par statut** (US-15) : remplace le classement manuel OneDrive (tri/filtres par statut dans l'appli).
 
 ### 3.3.4 Workflow de statuts d'un dossier (US-13)
 ```
-Brouillon → À valider → Validée → À facturer → Facture importée → Facture à vérifier → Facture vérifiée → À envoyer → Clôturée
-                          └──────────────────── (Devis PDF attaché en parallèle, sans blocage) ────────────────────┘
+                 ┌────────────── Renvoyer en brouillon (motif libre) ──────────────┐
+                 ▼                                                                 │
+ BROUILLON ── Soumettre pour validation ──► À VALIDER ──┴── Valider la fiche ──► À FACTURER
+     ▲                                                                              │
+     │                                                                              │ Marquer comme facturé
+     └──── Rouvrir (Régis seul, motif libre) ──── TERMINÉ ◄─────────────────────────┘
+          (Devis PDF attaché en parallèle, sans jamais bloquer le workflow)
 ```
-- **Brouillon** : fiche non terminée, reprise plus tard.
-- **À valider** : fiche terminée, en attente de validation par Régis.
-- **Validée** : fiche complète et correcte.
-- **À facturer** : validée, prête pour la facturation (logiciel externe).
-- **Facture importée** : le PDF de facture produit par le logiciel externe a été attaché au dossier.
-- **Facture à vérifier** : en attente de vérification de la facture par Régis (US-10).
-- **Facture vérifiée** : facture vérifiée et fusionnée avec la fiche (US-11) — dossier final prêt à envoyer.
-- **À envoyer** : dossier complet (fiche + facture), en attente d'envoi au client (US-12).
-- **Clôturée** : envoyée manuellement au client.
-- Le **devis** est un document attaché en parallèle (statut « devis nécessaire » tant qu'il n'est pas importé), sans bloquer la facturation.
+
+| Statut | Signification | Modifiable ? |
+|---|---|---|
+| **Brouillon** | Fiche en cours de saisie ou à corriger (enregistrable à chaque étape du wizard) | Oui — seul statut éditable |
+| **À valider** | Fiche soumise, en attente de contrôle | Non (lecture seule) |
+| **À facturer** | Fiche validée, prête pour la facturation dans le logiciel externe | Non |
+| **Terminé** | Dossier facturé et clos | Non (réouvrable par Régis) |
+
+| De | Vers | Action (bouton) | Qui |
+|---|---|---|---|
+| (création) | Brouillon | « Enregistrer le brouillon » | Tous |
+| Brouillon | À valider | « Soumettre pour validation » | Créateur de la fiche (ou manager) |
+| À valider | Brouillon | « Renvoyer en brouillon » + motif libre | Régis ou Delphine |
+| À valider | À facturer | « Valider la fiche » | Régis ou Delphine |
+| À facturer | Terminé | « Marquer comme facturé » | Delphine ou Régis |
+| Terminé | Brouillon | « Rouvrir » + motif libre | **Régis uniquement** |
+
+- Le **motif** de renvoi/réouverture est un **texte libre** (facultatif), conservé dans `motif_retour` et affiché sur la fiche repassée en brouillon.
+- Le **devis** est un document attaché en parallèle (indicateur « devis nécessaire » tant qu'il n'est pas importé), sans jamais bloquer le workflow.
+- **Anciens statuts supprimés** : Validée, Facture importée, Facture à vérifier, Facture vérifiée, À envoyer, Clôturée. **Correspondance pour la migration** : `validee`, `a_facturer`, `facture_importee`, `facture_a_verifier` → **À facturer** ; `facture_verifiee`, `a_envoyer`, `cloturee` → **Terminé** ; `brouillon` et `a_valider` inchangés. Les PDF de facture déjà importés restent consultables mais ne sont plus alimentés.
+- **Droits (RLS)** : la transition « Rouvrir » est réservée au rôle `responsable` ; les autres transitions de validation/facturation sont ouvertes aux managers (`is_manager()` : responsable et secrétaire). Le technicien ne peut modifier qu'une fiche en brouillon.
 
 ### 3.3.5 Statistiques
 - **Tableau de bord simple** : nombre d'interventions/mois, répartition par type, par technicien, par client.
@@ -429,7 +449,7 @@ Brouillon → À valider → Validée → À facturer → Facture importée → 
 ### 3.3.6 Reporté hors V3 (à recadrer)
 - **Synchronisation Google Agenda** (US-14) : le fonctionnement souhaité n'est pas clair ; reportée (cf. §11).
 - **Envoi automatique d'email** : envoi manuel conservé.
-- **Génération de devis/factures** : faite par un logiciel externe (import PDF uniquement) — pas de chiffrage dans l'appli.
+- **Génération de devis/factures** : faite par un logiciel externe — pas de chiffrage dans l'appli ; **aucun import de facture** (seul le PDF de devis peut être attaché).
 
 ---
 
@@ -465,10 +485,16 @@ Brouillon → À valider → Validée → À facturer → Facture importée → 
 - **Duplication d'une fiche** (US-20) : bouton « Dupliquer » sur le détail (intervention ou entretien), reprise du client et des équipements.
 
 ### Workflow de dossier (US-05 · US-06 · US-08 · US-09 · US-10 · US-11 · US-12 · US-13 · US-15)
-- **Statuts de dossier** (US-13) : Brouillon → À valider → Validée → À facturer → Facture importée → Facture à vérifier → Facture vérifiée → À envoyer → Clôturée, avec **icônes et couleurs dynamiques** par statut (remplace le simple point « fait / en attente ») et boutons de transition proposés selon l'état courant.
-- **Import PDF devis / facture** (US-07 · US-09) : sélecteur de fichiers (ou scan caméra), stockage en base64 dans `documents` (table + bucket privé), **upload du PDF vers le bucket `documents`** (`fichier_url`) tout en conservant le dataURL local pour l'affichage hors ligne, consultation et suppression des documents depuis le détail. Le devis est attaché en parallèle **sans jamais bloquer la facturation**.
-- **Dossier final fusionné** : génération d'un PDF fusionnant la fiche d'intervention et la facture importée (`pdf-lib`, bouton « Générer le dossier final ») ; la transition vers « Facture vérifiée » exige une facture importée et déclenche automatiquement la génération du dossier.
+- **Statuts de dossier** (US-13) : *livré* : 9 statuts (Brouillon → À valider → Validée → À facturer → Facture importée → Facture à vérifier → Facture vérifiée → À envoyer → Clôturée), avec **icônes et couleurs dynamiques** par statut et boutons de transition selon l'état courant. **Remplacé le 13/10/2026 par 4 statuts** (cf. ci-dessous).
+- **Import PDF devis** (US-07) *(l'import de facture, US-09, est supprimé depuis le 13/10/2026)* : sélecteur de fichiers (ou scan caméra), stockage en base64 dans `documents` (table + bucket privé), **upload du PDF vers le bucket `documents`** (`fichier_url`) tout en conservant le dataURL local pour l'affichage hors ligne, consultation et suppression des documents depuis le détail. Le devis est attaché en parallèle **sans jamais bloquer le workflow**.
+- ~~**Dossier final fusionné**~~ *(supprimé le 13/10/2026 — voir « Simplification du workflow de dossier » ci-dessous)* : génération d'un PDF fusionnant la fiche d'intervention et la facture importée (`pdf-lib`).
 - **Brouillon** : sauvegarde d'une fiche non terminée (statut `brouillon`), reprise ultérieure, retour possible en brouillon depuis « À valider ».
+
+### Simplification du workflow de dossier (13/10/2026 — à développer)
+- **Passage de 9 à 4 statuts** : Brouillon → À valider → À facturer → Terminé (§3.3.4). Mise à jour des icônes/couleurs, des boutons de transition par rôle, du Tableau de bord (groupes de statut, drill-down) et des filtres de l'onglet Dossiers.
+- **Retrait** de l'import de facture, de la génération du « dossier final » fusionné (`pdf-lib`, bouton « Générer le dossier final ») et des transitions de vérification. La génération du **PDF de la fiche** (`pdf.js`) est conservée.
+- **Nouvelles actions** : « Renvoyer en brouillon » (motif libre) depuis À valider, « Marquer comme facturé » depuis À facturer, « Rouvrir » depuis Terminé (Régis seul, motif libre).
+- **Migration** (`supabase/schema.sql` + backfill `idb.js`) : `validee`/`a_facturer`/`facture_importee`/`facture_a_verifier` → `a_facturer` ; `facture_verifiee`/`a_envoyer`/`cloturee` → `termine` ; `brouillon` et `a_valider` inchangés. Mise à jour de la contrainte/enum Supabase et incrément de `CACHE_VERSION` dans `sw.js`.
 - **Numérotation** : référence unique `PREFIX-AAAA-NNN` (FIC / ENT / CTR), compteur local synchronisé.
 - **Statistiques** (US transverse) : total, par mois (6 derniers), par type, par technicien, par statut **et par client** (tri décroissant).
 
@@ -651,7 +677,10 @@ RendezVous {
 
 Intervention (extensions V3) {
   + numero: string (référence unique séquentielle)
-  + statut: "brouillon" | "a_valider" | "validee" | "a_facturer" | "facture_importee" | "facture_a_verifier" | "facture_verifiee" | "a_envoyer" | "cloturee"
+  + statut_dossier: "brouillon" | "a_valider" | "a_facturer" | "termine"   (simplifié le 13/10/2026 ; remplace les 9 anciennes valeurs)
+  + motif_retour: text (motif libre saisi lors d'un renvoi en brouillon ou d'une réouverture ; affiché sur la fiche)
+  + valide_par: uuid, valide_le: timestamp (validation par Régis ou Delphine)
+  + facture_par: uuid, facture_le: timestamp (marquage « Facturé »)
   + type_intervention: "sav" | "garantie" | "depannage" | "diagnostic" | "sur_devis"   (élargie 09/10 — orthographe « Diagnostic »)
   + type_entretien (fiches dédiées, clé machine): "air_eau" | "air_air" | "chaudiere" | "solaire"   (solaire : préparé 09/10, données à venir)
   + type_entretien_detail (sous-listes 09/10): air_eau → Aérothermie/Géothermie/Aquathermie · air_air → Mono Split/Multi Split/Gainable · chaudiere → Chaudière Bûches/Chaudière Granulés/Chaudière Déchiquettée (« Pellets » remplacé)
@@ -681,7 +710,7 @@ Piece {  // base pièces : désignation seule pour l'instant
 Document {
   id: uuid
   intervention_id: uuid (dossier)
-  type: "devis" | "facture" | "contrat_entretien"
+  type: "devis" | "contrat_entretien"   ("facture" retiré le 13/10/2026 : plus d'import de facture ; les documents « facture » existants sont à purger ou ignorés, cf. §3.3.4)
   fichier_url (PDF, Supabase Storage)
   numero_externe (numéro du document source)
   created_at, updated_at
@@ -765,7 +794,7 @@ ContratEntretien {
 | 5. Développement V2 | Intégration Supabase, comptes, synchronisation, signature électronique | Terminé (mergé dans `dev`) |
 | 6. Historique équipements par client | Ajout à la fiche équipement | Terminé |
 | 7. Spécification V3 | Cadrage des fonctionnalités V3 (ce PRD, §3.3) | Terminé (19/08/2026) |
-| 8. Développement V3 | Planning/appel, fiches entretien + CERFA + contrat, workflow validation/facturation (import PDF), statistiques, brouillon, numérotation | **En cours (largement livré — branche `application-v3`, cf. §3.4)** |
+| 8. Développement V3 | Planning/appel, fiches entretien + CERFA + contrat, workflow de dossier (4 statuts depuis le 13/10/2026), statistiques, brouillon, numérotation | **En cours (largement livré — branche `application-v3`, cf. §3.4)** |
 | 9. Recadrage Google Agenda | Clarifier le fonctionnement de la synchronisation (reportée hors V3) | À faire |
 | 10. Refonte « 18/09 » (entretiens, fin d'intervention, Tableau de bord) | Validation client des maquettes du 05/10/2026 (groupe « Refonte 18/09 — à valider ») puis développement — cf. §3.2.11 → §3.2.15 | À faire |
 | 11. Retours 09/10 (arbitrés) | Fiche générique (types à 5 valeurs, page 3/6 Équipement + Descriptif), fiches Chaudière bois / Air/Air sur les feuilles 09/10, « Page ok », Tableau de bord (drill-down, tris), bouton « + » (solaire préparé, contrat retiré du menu), unités avant le champ — **arbitrages au §3.2.4 / §3.2.6 / §3.2.11 → §3.2.15, tâches 15 → 20 de `TACHES_A_FAIRE.md`** | À faire |
@@ -805,10 +834,10 @@ Légende de couverture :
 
 | ID | User story | Statut |
 |---|---|---|
-| US-05 | En tant que responsable, je veux recevoir et valider chaque fiche d'intervention terminée, afin de m'assurer qu'elle est complète et correcte avant de lancer la facturation. | 🔵 V3 |
+| US-05 | En tant que responsable **ou secrétaire**, je veux recevoir et valider chaque fiche d'intervention soumise (ou la renvoyer en brouillon avec un motif), afin de m'assurer qu'elle est complète et correcte avant de lancer la facturation. | 🔵 V3 |
 | US-06 | En tant que responsable, je veux indiquer si l'intervention nécessite en plus un devis pour des travaux complémentaires, afin de déclencher sa réalisation **sans jamais bloquer la facturation de l'intervention elle-même**. | 🔵 V3 |
 | US-07 | En tant que responsable, je veux réaliser un devis pour les travaux complémentaires identifiés, afin de le transmettre au client indépendamment de la facturation de l'intervention en cours. *(V3 : devis produit par un logiciel externe, PDF importé et attaché au dossier.)* | 🔵 V3 |
-| US-08 | En tant que responsable, je veux que toute fiche validée parte automatiquement vers la facturation, qu'un devis complémentaire soit généré ou non en parallèle, afin qu'aucune intervention réalisée ne reste facturée en retard à cause d'un devis en attente. | 🔵 V3 |
+| US-08 | En tant que responsable, je veux que toute fiche validée passe automatiquement en « À facturer », qu'un devis complémentaire soit généré ou non en parallèle, afin qu'aucune intervention réalisée ne reste facturée en retard à cause d'un devis en attente. | 🔵 V3 |
 
 > *Rappel important issu de la modélisation : facturation de l'intervention et devis complémentaire sont deux actions **parallèles**, pas deux chemins exclusifs — la facturation ne doit jamais être conditionnée à la présence ou non d'un devis.*
 
@@ -817,24 +846,24 @@ Légende de couverture :
 
 | ID | User story | Statut |
 |---|---|---|
-| US-09 | En tant que secrétaire, je veux créer une facture à partir d'une fiche marquée "à facturer", afin de générer le document à transmettre au client. *(V3 : facture produite par un logiciel externe, PDF importé et attaché au dossier.)* | 🔵 V3 |
-| US-10 | En tant que responsable, je veux vérifier une facture avant son envoi, afin de m'assurer qu'elle correspond bien à l'intervention réalisée. | 🔵 V3 |
-| US-11 | En tant que responsable, je veux fusionner la facture vérifiée avec la fiche d'intervention correspondante, afin de constituer le dossier final complet à envoyer. | 🔵 V3 |
+| US-09 | En tant que secrétaire, je veux marquer comme **facturé** un dossier « à facturer » une fois la facture réalisée dans le logiciel externe, afin de le faire passer en « Terminé ». *(Simplifié le 13/10/2026 : aucun import de facture.)* | 🔵 V3 |
+| US-10 | ~~En tant que responsable, je veux vérifier une facture avant son envoi, afin de m'assurer qu'elle correspond bien à l'intervention réalisée.~~ | ⚫ Abandonnée (13/10/2026 — la facture n'est plus importée ; la vérification se fait dans le logiciel externe) |
+| US-11 | ~~En tant que responsable, je veux fusionner la facture vérifiée avec la fiche d'intervention correspondante, afin de constituer le dossier final complet à envoyer.~~ | ⚫ Abandonnée (13/10/2026 — plus de fusion fiche + facture) |
 
 ### Épopée 5 — Envoi & clôture
 *Acteur principal : Delphine (Secrétaire)*
 
 | ID | User story | Statut |
 |---|---|---|
-| US-12 | En tant que secrétaire, je veux envoyer la facture accompagnée de la fiche d'intervention au client, afin de clôturer le dossier. *(V3 : envoi manuel via le partage natif du téléphone.)* | 🔵 V3 |
+| US-12 | En tant que secrétaire, je veux envoyer la fiche d'intervention (PDF) au client, afin de clôturer le dossier. *(V3 : envoi manuel via le partage natif du téléphone ; l'envoi n'est plus un statut du workflow, depuis le 13/10/2026.)* | 🔵 V3 |
 
 ### Transverses — Statuts & outils
 *Tous acteurs*
 
 | ID | User story | Statut |
 |---|---|---|
-| US-13 | En tant qu'utilisateur (Régis, Delphine ou Jérémy), je veux voir en un coup d'œil le statut d'un dossier (terminée / à facturer / à vérifier / à envoyer), afin de savoir qui doit agir ensuite sans avoir à demander aux autres. | 🔵 V3 |
-| US-15 | En tant qu'utilisateur, je veux que les documents (fiches, devis, factures) soient classés automatiquement selon leur statut, afin de remplacer le classement manuel actuel par dossiers sur OneDrive. | 🔵 V3 |
+| US-13 | En tant qu'utilisateur (Régis, Delphine ou Jérémy), je veux voir en un coup d'œil le statut d'un dossier (brouillon / à valider / à facturer / terminé), afin de savoir qui doit agir ensuite sans avoir à demander aux autres. *(Simplifié le 13/10/2026 : 4 statuts, cf. §3.3.4.)* | 🔵 V3 |
+| US-15 | En tant qu'utilisateur, je veux que les fiches et devis soient classés automatiquement selon leur statut, afin de remplacer le classement manuel actuel par dossiers sur OneDrive. | 🔵 V3 |
 
 ### Récapitulatif de couverture
 
@@ -843,10 +872,10 @@ Légende de couverture :
 | 1. Prise de contact & planification | 3 | 2 en V3 · 1 reportée (US-14) |
 | 2. Intervention terrain | 2 | 2 / 2 couvertes (V1/V2) |
 | 3. Validation & devis | 4 | 4 en V3 |
-| 4. Facturation | 3 | 3 en V3 (import PDF) |
-| 5. Envoi & clôture | 1 | 1 en V3 (envoi manuel) |
+| 4. Facturation | 3 | 1 en V3 (marquage « Facturé ») · 2 abandonnées (US-10, US-11) |
+| 5. Envoi & clôture | 1 | 1 en V3 (envoi manuel du PDF de la fiche) |
 | Transverses | 2 | 2 en V3 |
-| **Total** | **15** | **12 en V3 · 2 couvertes · 1 reportée** |
+| **Total** | **15** | **10 en V3 · 2 couvertes · 1 reportée · 2 abandonnées (US-10, US-11)** |
 
 **Prochaine étape :** ce backlog est désormais **arbitré** (cf. §3.3). Le détail complet (schéma du processus, vue visuelle) est disponible dans le document `Modelisation_interventions_Climat_elec.drawio` ; les nouvelles demandes du 16/08 sont détaillées au §3.2 (US-16 → US-25).
 
@@ -859,7 +888,7 @@ Les points ci-dessous ont été tranchés le 19/08/2026 et intégrés en V3 (cf.
 Points restant ouverts (hors V3) :
 - **Synchronisation Google Agenda (US-14)** — **reportée hors V3** : le fonctionnement souhaité n'est pas clair. À clarifier ultérieurement : calendrier unique vs par technicien, source de vérité (appli vs Google), mapping des champs, gestion des conflits d'édition. **La demande est reposée explicitement au 09/10** (feuille « Général » : création dans l'appli → agenda ; agenda → appli, pour formations, congés…) — le report reste acté, mais le besoin de cadrage est renforcé (point client à venir).
 - **Envoi automatique d'email au client** — reporté : envoi manuel conservé (partage natif).
-- **Génération de devis/factures dans l'application** — non retenue : réalisée par un logiciel externe, l'appli importe le PDF. À reconsidérer éventuellement plus tard.
+- **Génération de devis/factures dans l'application** — non retenue : réalisée par un logiciel externe. Depuis le 13/10/2026, l'application n'importe plus de facture (le dossier passe à « Terminé » par simple marquage « Facturé ») ; seul le PDF de devis peut être attaché au dossier. À reconsidérer éventuellement plus tard.
 - **Extension de la base pièces** — désignation seule pour l'instant ; référence/prix, disponibilité par technicien et import initial restent possibles ultérieurement (porte non fermée).
 - **Refonte de la fiche « Entretien Chaudière bois » (18/09 → 09/10, cf. §3.2.11) — arbitrée le 09/10 (6.2, 6.3)** : types **Bûches / Granulés / Déchiquettée** (« Pellets » remplacé), page 4 « Vérification Chaudière » (mesures spécifiques 09/10), page 5 « Vérification réseau hydraulique » allégée, « Prochaine intervention prévue » **conservée**, CERFA confirmé non applicable.
 - **Refonte de la fiche « Entretien Air/Eau-Sol/Eau » (18/09 → 09/10, cf. §3.2.12) — arbitrée le 09/10 (6.6, 6.7)** : retrait de la « T° d'air extérieur » **confirmé**, « GWP du fluide » **rétabli** (confirmation client conservée au PRD), « Année d'installation » **conservée**, « Descriptif » **ajouté et obligatoire** (hérité de la page 3/6) ; **reste ouvert** : unités des champs sans liste de valeurs (« Charge d'usine », « Valeur anti-gel », « Différence Entrée/Sortie d'air », « Pression d'eau » — saisie libre pour l'instant, 6.8).
@@ -880,6 +909,6 @@ Points restant ouverts (hors V3) :
 - Le PDF généré est visuellement fidèle à la fiche papier actuelle.
 - Aucune perte de données lors du passage de la V1 (local) à la V2 (Supabase).
 - (V3) Les 3 fiches d'entretien dédiées couvrent les types d'équipement avec leur bloc de mesures spécifique, et le CERFA n°15497 tient sur une seule page.
-- (V3) Un dossier est suivi de bout en bout (brouillon → clôturée) avec import PDF du devis/facture produit par le logiciel externe, et génération d'un dossier final fusionné (fiche + facture).
+- (V3) Un dossier est suivi de bout en bout (brouillon → à valider → à facturer → terminé) avec validation par Régis ou Delphine, renvoi en brouillon avec motif libre, et génération du PDF de la fiche (aucune facture n'est importée ni fusionnée dans l'application).
 - (V3) La saisie d'un nouvel appel n'est jamais perdue lors d'une synchronisation automatique ou d'un rechargement de la page (brouillon persistant).
 - (V3) Le classement automatique par statut remplace le classement manuel OneDrive.
