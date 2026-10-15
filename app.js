@@ -34,51 +34,70 @@ const ICONS = {
 };
 
 // ---------------------------------------------------------
-// Statuts de dossier (workflow V3 — US-13)
+// Statuts de dossier — workflow 4 statuts (13/10/2026)
+// BROUILLON → À VALIDER → À FACTURER → TERMINÉ
+// (seul le brouillon est éditable ; voir workflowActions pour les transitions)
 // ---------------------------------------------------------
 const STATUT_DOSSIER = {
   brouillon: { label: "Brouillon", cls: "muted" },
   a_valider: { label: "À valider", cls: "pending" },
-  validee: { label: "Validée", cls: "blue" },
   a_facturer: { label: "À facturer", cls: "blue" },
-  facture_importee: { label: "Facture importée", cls: "violet" },
-  facture_a_verifier: { label: "Facture à vérifier", cls: "orange" },
-  facture_verifiee: { label: "Facture vérifiée", cls: "blue" },
-  a_envoyer: { label: "À envoyer", cls: "orange" },
-  cloturee: { label: "Clôturée", cls: "done" },
+  termine: { label: "Terminé", cls: "done" },
 };
-function statutDossierLabel(s) { return STATUT_DOSSIER[s]?.label || (s || "À valider"); }
-function statutDossierCls(s) { return STATUT_DOSSIER[s]?.cls || "muted"; }
+function statutDossierLabel(s) {
+  s = DB.normalizeStatut(s);
+  return STATUT_DOSSIER[s]?.label || (s || "À valider");
+}
+function statutDossierCls(s) {
+  s = DB.normalizeStatut(s);
+  return STATUT_DOSSIER[s]?.cls || "muted";
+}
+
+// Ordre canonique d'affichage des groupes de statut (Tableau de bord, filtres).
+const STATUT_ORDER = ["brouillon", "a_valider", "a_facturer", "termine"];
 
 // Icône du point de statut dans la liste des dossiers (une par statut de workflow).
 const STATUT_DOSSIER_ICON = {
   brouillon: { icon: "pencil", cls: "pending" },
   a_valider: { icon: "clock", cls: "pending" },
-  validee: { icon: "check", cls: "done" },
   a_facturer: { icon: "file", cls: "blue" },
-  facture_importee: { icon: "down", cls: "violet" },
-  facture_a_verifier: { icon: "search", cls: "orange" },
-  facture_verifiee: { icon: "check", cls: "blue" },
-  a_envoyer: { icon: "upload", cls: "orange" },
-  cloturee: { icon: "check", cls: "done" },
+  termine: { icon: "check", cls: "done" },
 };
 function statutDossierDot(s) {
+  s = DB.normalizeStatut(s);
   const m = STATUT_DOSSIER_ICON[s] || { icon: "clock", cls: "pending" };
   return { svg: ICONS[m.icon] || ICONS.clock, cls: m.cls };
 }
 
-// Transition "suivante" du workflow (actions proposées au détail).
-const WORKFLOW_NEXT = {
-  brouillon: [{ statut: "a_valider", label: "Soumettre pour validation" }],
-  a_valider: [{ statut: "validee", label: "Valider la fiche" }, { statut: "brouillon", label: "Revenir en brouillon" }],
-  validee: [{ statut: "a_facturer", label: "Marquer « à facturer »" }],
-  a_facturer: [{ statut: "facture_importee", label: "Marquer facture importée" }],
-  facture_importee: [{ statut: "facture_a_verifier", label: "Passer à vérification" }],
-  facture_a_verifier: [{ statut: "facture_verifiee", label: "Vérifier et fusionner" }],
-  facture_verifiee: [{ statut: "a_envoyer", label: "Marquer prêt à envoyer" }],
-  a_envoyer: [{ statut: "cloturee", label: "Clôturer (envoyé au client)" }],
-  cloturee: [{ statut: "a_envoyer", label: "Rouvrir (à envoyer)" }],
-};
+// Transitions disponibles du workflow 4 statuts (actions proposées au détail).
+// Renvoie, selon le statut NORMALISÉ de la fiche et le rôle courant, la liste
+// des boutons d'action : { to, label, kind, needsMotif }.
+//   brouillon  → a_valider   Soumettre pour validation   (créateur/tech. affecté ou manager)
+//   a_valider  → a_facturer  Valider la fiche            (manager)
+//   a_valider  → brouillon   Renvoyer en brouillon       (manager, motif libre)
+//   a_facturer → termine     Marquer comme facturé       (manager)
+//   termine    → brouillon   Rouvrir                     (responsable seul, motif libre)
+function workflowActions(itv) {
+  const statut = DB.normalizeStatut(itv?.statut_dossier);
+  switch (statut) {
+    case "brouillon":
+      return [{ to: "a_valider", label: "Soumettre pour validation" }];
+    case "a_valider":
+      if (!canValidate()) return [];
+      return [
+        { to: "a_facturer", label: "Valider la fiche", kind: "primary" },
+        { to: "brouillon", label: "Renvoyer en brouillon", needsMotif: true },
+      ];
+    case "a_facturer":
+      if (!canValidate()) return [];
+      return [{ to: "termine", label: "Marquer comme facturé", kind: "accent" }];
+    case "termine":
+      if (!canReopen()) return [];
+      return [{ to: "brouillon", label: "Rouvrir", needsMotif: true }];
+    default:
+      return [];
+  }
+}
 
 // ---------------------------------------------------------
 // Modèles de fiches d'entretien (US-19) — refonte 18/09 (§3.2.11 / §3.2.12),
@@ -385,6 +404,13 @@ function toast(msg, isError) {
 
 function currentRole() { return state.auth?.profile?.role || "responsable"; }
 function isManager() { return !state.auth || ["responsable", "secretaire", "developpeur"].includes(currentRole()); }
+// Workflow 4 statuts : validation et facturation = managers
+// (responsable / secrétaire / developpeur).
+function canValidate() { return isManager(); }
+// Rouverture d'un dossier Terminé : responsable uniquement
+// (developpeur toléré pour les tests). Hors connexion (mode local sans
+// compte), on conserve le comportement permissif d'isManager().
+function canReopen() { return !state.auth || ["responsable", "developpeur"].includes(currentRole()); }
 
 // Résout le nom d'intervenant (texte) vers l'uuid du profil, pour que la
 // RLS serveur (technicien_id = auth.uid()) laisse le bon technicien
