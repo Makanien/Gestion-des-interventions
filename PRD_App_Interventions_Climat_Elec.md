@@ -490,7 +490,7 @@ Tension d'alimentation (Absente / Vérifiée / Non vérifiée / Non vérifiable)
 - ~~**Dossier final fusionné**~~ *(supprimé le 13/10/2026 — voir « Simplification du workflow de dossier » ci-dessous)* : génération d'un PDF fusionnant la fiche d'intervention et la facture importée (`pdf-lib`).
 - **Brouillon** : sauvegarde d'une fiche non terminée (statut `brouillon`), reprise ultérieure, retour possible en brouillon depuis « À valider ».
 
-### Simplification du workflow de dossier (13/10/2026 — à développer)
+### Simplification du workflow de dossier (13/10/2026 — livrée)
 - **Passage de 9 à 4 statuts** : Brouillon → À valider → À facturer → Terminé (§3.3.4). Mise à jour des icônes/couleurs, des boutons de transition par rôle, du Tableau de bord (groupes de statut, drill-down) et des filtres de l'onglet Dossiers.
 - **Retrait** de l'import de facture, de la génération du « dossier final » fusionné (`pdf-lib`, bouton « Générer le dossier final ») et des transitions de vérification. La génération du **PDF de la fiche** (`pdf.js`) est conservée.
 - **Nouvelles actions** : « Renvoyer en brouillon » (motif libre) depuis À valider, « Marquer comme facturé » depuis À facturer, « Rouvrir » depuis Terminé (Régis seul, motif libre).
@@ -798,6 +798,7 @@ ContratEntretien {
 | 9. Recadrage Google Agenda | Clarifier le fonctionnement de la synchronisation (reportée hors V3) | À faire |
 | 10. Refonte « 18/09 » (entretiens, fin d'intervention, Tableau de bord) | Validation client des maquettes du 05/10/2026 (groupe « Refonte 18/09 — à valider ») puis développement — cf. §3.2.11 → §3.2.15 | À faire |
 | 11. Retours 09/10 (arbitrés) | Fiche générique (types à 5 valeurs, page 3/6 Équipement + Descriptif), fiches Chaudière bois / Air/Air sur les feuilles 09/10, « Page ok », Tableau de bord (drill-down, tris), bouton « + » (solaire préparé, contrat retiré du menu), unités avant le champ — **arbitrages au §3.2.4 / §3.2.6 / §3.2.11 → §3.2.15, tâches 15 → 20 de `TACHES_A_FAIRE.md`** | À faire |
+| 12. Simplification du workflow de dossier | 9 → 4 statuts (Brouillon → À valider → À facturer → Terminé), renvoi/rouverture avec motif libre, traçabilité `valide_*`/`facture_*`, fin de l'import de facture et du « dossier final », migration serveur + client — **cf. §3.3.3 / §3.3.4, tâche 22 de `TACHES_A_FAIRE.md`** | Terminé (13/10/2026) |
 
 > Le contenu de la V3 est **arbitré** (cf. §3.3) et son développement est **largement avancé** sur la branche `application-v3` (cf. §3.4) ; les seuls points reportés sont la synchronisation Google Agenda (US-14) et l'envoi automatique d'email.
 
