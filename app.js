@@ -2698,7 +2698,7 @@ async function importDocument(interventionId, type, inputEl) {
     } catch (e) { console.warn("Upload document échoué", e); }
   }
   await DB.addDocument(interventionId, doc);
-  toast(type === "devis" ? "Devis importé" : "Facture importée");
+  toast(type === "devis" ? "Devis importé" : "Document importé");
   await renderDetail(interventionId);
 }
 
@@ -2986,7 +2986,6 @@ document.addEventListener("click", async (e) => {
     await renderDetail(id);
   }
   else if (action === "import-devis") { $("#doc-devis-input").click(); }
-  else if (action === "import-facture") { $("#doc-input").click(); }
   else if (action === "open-doc") { openDocument(nav.dataset.id); }
   else if (action === "del-doc") {
     if (confirm("Supprimer ce document ?")) { await DB.deleteDocument(nav.dataset.id); await renderDetail(state.draft?.id || location.hash.split("/")[2]); }
