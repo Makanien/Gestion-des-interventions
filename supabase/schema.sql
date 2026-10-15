@@ -77,7 +77,7 @@ create index if not exists interventions_date_idx on public.interventions(date);
 
 -- Colonnes V3 (idempotent pour les bases déjà migrées)
 alter table public.interventions add column if not exists numero text not null default '';
-alter table public.interventions add column if not exists statut_dossier text not null default 'a_valider';
+alter table public.interventions add column if not exists statut_dossier text not null default 'brouillon';
 alter table public.interventions add column if not exists type_entretien text not null default '';
 alter table public.interventions add column if not exists type_entretien_detail text not null default '';
 alter table public.interventions add column if not exists prochaine_intervention_prevue boolean not null default false;
@@ -87,6 +87,178 @@ alter table public.interventions add column if not exists annee_installation tex
 alter table public.interventions add column if not exists page_ok boolean not null default false;
 
 create index if not exists interventions_statut_dossier_idx on public.interventions(statut_dossier);
+
+-- ---------------------------------------------------------
+-- 2bis. WORKFLOW 4 STATUTS (13/10/2026)
+-- Brouillon → À valider → À facturer → Terminé.
+-- 6 transitions autorisées (contrôlées par trigger, cf. infra) :
+--   (création) → brouillon          créateur/technicien affecté ou manager
+--   brouillon  → a_valider          créateur/technicien affecté ou manager (soumission)
+--   a_valider  → brouillon          manager (renvoi + motif libre)
+--   a_valider  → a_facturer         manager (validation de la fiche)
+--   a_facturer → termine            manager (marquage facturé)
+--   termine    → brouillon          responsable uniquement (rouverture + motif libre)
+-- Les anciens statuts V3 sont normalisés à l'écriture :
+--   validee, facture_importee, facture_a_verifier → a_facturer
+--   facture_verifiee, a_envoyer, cloturee         → termine
+-- Bloc IDEMPOTENT : relançable sans erreur ni effet de bord.
+-- ---------------------------------------------------------
+
+-- P1.1 — Colonnes de traçabilité ( même type que created_by, uuid )
+alter table public.interventions add column if not exists motif_retour text;
+alter table public.interventions add column if not exists valide_par  uuid;
+alter table public.interventions add column if not exists valide_le   timestamptz;
+alter table public.interventions add column if not exists facture_par uuid;
+alter table public.interventions add column if not exists facture_le  timestamptz;
+
+-- Nouveaux dossiers démarrent toujours en brouillon (§0 du plan d'action) ;
+-- `set default` est idempotent et s'applique aussi aux bases déjà migrées.
+alter table public.interventions alter column statut_dossier set default 'brouillon';
+
+-- P1.2 — Fonction de normalisation (réutilisée par le trigger et le backfill)
+create or replace function public.normalize_statut_dossier(s text)
+returns text
+language sql
+immutable
+as $$
+  select case s
+    when 'validee'            then 'a_facturer'
+    when 'facture_importee'   then 'a_facturer'
+    when 'facture_a_verifier' then 'a_facturer'
+    when 'facture_verifiee'   then 'termine'
+    when 'a_envoyer'          then 'termine'
+    when 'cloturee'           then 'termine'
+    else s
+  end
+$$;
+
+-- Wrapper plpgsql requis : les fonctions `language sql` ne peuvent pas
+-- servir de fonction de trigger (pas d'accès à TG_NEW).
+create or replace function public.normalize_statut_dossier_trigger()
+returns trigger
+language plpgsql
+as $$
+begin
+  new.statut_dossier = public.normalize_statut_dossier(new.statut_dossier);
+  return new;
+end;
+$$;
+
+-- P1.3 — Trigger de normalisation AVANT INSERT OR UPDATE.
+-- Nommé `interventions_10_normalize_statut` : les triggers d'une même
+-- table s'exécutent par ordre alphabétique, il passe donc AVANT le
+-- trigger de contrôle `interventions_20_enforce_statut`.
+drop trigger if exists interventions_10_normalize_statut on public.interventions;
+create trigger interventions_10_normalize_statut
+  before insert or update on public.interventions
+  for each row execute function public.normalize_statut_dossier_trigger();
+
+-- P1.4 — Backfill idempotent des anciennes valeurs (AVANT la contrainte CHECK).
+-- Le trigger `updated_at` existant fera re-télécharger ces lignes aux clients :
+-- comportement souhaité.
+update public.interventions
+   set statut_dossier = public.normalize_statut_dossier(statut_dossier)
+ where statut_dossier in ('validee','facture_importee','facture_a_verifier',
+                          'facture_verifiee','a_envoyer','cloturee');
+
+-- P1.5 — Contrainte CHECK, APRES le backfill (sinon les anciennes valeurs
+-- bloqueraient la création de la contrainte sur une base non migrée).
+alter table public.interventions drop constraint if exists interventions_statut_dossier_check;
+alter table public.interventions add constraint interventions_statut_dossier_check
+  check (statut_dossier in ('brouillon','a_valider','a_facturer','termine'));
+
+-- P1.6 — Contrôle des transitions autorisées (BEFORE UPDATE).
+-- `security definer` + search_path figé (pratique S4 de la revue) pour
+-- appeler is_manager()/current_role() sans crainte du search_path.
+create or replace function public.enforce_statut_dossier_workflow()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  -- SQL Editor / migrations / service_role : pas de session, pas de contrôle.
+  if auth.uid() is null then
+    return new;
+  end if;
+
+  -- Les upserts de synchro renvoient la ligne entière : si le statut ne
+  -- change pas, ce n'est pas une transition, on ne contrôle rien.
+  if new.statut_dossier is not distinct from old.statut_dossier then
+    return new;
+  end if;
+
+  -- Horodatage serveur : validation (a_valider → a_facturer).
+  if old.statut_dossier = 'a_valider' and new.statut_dossier = 'a_facturer' then
+    if not public.is_manager() then
+      raise exception 'Transition de statut non autorisée : % → % (rôle %)',
+        old.statut_dossier, new.statut_dossier, public.current_role()
+        using errcode = '42501';
+    end if;
+    new.valide_par = auth.uid();
+    new.valide_le  = now();
+    return new;
+  end if;
+
+  -- Horodatage serveur : facturation (a_facturer → termine).
+  if old.statut_dossier = 'a_facturer' and new.statut_dossier = 'termine' then
+    if not public.is_manager() then
+      raise exception 'Transition de statut non autorisée : % → % (rôle %)',
+        old.statut_dossier, new.statut_dossier, public.current_role()
+        using errcode = '42501';
+    end if;
+    new.facture_par = auth.uid();
+    new.facture_le  = now();
+    return new;
+  end if;
+
+  -- Retour au brouillon : renvoi (depuis a_valider, manager) ou rouverture
+  -- (depuis termine, responsable uniquement — developpeur toléré pour tests).
+  if new.statut_dossier = 'brouillon' then
+    if old.statut_dossier = 'a_valider' and not public.is_manager() then
+      raise exception 'Transition de statut non autorisée : % → % (rôle %)',
+        old.statut_dossier, new.statut_dossier, public.current_role()
+        using errcode = '42501';
+    elsif old.statut_dossier = 'termine'
+      and public.current_role() not in ('responsable', 'developpeur') then
+      raise exception 'Transition de statut non autorisée : % → % (rôle %)',
+        old.statut_dossier, new.statut_dossier, public.current_role()
+        using errcode = '42501';
+    elsif old.statut_dossier not in ('a_valider', 'termine') then
+      raise exception 'Transition de statut non autorisée : % → % (rôle %)',
+        old.statut_dossier, new.statut_dossier, public.current_role()
+        using errcode = '42501';
+    end if;
+    new.valide_par  = null;
+    new.valide_le   = null;
+    new.facture_par = null;
+    new.facture_le  = null;
+    return new;
+  end if;
+
+  -- Soumission (brouillon → a_valider) : créateur, technicien affecté ou manager.
+  if old.statut_dossier = 'brouillon' and new.statut_dossier = 'a_valider' then
+    if not (old.created_by = auth.uid()
+            or old.technicien_id = auth.uid()
+            or public.is_manager()) then
+      raise exception 'Transition de statut non autorisée : % → % (rôle %)',
+        old.statut_dossier, new.statut_dossier, public.current_role()
+        using errcode = '42501';
+    end if;
+    return new;
+  end if;
+
+  -- Toute autre transition est refusée.
+  raise exception 'Transition de statut non autorisée : % → % (rôle %)',
+    old.statut_dossier, new.statut_dossier, public.current_role()
+    using errcode = '42501';
+end;
+$$;
+
+drop trigger if exists interventions_20_enforce_statut on public.interventions;
+create trigger interventions_20_enforce_statut
+  before update on public.interventions
+  for each row execute function public.enforce_statut_dossier_workflow();
 
 -- ---------------------------------------------------------
 -- 3. TABLE equipements (historique réutilisable par client)
@@ -257,7 +429,7 @@ create index if not exists pieces_designation_idx on public.pieces(designation);
 create table if not exists public.documents (
   id              uuid primary key default uuid_generate_v4(),
   intervention_id uuid references public.interventions(id) on delete cascade,
-  type            text not null default '', -- 'devis' | 'facture' | 'contrat_entretien'
+  type            text not null default '', -- 'devis' | 'contrat_entretien' — 'facture' obsolète (workflow 4 statuts), lignes existantes conservées
   nom             text not null default '',
   data_url        text not null default '',   -- PDF en base64 (offline-first)
   fichier_url     text not null default '',   -- URL Storage si uploadé
