@@ -57,6 +57,12 @@ async function pullChanges() {
 }
 
 async function applyRemote(store, remote) {
+  // Workflow 4 statuts : normalise un éventuel ancien statut au pull/Realtime
+  // (le serveur est normalement déjà migré par le bloc SQL P1 ; garde-fou
+  // pour compatibilité avec des écritures hors ligne en retard).
+  if (store === "interventions" && remote?.statut_dossier) {
+    remote = { ...remote, statut_dossier: DB.normalizeStatut(remote.statut_dossier) };
+  }
   const local = await DB.getRaw(store, remote.id);
   const isDeleted = !!remote.deleted_at;
 
@@ -141,9 +147,41 @@ async function uploadPendingSignatures() {
 }
 
 // ---------------- Push : envoie les changements locaux ----------------
-// Ne retire de la file que les éléments réellement envoyés : si le réseau
-// coupe en plein push, le reste est remis en file pour une tentative suivante
-// (au lieu d'être perdu jusqu'au prochain sign-in).
+// Workflow 4 statuts (P2.6) : détection d'un refus de transition par le
+// trigger serveur (errcode 42501 / HTTP 403). Restreint au store
+// `interventions` : sur les autres tables, 42501 reste un simple échec RLS
+// traité par le chemin de retry normal.
+function isTransitionRefusee(store, err) {
+  if (!err || store !== "interventions") return false;
+  const msg = err.message || "";
+  return (
+    err.code === "42501" ||
+    err.status === 403 ||
+    msg.includes("Transition de statut non autorisée")
+  );
+}
+
+// Ré-aligne une ligne locale sur le serveur après refus : la modification
+// locale entrante a été rejetée, la version serveur fait foi (même si son
+// `updated_at` est antérieur à l'horloge locale). Pull ciblé de LA ligne via
+// `Supabase.get` — un pull générique (`pullChanges`) sauterait la ligne :
+// non pending mais plus récente localement, elle serait écartée par la règle
+// « dernière écriture gagne ».
+async function realignAfterRefus(store, id) {
+  try {
+    if (!Supabase.configured() || !navigator.onLine) return;
+    const remote = await Supabase.get(store, id);
+    if (!remote) return;
+    if (remote.statut_dossier) remote.statut_dossier = DB.normalizeStatut(remote.statut_dossier);
+    const local = await DB.getRaw(store, id);
+    if (local) await DB.putRaw(store, mergeRemote(store, local, remote));
+    // Rafraîchit l'écran courant (la fiche ré-alignée peut y être affichée).
+    if (typeof route === "function") await route();
+  } catch (e) {
+    console.warn("Réalignement après refus échoué", e);
+  }
+}
+
 async function pushChanges() {
   if (!Supabase.configured()) return;
   if (!navigator.onLine) return;
@@ -179,6 +217,17 @@ async function pushChanges() {
         }
       }
     } catch (err) {
+      // Workflow 4 statuts (P2.6) : transition refusée par le serveur
+      // (42501 — ex. technicien hors ligne dont l'état local est périmé).
+      // On ne boucle PAS en retry : on retire l'élément de la file (pas de
+      // remise dans `pending`), on prévient l'utilisateur et on ré-aligne la
+      // ligne locale sur la version serveur (qui fait foi).
+      if (isTransitionRefusee(item.store, err)) {
+        console.warn(`Changement de statut refusé — ${item.store}/${item.id} : ${err?.message || err}`);
+        toast("Changement de statut refusé — fiche resynchronisée", true);
+        realignAfterRefus(item.store, item.id);
+        continue;
+      }
       // Un échec isolé (réseau transitoire, RLS, contrainte, payload trop gros…)
       // ne bloque plus le reste de la file : on remet SEULEMENT cet élément en
       // file et on poursuit. Auparavant, un seul élément « empoisonné » gelait
@@ -232,6 +281,16 @@ function cleanRow(store, row) {
   }
   if (store === "interventions" && (out.statut_dossier === null || out.statut_dossier === undefined)) {
     out.statut_dossier = "a_valider";
+  }
+  // Workflow 4 statuts : normalise un ancien statut avant le push. Des
+  // téléphones équipés de l'ancien service worker ou des données hors ligne
+  // peuvent encore porter des statuts V3 ; sans normalisation, la contrainte
+  // CHECK serveur bloquerait l'upsert complet de la ligne.
+  // NB : les colonnes de traçabilité ajoutées au workflow (motif_retour,
+  // valide_par/valide_le, facture_par/facture_le) NE SONT PAS retirées —
+  // elles doivent partir vers Supabase.
+  if (store === "interventions") {
+    out.statut_dossier = DB.normalizeStatut(out.statut_dossier);
   }
   // D4 : `temps_intervention` (calculé à partir des heures) est une colonne
   // text not null : les lignes antérieures au calcul n'ont pas le champ.
