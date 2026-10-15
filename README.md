@@ -66,10 +66,10 @@ plein écran comme une application native, **même sans connexion** après la pr
 Depuis ce dossier, avec Python déjà installé :
 
 ```bash
-python3 -m http.server 8080
+python3 -m http.server 3000
 ```
 
-Puis ouvrir `http://localhost:8080` dans le navigateur (le mode PWA/offline fonctionne
+Puis ouvrir `http://localhost:3000` dans le navigateur (le mode PWA/offline fonctionne
 aussi en `localhost`, c'est une exception acceptée par les navigateurs).
 
 ## Fonctionnement
