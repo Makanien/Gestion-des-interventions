@@ -22,7 +22,9 @@ function initSupabase() {
         persistSession: true,
         autoRefreshToken: true,
         detectSessionInUrl: true,
-        storageKey: "climatelec-auth",
+        // Clé de stockage distincte par environnement pour éviter que la
+        // session de dev (localhost) ne se propage à la base de prod.
+        storageKey: "climatelec-auth-" + (cfg.env || "production"),
       },
     });
   }
