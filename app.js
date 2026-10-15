@@ -674,7 +674,7 @@ async function renderHome() {
   const [interventions, rendezvous] = await Promise.all([DB.listInterventions(), DB.listRendezvous()]);
   // Sous-titre Tableau de bord (maquette : « Accueil · N dossiers en cours ») —
   // hors dossiers clôturés, dans le périmètre du rôle connecté.
-  const enCours = scopeInterventions(interventions).filter((i) => (i.statut_dossier || "a_valider") !== "cloturee").length;
+  const enCours = scopeInterventions(interventions).filter((i) => (DB.normalizeStatut(i.statut_dossier) || "a_valider") !== "termine").length;
   const subtitle = enCours ? `${todayLabel()} · ${enCours} dossier${enCours > 1 ? "s" : ""} en cours` : todayLabel();
   const tabs = [
     { id: "dashboard", label: "Tableau de bord" },
@@ -909,20 +909,32 @@ async function dashboardHTML() {
     .sort((a, b) => (b.created_at || "").localeCompare(a.created_at || ""));
 
   // Dossiers « en cours » (hors clôturées)
-  let dossiers = scopeInterventions(interventions).filter((i) => (i.statut_dossier || "a_valider") !== "cloturee");
+  let dossiers = scopeInterventions(interventions).filter((i) => (DB.normalizeStatut(i.statut_dossier) || "a_valider") !== "termine");
   if (f.type) dossiers = dossiers.filter((i) => matchesType(i, f.type));
   if (f.intervenant) dossiers = dossiers.filter((i) => matchesIntervenant(i, f.intervenant));
   if (q) dossiers = dossiers.filter((i) => (i.client?.nom || "").toLowerCase().includes(q));
   const dossiersDevis = dossiers.filter((i) => i.devis_souhaite);
 
+  // Workflow 4 statuts (P5.4) : les dossiers « Terminé » sont masqués
+  // par défaut mais restent accessibles — groupe replié en fin de
+  // Tableau de bord, recherche et fiche client.
+  let dossiersTermine = scopeInterventions(interventions).filter((i) => (DB.normalizeStatut(i.statut_dossier) || "a_valider") === "termine");
+  if (f.type) dossiersTermine = dossiersTermine.filter((i) => matchesType(i, f.type));
+  if (f.intervenant) dossiersTermine = dossiersTermine.filter((i) => matchesIntervenant(i, f.intervenant));
+  if (q) dossiersTermine = dossiersTermine.filter((i) => (i.client?.nom || "").toLowerCase().includes(q));
+
   // Groupes par statut, dans l'ordre du workflow (hors clôturées) ; le bloc
   // « Devis en cours » est inséré après « À valider » (position de la maquette).
   const byStatut = {};
   for (const itv of dossiers) {
-    const s = itv.statut_dossier || "a_valider";
+    const s = DB.normalizeStatut(itv.statut_dossier) || "a_valider";
     (byStatut[s] = byStatut[s] || []).push(itv);
   }
-  const groups = Object.keys(WORKFLOW_NEXT).filter((s) => s !== "cloturee" && byStatut[s]?.length)
+  // Workflow 4 statuts : ordre canonique des groupes (brouillon, a_valider,
+  // a_facturer) — les « Terminé » sont hors des groupes « en cours » mais
+  // restent accessibles en fin de Tableau de bord (groupe replié), par la
+  // recherche, et depuis la fiche client.
+  const groups = STATUT_ORDER.filter((s) => s !== "termine" && byStatut[s]?.length)
     .map((s) => ({ key: s, cls: statutDossierCls(s), label: statutDossierLabel(s), items: sortDossiersPar(byStatut[s], state.dashSort) }));
   if (dossiersDevis.length) {
     const i = groups.findIndex((g) => g.key === "a_valider");
@@ -966,7 +978,8 @@ async function dashboardHTML() {
   };
 
   const body = block("appels", "appel", "Appels — À traiter", appelsATraiter.map(appelHTML).join(""), appelsATraiter.length)
-    + groups.map((g) => block(g.key, g.cls, g.label, g.items.map(itemHTML).join(""), g.items.length)).join("");
+    + groups.map((g) => block(g.key, g.cls, g.label, g.items.map(itemHTML).join(""), g.items.length)).join("")
+    + block("termine", "done", "Terminé", sortDossiersPar(dossiersTermine, state.dashSort).map(itemHTML).join(""), dossiersTermine.length);
   const filtered = !!(q || f.type || f.intervenant);
 
   return `<div class="search-wrap">${ICONS.search}<input id="home-search" type="text" placeholder="Rechercher un client…" value="${esc(state.homeSearch)}" /></div>
@@ -1401,7 +1414,7 @@ async function renderRdv(id) {
       </div>
       <button class="btn btn-accent" id="btn-save-rdv" style="margin-top:14px;">${ICONS.check} ${isEdit ? "Enregistrer les modifications" : "Enregistrer le rendez-vous"}</button>
       ${isEdit ? (ficheLiee
-        ? `<button class="btn btn-primary" data-nav="rdv-open-intervention" data-id="${ficheLiee.id}" style="margin-top:9px;">${ICONS.file} ${ficheLiee.statut_dossier === "brouillon" ? "Reprendre la fiche" : "Voir la fiche"}</button>`
+        ? `<button class="btn btn-primary" data-nav="rdv-open-intervention" data-id="${ficheLiee.id}" style="margin-top:9px;">${ICONS.file} ${DB.normalizeStatut(ficheLiee.statut_dossier) === "brouillon" ? "Reprendre la fiche" : "Voir la fiche"}</button>`
         : `<button class="btn btn-primary" data-nav="rdv-intervention" data-id="${d.id}" style="margin-top:9px;">${ICONS.wrench} Créer l'intervention →</button>`) : ""}
       ${lienAppel ? `<button class="btn btn-ghost" data-nav="rdv-unlink" data-id="${d.id}" style="margin-top:9px;">Détacher de l'appel d'origine</button>` : ""}
     </main>
@@ -3007,7 +3020,7 @@ document.addEventListener("click", async (e) => {
   else if (action === "rdv-intervention") await rdvToIntervention(nav.dataset.id);
   else if (action === "rdv-open-intervention") {
     const itv = await DB.getRaw("interventions", nav.dataset.id);
-    if (itv && !itv._deleted && itv.statut_dossier === "brouillon") goReplace(`#/edit/${nav.dataset.id}`);
+    if (itv && !itv._deleted && DB.normalizeStatut(itv.statut_dossier) === "brouillon") goReplace(`#/edit/${nav.dataset.id}`);
     else go(`#/detail/${nav.dataset.id}`);
   }
   else if (action === "rdv-unlink") {
