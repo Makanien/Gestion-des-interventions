@@ -466,6 +466,7 @@ function emptyDraft(type) {
     temps_intervention: "",
     statut: type === "intervention" ? "a_prevoir" : "terminee",
     statut_dossier: null,
+    motif_retour: "", // workflow 4 statuts : préservé tant que le dossier reste brouillon
     numero: null,
     annee_installation: "",
     equipements: [],
@@ -511,6 +512,7 @@ async function loadDraftFromIntervention(id) {
     temps_intervention: itv.temps_intervention || "",
     statut: itv.statut || "a_prevoir",
     statut_dossier: itv.statut_dossier || null,
+    motif_retour: itv.motif_retour || "",
     numero: itv.numero || null,
     annee_installation: itv.annee_installation || "",
     equipements: (itv.equipements || []).map((e) => ({ ...e })),
@@ -566,6 +568,16 @@ async function route() {
     state.step = parts[2] ? parseInt(parts[2], 10) : 1;
     renderWizard();
   } else if (parts[0] === "edit" && parts[1]) {
+    // Workflow 4 statuts : seul un brouillon peut être modifié. Garde sur la
+    // route (accès direct par URL) — redirection vers le détail + message.
+    const editTarget = await DB.getIntervention(parts[1]);
+    const editStatut = DB.normalizeStatut(editTarget?.statut_dossier);
+    if (editTarget && editStatut && editStatut !== "brouillon") {
+      toast("Seul un brouillon peut être modifié", true);
+      goReplace(`#/detail/${parts[1]}`);
+      return;
+    }
+    await loadDraftFromIntervention(parts[1]);
     await loadDraftFromIntervention(parts[1]);
     if (state.draftType === "intervention") goReplace(`#/new/${state.step || 1}`);
     else goReplace(`#/entretien/${state.draftType}/${state.step || 1}`);
@@ -1565,6 +1577,7 @@ async function renderWizard() {
       ${stepsBarHTML(state.step, steps.length)}
     </div>
     <div class="step-title">
+      ${state.draft?.motif_retour && (!state.draft.statut_dossier || state.draft.statut_dossier === "brouillon") ? `<div class="banner-motif" style="background:var(--ce-pending-bg);color:var(--ce-pending);border-radius:var(--ce-radius-sm);padding:10px 12px;font-size:13px;margin-top:8px;">Renvoyé : ${esc(state.draft.motif_retour)}</div>` : ""}
       <div class="step-eyebrow">Étape ${state.step} / ${steps.length}</div>
       <h2>${step.title}</h2>
     </div>
@@ -2429,8 +2442,12 @@ async function finishWizard() {
     }
   }
 
-  // Un brouillon finalisé repart en attente de validation.
-  if (!d.statut_dossier || d.statut_dossier === "brouillon") d.statut_dossier = "a_valider";
+  // Un brouillon finalisé repart en attente de validation (motif de renvoi
+  // effacé à la soumission).
+  if (!d.statut_dossier || d.statut_dossier === "brouillon") {
+    d.statut_dossier = "a_valider";
+    d.motif_retour = "";
+  }
 
   const itv = { ...d };
   itv.client = { nom: savedClient.nom, ville: savedClient.ville };
@@ -2480,8 +2497,11 @@ async function renderDetail(id) {
   const client = itv.client_id ? await DB.getClient(itv.client_id) : itv.client;
   const meta = itv.type_entretien ? ENTRETIEN_META[itv.type_entretien] : null;
   const label = meta ? meta.label : (itv.type_intervention || "-");
-  const hasFacture = (itv.documents || []).some((d) => d.type === "facture" && d.data_url);
-  const dossierPret = ["facture_verifiee", "a_envoyer", "cloturee"].includes(itv.statut_dossier);
+  // Workflow 4 statuts : seul un brouillon est modifiable (les fiches de
+  // l'ancien workflow sans statut conservent leur éditabilité).
+  const statutNorm = DB.normalizeStatut(itv.statut_dossier);
+  const canEditItv = !statutNorm || statutNorm === "brouillon";
+  const fmtStampFull = (iso) => iso ? (new Date(iso).toLocaleString("fr-FR", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })) : "";
 
   setApp(`
     <div class="topbar">
@@ -2490,7 +2510,7 @@ async function renderDetail(id) {
         <div><h1>${esc(client?.nom || "Détail")}</h1><div class="subtitle">${esc(label)}</div></div>
         <div class="topbar-actions">
           <button class="icon-btn" data-nav="duplicate" data-id="${itv.id}" title="Dupliquer">${ICONS.copy}</button>
-          <button class="icon-btn" data-nav="edit" data-id="${itv.id}" title="Modifier">${ICONS.pencil}</button>
+          ${canEditItv ? `<button class="icon-btn" data-nav="edit" data-id="${itv.id}" title="Modifier">${ICONS.pencil}</button>` : ""}
           <button class="icon-btn" data-nav="delete" data-id="${itv.id}" title="Supprimer">${ICONS.trash}</button>
         </div>
       </div>
@@ -2505,6 +2525,7 @@ async function renderDetail(id) {
           ${itv.prochaine_intervention_prevue ? `<span class="tag">Prochaine intervention prévue</span>` : ""}
           ${itv.page_ok ? `<span class="tag">Page ok</span>` : ""}
         </div>
+        ${itv.motif_retour ? `<div class="banner-motif" style="margin-top:10px;background:var(--ce-pending-bg);color:var(--ce-pending);border-radius:var(--ce-radius-sm);padding:10px 12px;font-size:13px;">Renvoyé : ${esc(itv.motif_retour)}</div>` : ""}
       </div>
 
       <div class="section-label">Client</div>
@@ -2521,6 +2542,10 @@ async function renderDetail(id) {
         ${itv.annee_installation ? `<div class="kv"><div class="k">Année install.</div><div class="v">${esc(itv.annee_installation)}</div></div>` : ""}
         <div class="kv"><div class="k">Horaires</div><div class="v">${esc(itv.heure_arrivee || "-")} → ${esc(itv.heure_depart || "-")}</div></div>
         <div class="kv"><div class="k">Forfait déplacement</div><div class="v">${esc(itv.forfait_deplacement || "-")}</div></div>
+        ${(itv.valide_le || itv.facture_le) ? `<div class="kv"><div class="k">Traçabilité</div><div class="v">${[
+          itv.valide_le ? `Validée le ${fmtStampFull(itv.valide_le)}${itv.valide_par && resolveTechFullName(itv.valide_par) ? ` par ${esc(resolveTechFullName(itv.valide_par))}` : ""}` : "",
+          itv.facture_le ? `Facturée le ${fmtStampFull(itv.facture_le)}${itv.facture_par && resolveTechFullName(itv.facture_par) ? ` par ${esc(resolveTechFullName(itv.facture_par))}` : ""}` : "",
+        ].filter(Boolean).join(" · ")}</div></div>` : ""}
       </div>
 
       ${itv.equipements?.length ? `
@@ -2576,11 +2601,9 @@ async function renderDetail(id) {
 
       <div style="margin-top:22px;">
         <button class="btn btn-accent" id="btn-pdf">${ICONS.share} Générer et partager le PDF</button>
-        ${hasFacture && dossierPret ? `<button class="btn btn-primary" id="btn-dossier" style="margin-top:9px;width:100%;">${ICONS.file} Générer le dossier final (fiche + facture)</button>` : ""}
       </div>
     </main>
     <div class="toast" id="toast"></div>
-    <input type="file" id="doc-input" accept="application/pdf" style="display:none;" />
     <input type="file" id="doc-devis-input" accept="application/pdf" style="display:none;" />
   `);
 
@@ -2593,23 +2616,14 @@ async function renderDetail(id) {
     finally { btn.disabled = false; btn.innerHTML = `${ICONS.share} Générer et partager le PDF`; }
   });
 
-  const btnDossier = $("#btn-dossier");
-  if (btnDossier) btnDossier.addEventListener("click", async (e) => {
-    const btn = e.currentTarget;
-    btn.disabled = true;
-    btn.innerHTML = `${ICONS.file} Génération du dossier…`;
-    try { await downloadMergedDossierPDF(itv, client); toast("Dossier final généré"); }
-    catch (err) { console.error(err); toast("Erreur lors de la génération du dossier final", true); }
-    finally { btn.disabled = false; btn.innerHTML = `${ICONS.file} Générer le dossier final (fiche + facture)`; }
-  });
-
-  $("#doc-input").addEventListener("change", () => importDocument(itv.id, "facture", $("#doc-input")));
   $("#doc-devis-input").addEventListener("change", () => importDocument(itv.id, "devis", $("#doc-devis-input")));
 }
 
 function documentsHTML(itv) {
   const docs = itv.documents || [];
-  if (!docs.length) return `<div class="card"><div class="block-text">Aucun document. Importez le devis ou la facture produits par votre logiciel externe.</div></div>`;
+  if (!docs.length) return `<div class="card"><div class="block-text">Aucun document. Importez le devis produit par votre logiciel externe.</div></div>`;
+  // « Facture » : libellé conservé pour d'éventuels documents historiques
+  // (consultation / suppression possibles, plus d'ajout).
   return docs.map((doc) => `
     <div class="kv">
       <div class="k">${doc.type === "devis" ? "Devis" : doc.type === "facture" ? "Facture" : "Contrat"}</div>
@@ -2620,13 +2634,40 @@ function documentsHTML(itv) {
 }
 
 function workflowButtonsHTML(itv) {
-  const next = WORKFLOW_NEXT[itv.statut_dossier] || [];
+  const actions = workflowActions(itv);
   return `
   <div class="wf-actions">
     <button class="btn btn-ghost" data-nav="import-devis" data-id="${itv.id}">${ICONS.upload} Importer le devis (PDF)</button>
-    <button class="btn btn-ghost" data-nav="import-facture" data-id="${itv.id}">${ICONS.upload} Importer la facture (PDF)</button>
-    ${next.map((n) => `<button class="btn ${n.statut === "cloturee" ? "btn-accent" : "btn-primary"}" data-nav="wf" data-id="${itv.id}" data-to="${n.statut}" style="margin-top:9px;">${ICONS.check} ${n.label}</button>`).join("")}
+    ${actions.map((a) => `<button class="btn ${a.kind === "accent" ? "btn-accent" : "btn-primary"}" data-nav="wf" data-id="${itv.id}" data-to="${a.to}" style="margin-top:9px;">${ICONS.check} ${a.label}</button>`).join("")}
   </div>`;
+}
+
+// Modale « motif » (renvoi en brouillon / rouverture d'un dossier) : saisie
+// libre et facultative, style réutilisé de la modale de signature
+// (.sig-overlay / .sig-modal). Résout null (Annuler) ou le texte nettoyé
+// (trim, lignes vides) via le nettoyage existant `cleanText`.
+function askMotif(title = "Motif (facultatif)") {
+  return new Promise((resolve) => {
+    const ov = document.createElement("div");
+    ov.className = "sig-overlay";
+    ov.innerHTML = `
+      <div class="sig-modal">
+        <div class="sig-head"><h3>${esc(title)}</h3><button class="icon-btn motif-close">${ICONS.close}</button></div>
+        <textarea id="motif-textarea" rows="4" placeholder="Précisez le motif si besoin (facultatif)" style="width:100%;box-sizing:border-box;padding:10px;border:1px solid var(--ce-border);border-radius:var(--ce-radius-sm);font:inherit;resize:vertical;"></textarea>
+        <div class="sig-actions" style="margin-top:12px;">
+          <button class="btn btn-ghost motif-cancel">Annuler</button>
+          <button class="btn btn-primary motif-confirm">Confirmer</button>
+        </div>
+      </div>`;
+    document.body.appendChild(ov);
+    const ta = ov.querySelector("#motif-textarea");
+    ta.focus();
+    const close = (val) => { ov.remove(); resolve(val); };
+    ov.querySelector(".motif-close").addEventListener("click", () => close(null));
+    ov.querySelector(".motif-cancel").addEventListener("click", () => close(null));
+    ov.querySelector(".motif-confirm").addEventListener("click", () => close(cleanText(ta.value || "")));
+    ov.addEventListener("click", (e) => { if (e.target === ov) close(null); });
+  });
 }
 
 async function importDocument(interventionId, type, inputEl) {
@@ -2896,34 +2937,40 @@ document.addEventListener("click", async (e) => {
   }
   else if (action === "duplicate") duplicateIntervention(nav.dataset.id);
   else if (action === "wf") {
+    const id = nav.dataset.id;
+    const to = nav.dataset.to;
     // « Soumettre pour validation » (§3.2.14) : impossible tant que la fiche
     // n'est pas signée (technicien + client si présent).
-    if (nav.dataset.to === "a_valider") {
-      const fiche = await DB.getIntervention(nav.dataset.id);
+    if (to === "a_valider") {
+      const fiche = await DB.getIntervention(id);
       if (!fiche || !fiche.technicien_signature_url || (fiche.client_present !== false && !fiche.client_signature_url)) {
         toast("La fiche doit être signée (technicien + client si présent) avant d'être soumise pour validation", true);
         return;
       }
     }
-    if (nav.dataset.to === "facture_verifiee") {
-      const itv = await DB.getIntervention(nav.dataset.id);
-      if (!(itv.documents || []).some((d) => d.type === "facture" && d.data_url)) {
-        toast("Importez d'abord la facture (PDF) avant de fusionner", true);
-        return;
-      }
-      const client = itv.client_id ? await DB.getClient(itv.client_id) : null;
-      await DB.setStatutDossier(nav.dataset.id, nav.dataset.to);
-      toast("Facture vérifiée — génération du dossier final…");
-      await renderDetail(nav.dataset.id);
-      try {
-        await downloadMergedDossierPDF(itv, client);
-        toast("Dossier final (fiche + facture) généré");
-      } catch (err) { console.error(err); toast("Erreur lors de la génération du dossier final", true); }
-      return;
+    // Workflow 4 statuts : `extra` porte la traçabilité poussée vers Supabase
+    // (valide_par/valide_le, facture_par/facture_le, motif_retour).
+    const now = new Date().toISOString();
+    let extra = {};
+    if (to === "a_valider") {
+      extra = { motif_retour: null };
+    } else if (to === "a_facturer") {
+      extra = { valide_par: state.auth?.user?.id ?? null, valide_le: now };
+    } else if (to === "termine") {
+      extra = { facture_par: state.auth?.user?.id ?? null, facture_le: now };
+    } else if (to === "brouillon") {
+      // Renvoyer en brouillon / rouvrir : motif libre et facultatif.
+      const motif = await askMotif();
+      if (motif === null) return; // Annulé — aucun changement
+      extra = {
+        motif_retour: motif,
+        valide_par: null, valide_le: null,
+        facture_par: null, facture_le: null,
+      };
     }
-    await DB.setStatutDossier(nav.dataset.id, nav.dataset.to);
+    await DB.setStatutDossier(id, to, extra);
     toast("Statut mis à jour");
-    await renderDetail(nav.dataset.id);
+    await renderDetail(id);
   }
   else if (action === "import-devis") { $("#doc-devis-input").click(); }
   else if (action === "import-facture") { $("#doc-input").click(); }
