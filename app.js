@@ -277,7 +277,7 @@ const ENTRETIEN_META = {
     label: "Entretien Air/Eau - Sol/Eau",
     icon: "droplet",
     types: ["Aérothermie", "Géothermie", "Aquathermie"],
-    maxEq: 3,
+    maxEq: 5,
     cerfa: true,
     mesures: [
       { section: "Vérification Groupe extérieur", items: BLOC_GROUPE_EXTERIEUR },
@@ -292,7 +292,7 @@ const ENTRETIEN_META = {
     // requalifiées à l'ouverture — l'ancienne valeur reste proposée au
     // sélecteur, cf. stepEntretienHTML.
     types: ["Mono Split", "Multi Split", "Gainable"],
-    maxEq: 3, // même bloc de données que la page 3/6 de « Nouvelle intervention » (6.5)
+    maxEq: 5, // même bloc de données que la page 3/6 de « Nouvelle intervention » (6.5)
     cerfa: true,
     mesures: [
       { section: "Vérification Groupe extérieur", items: BLOC_GROUPE_EXTERIEUR_AIR_AIR },
@@ -306,7 +306,7 @@ const ENTRETIEN_META = {
     // les anciens libellés (Granulés, Bûches, Pellets) des fiches existantes
     // restent proposés au sélecteur (option tolérante, cf. stepEntretienHTML).
     types: ["Chaudière Bûches", "Chaudière Granulés", "Chaudière Déchiquettée"],
-    maxEq: 3,
+    maxEq: 5,
     cerfa: false, // aucun champ fluide frigorigène — CERFA n°15497 non applicable (confirmé 09/10)
     prochaine: true, // « Prochaine intervention prévue » conservée (arb. 6.3)
     mesures: [
@@ -326,7 +326,7 @@ const ENTRETIEN_META = {
     label: "Entretien installation solaire",
     icon: "sun",
     types: [], // liste des types d'installation : à venir du client (§11 du PRD)
-    maxEq: 3,
+    maxEq: 5,
     cerfa: false, // pas de fluide frigorigène — CERFA n°15497 a priori non applicable (6.10)
     trameAttente: true, // trame en préparation : données client à venir
     mesures: [
@@ -1781,7 +1781,7 @@ function equipLineHTML(eq, idx) {
 function stepEquipHTML() {
   const d = state.draft;
   const meta = draftMeta();
-  const max = meta?.maxEq || 3;
+  const max = meta?.maxEq || 5;
   return `
   ${meta ? `<div class="card" style="padding:14px;margin-bottom:12px;"><div class="field" style="margin-bottom:0;"><label>Année d'installation</label><input id="f-annee" type="text" inputmode="numeric" placeholder="Ex : 2021" value="${esc(d.annee_installation)}" /></div></div>` : ""}
   <div id="eq-reuse"></div>
@@ -1793,7 +1793,7 @@ function stepEquipHTML() {
 function wireEquipStep() {
   $("#add-eq").addEventListener("click", () => {
     const meta = draftMeta();
-    if (state.draft.equipements.length >= (meta?.maxEq || 3)) { toast(`Maximum ${meta?.maxEq || 3} équipements`, true); return; }
+    if (state.draft.equipements.length >= (meta?.maxEq || 5)) { toast(`Maximum ${meta?.maxEq || 5} équipements`, true); return; }
     state.draft.equipements.push({ intitule: "", marque: "", modele: "", numero_serie: "" });
     $("#eq-list").innerHTML = state.draft.equipements.map(equipLineHTML).join("");
     wireEquipLines();
