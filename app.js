@@ -2918,6 +2918,9 @@ document.addEventListener("click", async (e) => {
   else if (action === "logout") signOutUser();
   else if (action === "stats") go("#/stats");
   else if (action === "sync-now") runSyncNow();
+  else if (action === "force-resend") forceResendAll();
+  else if (action === "conflict-keep-local") resolveConflictAction(nav.dataset.store, nav.dataset.id, true);
+  else if (action === "conflict-keep-remote") resolveConflictAction(nav.dataset.store, nav.dataset.id, false);
   else if (action === "appel-edit") go(`#/appel/${nav.dataset.id}`);
   else if (action === "appel-delete") {
     if (confirm("Supprimer cet appel ?")) { await DB.deleteAppel(nav.dataset.id); toast("Appel supprimé"); go("#/"); }
@@ -3067,11 +3070,20 @@ async function signOutUser() {
 // ---------------------------------------------------------
 // COMPTE & SYNCHRONISATION (V2)
 // ---------------------------------------------------------
+// SYNC-01 : libellé lisible d'un conflit selon la table concernée.
+async function conflictLabel(c) {
+  const row = await DB.getRaw(c.store, c.id).catch(() => null);
+  return row?.numero || row?.nom || row?.designation || row?.legende || c.id;
+}
+
 async function renderAccount() {
   const supConfigured = Supabase.configured();
   const user = state.auth?.user;
   const profile = state.auth?.profile;
   const pending = state.sync.pending || 0;
+  // SYNC-01 : conflits en attente de résolution explicite.
+  const conflicts = (window.Sync && Sync.state.conflicts) || [];
+  const conflictRows = await Promise.all(conflicts.map(async (c) => ({ ...c, label: await conflictLabel(c) })));
 
   setApp(`
     ${topbar({ title: "Compte & synchro", back: true })}
@@ -3097,7 +3109,16 @@ async function renderAccount() {
         ${supConfigured && state.auth
           ? `<div class="sync-status ${navigator.onLine ? "ok" : "warn"}"><span class="dot"></span>${navigator.onLine ? "En ligne — synchronisation automatique active" : "Hors ligne — les changements seront synchronisés dès le retour du réseau"}</div>
              <div class="sync-status ${pending === 0 ? "ok" : "warn"}"><span class="dot"></span>${pending === 0 ? "Aucun changement en attente" : `${pending} changement(s) en attente d'envoi`}</div>
-             <button class="btn btn-primary" data-nav="sync-now" style="margin-top:12px;">${ICONS.sync} Synchroniser maintenant</button>`
+             ${conflictRows.length ? `
+             <div class="sync-status warn"><span class="dot"></span>⚠ ${conflictRows.length} conflit(s) : versions locale et serveur divergentes — aucune donnée n'a été écrasée</div>
+             ${conflictRows.map((c) => `
+               <div class="kv"><div class="k">${esc(c.store)}</div><div class="v">${esc(c.label)}</div></div>
+               <div style="display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 10px;">
+                 <button class="btn btn-primary" data-nav="conflict-keep-local" data-store="${esc(c.store)}" data-id="${esc(c.id)}">Garder ma version</button>
+                 <button class="btn btn-ghost" data-nav="conflict-keep-remote" data-store="${esc(c.store)}" data-id="${esc(c.id)}">Garder la version serveur</button>
+               </div>`).join("")}` : ""}
+             <button class="btn btn-primary" data-nav="sync-now" style="margin-top:12px;">${ICONS.sync} Synchroniser maintenant</button>
+             <button class="btn btn-ghost" data-nav="force-resend" style="margin-top:12px;">Tout renvoyer vers le serveur (récupération)</button>`
           : `<div class="sync-status warn"><span class="dot"></span>${supConfigured ? "Connectez-vous pour activer la synchronisation." : "Supabase non configuré (voir config.js)."}</div>`}
       </div>
 
@@ -3124,7 +3145,8 @@ async function runSyncNow() {
   if (!navigator.onLine) { toast("Hors ligne — synchronisation impossible", true); return; }
   toast("Synchronisation…");
   try {
-    await Sync.pushAllLocal();
+    // SYNC-01 : plus de pushAllLocal ici — seules les lignes réellement
+    // modifiées localement (file persistée) sont envoyées.
     await Sync.runSync();
     toast("Synchronisation terminée");
     if (window.location.hash === "#/account") await renderAccount();
@@ -3136,6 +3158,34 @@ async function runSyncNow() {
   }
 }
 
+// SYNC-01 : résolution explicite d'un conflit (Compte & synchro).
+async function resolveConflictAction(store, id, keepLocal) {
+  try {
+    await Sync.resolveConflict(store, id, keepLocal);
+    toast(keepLocal ? "Votre version a été renvoyée" : "Version serveur appliquée");
+  } catch (e) {
+    console.error(e);
+    toast("Résolution impossible — réessayez", true);
+  }
+  await renderAccount();
+}
+
+// SYNC-01 : renvoi massif explicite et averti (récupération uniquement).
+async function forceResendAll() {
+  if (!confirm("Renvoyer TOUTES les données locales vers le serveur ?\n\nAttention : en cas de divergence, la version locale écrasera celle du serveur. À n'utiliser qu'en cas de récupération nécessaire.")) return;
+  toast("Renvoi en cours…");
+  try {
+    await Sync.pushAllLocal();
+    await Sync.runSync();
+    toast("Données renvoyées");
+  } catch (e) {
+    console.warn(e);
+    toast("Renvoi partiel — nouvel essai automatique", true);
+    scheduleSyncRetry();
+  }
+  await renderAccount();
+}
+
 let _retryTimer = null;
 function scheduleSyncRetry(delay = 5000) {
   if (_retryTimer) return;
@@ -3143,7 +3193,8 @@ function scheduleSyncRetry(delay = 5000) {
     _retryTimer = null;
     if (!navigator.onLine) return;
     try {
-      await Sync.pushAllLocal();
+      // SYNC-01 : la file persistée est déjà l'état de la vérité locale ;
+      // on ne repousse plus l'intégralité des données à chaque retry.
       await Sync.runSync();
       toast("Synchronisation réussie");
       if (window.location.hash === "#/account") await renderAccount();
@@ -3163,6 +3214,7 @@ window.addEventListener("offline", updateOfflinePill);
 
 async function init() {
   await DB.init();
+  await Sync.initPersisted(); // SYNC-01/02 : restaure file, curseur, conflits
   initSupabase();
   if (Supabase.configured()) {
     Supabase.onAuthChange(async (event, session) => {
@@ -3172,7 +3224,10 @@ async function init() {
         const team = await Supabase.listProfiles().catch(() => null);
         state.team = team || [];
         Sync.initRealtime();
-        if (event === "SIGNED_IN" || event === "INITIAL_SESSION") await Sync.pushAllLocal();
+        // SYNC-01 : la migration initiale (données locales créées avant la
+        // première connexion) n'est jouée qu'une fois (marqueur _meta) — plus
+        // de pushAllLocal à chaque lancement / INITIAL_SESSION.
+        if (event === "SIGNED_IN" || event === "INITIAL_SESSION") await Sync.initialPushIfNeeded();
         await Sync.runSync().catch((e) => {
           console.warn("Sync échec (nouvel essai automatique)", e);
           toast("Synchronisation en attente de réseau", true);

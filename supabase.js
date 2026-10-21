@@ -29,11 +29,19 @@ function initSupabase() {
   return SB;
 }
 
+// SYNC-02 : les binaires (photos.data_url / documents.data_url, base64) ne
+// sont plus tirés en masse — Storage est la source de vérité ; le contenu
+// complet est récupéré à la demande via getBinaryDataUrl().
+const LIGHT_COLUMNS = {
+  photos: "id, intervention_id, fichier_url, legende, created_at, updated_at, deleted_at, created_by, updated_by",
+  documents: "id, intervention_id, type, nom, fichier_url, numero_externe, created_at, updated_at, deleted_at, created_by, updated_by",
+};
+const PULL_PAGE_SIZE = 500; // SYNC-02 : PostgREST/Supabase tronque à 1000 lignes par requête
+
 const Supabase = {
   configured() {
     return !!initSupabase();
   },
-
   // ---------------- Auth ----------------
   getSession() {
     const c = initSupabase();
@@ -94,10 +102,14 @@ const Supabase = {
   // Chaque méthode renvoie les lignes "propres" (sans les métadonnées
   // exposées comme created_by/updated_by, pour un mapping 1:1 avec l'IDB).
 
-  async list(store, sinceISO) {
+  // Pagination via .range()+ tri stable (updated_at, id). Appelé page par
+  // page par sync.js : { since, from, limit }.
+  async list(store, { since, from = 0, limit = PULL_PAGE_SIZE } = {}) {
     const c = initSupabase();
-    let q = c.from(store).select("*");
-    if (sinceISO) q = q.gte("updated_at", sinceISO);
+    let q = c.from(store).select(LIGHT_COLUMNS[store] || "*");
+    if (since) q = q.gte("updated_at", since);
+    q = q.order("updated_at", { ascending: true }).order("id", { ascending: true });
+    q = q.range(from, from + limit - 1);
     const { data, error } = await q;
     if (error) throw error;
     return data || [];
@@ -113,6 +125,61 @@ const Supabase = {
     const { data, error } = await c.from(store).upsert(row).select("id, updated_at");
     if (error) throw error;
     return (data && data[0]) || null;
+  },
+
+  // SYNC-01 : contrôle optimiste au push. On ne pose la copie locale que si la
+  // version serveur est toujours celle de base (`base_updated` — vue au moment
+  // de la mise en file) : un `update ... where updated_at = base` retourne 0
+  // ligne (sans erreur) si le serveur a évolué entre-temps. On relit alors la
+  // ligne distante pour laisser le haut niveau trancher le conflit sans
+  // écraser quoi que ce soit.
+  async upsertIfUnchanged(store, row, baseUpdated) {
+    const c = initSupabase();
+    const payload = { ...row };
+    delete payload.updated_at; // le trigger serveur `set_updated_at` fait foi
+    const { data, error } = await c
+      .from(store)
+      .update(payload)
+      .eq("id", row.id)
+      .eq("updated_at", baseUpdated)
+      .select("id, updated_at");
+    if (error) throw error;
+    if (data && data.length === 1) return { row: data[0], conflict: false, remote: null };
+    // 0 ligne affectée : la ligne a changé côté serveur (conflit), ou n'existe
+    // plus / n'est pas visible (suppression distante, RLS). On relit pour trancher.
+    const { data: remote, error: err2 } = await c.from(store).select("*").eq("id", row.id).maybeSingle();
+    if (err2) throw err2;
+    if (!remote) {
+      // Absente du serveur : rien à écraser → recréation par upsert standard.
+      const created = await this.upsert(store, row);
+      return { row: created, conflict: false, remote: null };
+    }
+    return { row: null, conflict: true, remote };
+  },
+
+  async get(store, id) {
+    const c = initSupabase();
+    const { data, error } = await c.from(store).select("*").eq("id", id).maybeSingle();
+    if (error) throw error;
+    return data || null;
+  },
+
+  // SYNC-02 : récupère le binaire stocké dans Storage (bucket privé) et le
+  // renvoie en dataURL, pour compléter localement une ligne tirée sans
+  // data_url (self-healing hors ligne du pull).
+  async getBinaryDataUrl(bucket, path) {
+    const c = initSupabase();
+    const { data, error } = await c.storage.from(bucket).createSignedUrl(path, 60);
+    if (error) throw error;
+    const res = await fetch(data.signedUrl);
+    if (!res.ok) throw new Error(`Téléchargement Storage ${bucket}/${path} : HTTP ${res.status}`);
+    const blob = await res.blob();
+    return await new Promise((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(r.result);
+      r.onerror = () => reject(r.error || new Error("Lecture du binaire échouée"));
+      r.readAsDataURL(blob);
+    });
   },
 
   async remove(store, id, updated_at) {

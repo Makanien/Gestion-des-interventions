@@ -4,13 +4,15 @@
    - boutiques métier : clients, interventions, equipements,
      pieces_utilisees (V2), + appels, rendezvous, mesures,
      photos, pieces (base pièces), documents, contrats_entretien (V3) ;
-   - _meta (auth local, compteurs de numérotation, file de sync) ;
+   - _meta (auth local, compteurs de numérotation, marqueur de push initial) ;
+   - sync_queue (file de sync persistée) + sync_cursor (curseur de pull,
+     conflits — SYNC-01 / SYNC-02) ;
    - tombstones : suppression logique (_deleted) pour propager
      les suppressions aux autres appareils.
    - id en UUID, timestamps, synced_at (renseigné après push).
    ========================================================= */
 const DB_NAME = "climatelec-db";
-const DB_VERSION = 4;
+const DB_VERSION = 5;
 
 function openDB() {
   return new Promise((resolve, reject) => {
@@ -51,6 +53,14 @@ function openDB() {
 
       if (!db.objectStoreNames.contains("_meta")) db.createObjectStore("_meta");
       if (!db.objectStoreNames.contains("sync_state")) db.createObjectStore("sync_state");
+
+      // ---- V5 (SYNC-01/02) : file de sync persistée + curseur de pull ----
+      // sync_queue : un enregistrement par élément en attente d'envoi
+      // ({ store, id, base_updated_at }) — survit au rechargement de l'app.
+      // sync_cursor : métadonnées de pull (clé "lastPulledAt") et conflits
+      // en attente de résolution (clé "conflicts").
+      ensure("sync_queue", "id", [["store", "store"]]);
+      ensure("sync_cursor", "key", []);
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
@@ -258,7 +268,7 @@ const DB = {
       child.deleted_at = new Date().toISOString();
       child.updated_at = child.deleted_at;
       await this.putRaw(store, child);
-      if (Supabase?.configured()) Sync.enqueueSync(store, child.id);
+      if (Supabase?.configured()) Sync.enqueueSync(store, child.id, child.synced_at || null);
     }
     for (const item of list) {
       const now = new Date().toISOString();
@@ -266,7 +276,7 @@ const DB = {
       delete row._deleted;
       delete row.deleted_at;
       await this.putRaw(store, row);
-      if (Supabase?.configured()) Sync.enqueueSync(store, row.id);
+      if (Supabase?.configured()) Sync.enqueueSync(store, row.id, row.synced_at || null);
     }
   },
 
@@ -292,6 +302,10 @@ const DB = {
   },
   async saveClient(client) {
     const now = new Date().toISOString();
+    // SYNC-01 : la version de base (dernier état serveur connu) est capturée
+    // AVANT la modification, pour le push conditionnel.
+    const prev = client.id ? await this.getRaw("clients", client.id).catch(() => null) : null;
+    const base = (prev && prev.synced_at) || client.synced_at || null;
     if (!client.id) {
       client.id = uuid();
       client.created_at = now;
@@ -299,17 +313,18 @@ const DB = {
     client.updated_at = now;
     client.synced_at = null;
     await this.putRaw("clients", client);
-    if (Supabase?.configured()) Sync.enqueueSync("clients", client.id);
+    if (Supabase?.configured()) Sync.enqueueSync("clients", client.id, base);
     return client;
   },
   async deleteClient(id) {
     const c = await this.getRaw("clients", id);
     if (!c) return true;
+    const base = c.synced_at || null; // SYNC-01 : version de base pour le push
     c._deleted = true;
     c.deleted_at = new Date().toISOString();
     c.updated_at = c.deleted_at;
     await this.putRaw("clients", c);
-    if (Supabase?.configured()) Sync.enqueueSync("clients", id);
+    if (Supabase?.configured()) Sync.enqueueSync("clients", id, base);
     return true;
   },
   // Retrouve un client par nom (insensible à la casse) ou le crée.
@@ -397,6 +412,10 @@ const DB = {
     const now = new Date().toISOString();
     const isNew = !itv.id;
     const asBrouillon = !!itv._brouillon;
+    // SYNC-01 : la version de base (dernier état serveur connu) est capturée
+    // AVANT la modification, pour le push conditionnel.
+    const prev = itv.id ? await this.getRaw("interventions", itv.id).catch(() => null) : null;
+    const base = (prev && prev.synced_at) || itv.synced_at || null;
     if (isNew) {
       itv.id = uuid();
       itv.created_at = now;
@@ -430,7 +449,7 @@ const DB = {
     await this.putRaw("interventions", itv);
 
     // Parent d'abord, enfants ensuite (contrainte de clé étrangère).
-    if (Supabase?.configured()) Sync.enqueueSync("interventions", itv.id);
+    if (Supabase?.configured()) Sync.enqueueSync("interventions", itv.id, base);
 
     // Écrit les enfants avec l'id de l'intervention.
     await this.replaceEquipements(itv.id, equipements);
@@ -446,11 +465,12 @@ const DB = {
   async deleteIntervention(id) {
     const i = await this.getRaw("interventions", id);
     if (!i) return true;
+    const base = i.synced_at || null; // SYNC-01 : version de base pour le push
     i._deleted = true;
     i.deleted_at = new Date().toISOString();
     i.updated_at = i.deleted_at;
     await this.putRaw("interventions", i);
-    if (Supabase?.configured()) Sync.enqueueSync("interventions", id);
+    if (Supabase?.configured()) Sync.enqueueSync("interventions", id, base);
     // C5 : propager la suppression aux enfants via le même mécanisme de
     // tombstone que C2 (`replaceChildren` avec liste vide → soft-delete des
     // enfants liés + mise en file de sync). Le soft-delete du parent n'est
@@ -467,11 +487,12 @@ const DB = {
   async setStatutDossier(id, statut) {
     const i = await this.getRaw("interventions", id);
     if (!i) return null;
+    const base = i.synced_at || null; // SYNC-01 : version de base pour le push
     i.statut_dossier = statut;
     i.updated_at = new Date().toISOString();
     i.synced_at = null;
     await this.putRaw("interventions", i);
-    if (Supabase?.configured()) Sync.enqueueSync("interventions", id);
+    if (Supabase?.configured()) Sync.enqueueSync("interventions", id, base);
     return this.getIntervention(id);
   },
 
@@ -531,11 +552,12 @@ const DB = {
   async deletePieceBase(id) {
     const p = await this.getRaw("pieces", id);
     if (!p) return true;
+    const base = p.synced_at || null; // SYNC-01 : version de base pour le push
     p._deleted = true;
     p.deleted_at = new Date().toISOString();
     p.updated_at = p.deleted_at;
     await this.putRaw("pieces", p);
-    if (Supabase?.configured()) Sync.enqueueSync("pieces", id);
+    if (Supabase?.configured()) Sync.enqueueSync("pieces", id, base);
     return true;
   },
 
@@ -572,11 +594,12 @@ const DB = {
   async deleteDocument(id) {
     const d = await this.getRaw("documents", id);
     if (!d) return true;
+    const base = d.synced_at || null; // SYNC-01 : version de base pour le push
     d._deleted = true;
     d.deleted_at = new Date().toISOString();
     d.updated_at = d.deleted_at;
     await this.putRaw("documents", d);
-    if (Supabase?.configured()) Sync.enqueueSync("documents", id);
+    if (Supabase?.configured()) Sync.enqueueSync("documents", id, base);
     return true;
   },
 
@@ -587,6 +610,8 @@ const DB = {
   },
   async saveAppel(appel) {
     const now = new Date().toISOString();
+    const prev = appel.id ? await this.getRaw("appels", appel.id).catch(() => null) : null;
+    const base = (prev && prev.synced_at) || appel.synced_at || null; // SYNC-01
     if (!appel.id) {
       appel.id = uuid();
       appel.created_at = now;
@@ -594,17 +619,18 @@ const DB = {
     appel.updated_at = now;
     appel.synced_at = null;
     await this.putRaw("appels", appel);
-    if (Supabase?.configured()) Sync.enqueueSync("appels", appel.id);
+    if (Supabase?.configured()) Sync.enqueueSync("appels", appel.id, base);
     return appel;
   },
   async deleteAppel(id) {
     const a = await this.getRaw("appels", id);
     if (!a) return true;
+    const base = a.synced_at || null; // SYNC-01 : version de base pour le push
     a._deleted = true;
     a.deleted_at = new Date().toISOString();
     a.updated_at = a.deleted_at;
     await this.putRaw("appels", a);
-    if (Supabase?.configured()) Sync.enqueueSync("appels", id);
+    if (Supabase?.configured()) Sync.enqueueSync("appels", id, base);
     return true;
   },
 
@@ -615,6 +641,8 @@ const DB = {
   },
   async saveRendezvous(rdv) {
     const now = new Date().toISOString();
+    const prev = rdv.id ? await this.getRaw("rendezvous", rdv.id).catch(() => null) : null;
+    const base = (prev && prev.synced_at) || rdv.synced_at || null; // SYNC-01
     if (!rdv.id) {
       rdv.id = uuid();
       rdv.created_at = now;
@@ -622,17 +650,18 @@ const DB = {
     rdv.updated_at = now;
     rdv.synced_at = null;
     await this.putRaw("rendezvous", rdv);
-    if (Supabase?.configured()) Sync.enqueueSync("rendezvous", rdv.id);
+    if (Supabase?.configured()) Sync.enqueueSync("rendezvous", rdv.id, base);
     return rdv;
   },
   async deleteRendezvous(id) {
     const r = await this.getRaw("rendezvous", id);
     if (!r) return true;
+    const base = r.synced_at || null; // SYNC-01 : version de base pour le push
     r._deleted = true;
     r.deleted_at = new Date().toISOString();
     r.updated_at = r.deleted_at;
     await this.putRaw("rendezvous", r);
-    if (Supabase?.configured()) Sync.enqueueSync("rendezvous", id);
+    if (Supabase?.configured()) Sync.enqueueSync("rendezvous", id, base);
     return true;
   },
 
@@ -643,6 +672,8 @@ const DB = {
   },
   async saveContrat(contrat) {
     const now = new Date().toISOString();
+    const prev = contrat.id ? await this.getRaw("contrats_entretien", contrat.id).catch(() => null) : null;
+    const base = (prev && prev.synced_at) || contrat.synced_at || null; // SYNC-01
     if (!contrat.id) {
       contrat.id = uuid();
       contrat.created_at = now;
@@ -650,7 +681,7 @@ const DB = {
     contrat.updated_at = now;
     contrat.synced_at = null;
     await this.putRaw("contrats_entretien", contrat);
-    if (Supabase?.configured()) Sync.enqueueSync("contrats_entretien", contrat.id);
+    if (Supabase?.configured()) Sync.enqueueSync("contrats_entretien", contrat.id, base);
     return contrat;
   },
   async getContrat(id) {
@@ -660,11 +691,12 @@ const DB = {
   async deleteContrat(id) {
     const c = await this.getRaw("contrats_entretien", id);
     if (!c) return true;
+    const base = c.synced_at || null; // SYNC-01 : version de base pour le push
     c._deleted = true;
     c.deleted_at = new Date().toISOString();
     c.updated_at = c.deleted_at;
     await this.putRaw("contrats_entretien", c);
-    if (Supabase?.configured()) Sync.enqueueSync("contrats_entretien", id);
+    if (Supabase?.configured()) Sync.enqueueSync("contrats_entretien", id, base);
     return true;
   },
 
@@ -716,8 +748,9 @@ const DB = {
       for (const row of rows) {
         await this.putRaw(store, row);
         // D3 : les données restaurées rejoignent la file de sync, comme toute
-        // écriture locale, pour être poussées vers Supabase.
-        if (Supabase?.configured() && !row._deleted) Sync.enqueueSync(store, row.id);
+        // écriture locale, pour être poussées vers Supabase (SYNC-01 : avec
+        // leur version de base pour le push conditionnel).
+        if (Supabase?.configured() && !row._deleted) Sync.enqueueSync(store, row.id, row.synced_at || null);
       }
     }
     return true;
