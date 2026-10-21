@@ -384,7 +384,7 @@ function permanentSyncError(err) {
   if (PERMANENT_SYNC_MATCHERS.has(status) || PERMANENT_SYNC_MATCHERS.has(code)) return true;
   // Requête PostgREST rejetée (sauf PGRST301 = JWT expiré, qui se retente).
   if (code.startsWith("PGRST") && code !== "PGRST301") return true;
-  if (/row-level security|permission denied|violates|insufficient privilege|duplicate key|invalid input syntax/.test(msg)) return true;
+  if (/row-level security|refus rls|permission denied|violates|insufficient privilege|duplicate key|invalid input syntax/.test(msg)) return true;
   return false;
 }
 
