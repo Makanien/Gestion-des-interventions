@@ -187,8 +187,21 @@ const Supabase = {
     // Soft-delete : on marque deleted_at, plutôt qu'une suppression
     // définitive, pour que la synchronisation puisse propager la
     // suppression aux autres appareils sans perte.
-    const { error } = await c.from(store).update({ deleted_at: updated_at || new Date().toISOString(), updated_at: updated_at || new Date().toISOString() }).eq("id", id);
+    // SYNC-03 : un UPDATE bloqué par la RLS renvoie 0 ligne SANS ERREUR.
+    // Sans vérification du nombre de lignes affectées, l'élément serait
+    // considéré synchronisé à tort (suppression jamais propagée aux autres
+    // appareils). On teste d'abord l'existence côté serveur : une ligne
+    // jamais poussée n'a rien à supprimer (succès).
+    const stamp = updated_at || new Date().toISOString();
+    const { data: existing, error: errSel } = await c.from(store).select("id").eq("id", id).maybeSingle();
+    if (errSel) throw errSel;
+    if (!existing) return false;
+    const { data, error } = await c.from(store).update({ deleted_at: stamp, updated_at: stamp }).eq("id", id).select("id");
     if (error) throw error;
+    if (!data || data.length === 0) {
+      throw new Error(`Suppression non appliquée (refus RLS ou ligne non modifiable) — ${store}/${id.slice(0, 8)}…`);
+    }
+    return true;
   },
 
   // ---------------- Storage (signatures) ----------------

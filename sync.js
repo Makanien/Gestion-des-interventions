@@ -8,20 +8,30 @@
    - le pull récupère les changements des autres appareils via supabase.js,
      paginé, trié de façon stable, sans les binaires lourds, avec un
      curseur dérivé des horodatages serveur reçus (SYNC-02) ;
-   - le push se fait en contrôle optimiste (SYNC-01) : une copie locale ne
-     peut plus écraser une version serveur plus récente que la version de
-     base vue au moment de la mise en file — les conflits sont signalés
-     dans « Compte & synchro » (résolution explicite) au lieu d'un
-     « dernière écriture gagne » silencieux.
-   ========================================================= */
+    - le push se fait en contrôle optimiste (SYNC-01) : une copie locale ne
+      peut plus écraser une version serveur plus récente que la version de
+      base vue au moment de la mise en file — les conflits sont signalés
+      dans « Compte & synchro » (résolution explicite) au lieu d'un
+      « dernière écriture gagne » silencieux ;
+    - les échecs de push sont plafonnés (SYNC-03) : une erreur permanente
+      (refus RLS 403, contrainte 409/422…) ou un élément trop souvent
+      retenté quitte la file et apparaît dans « Compte & synchro » avec son
+      motif — plus de re-push inutile en boucle ni d'erreur générique.
+    ========================================================= */
 
 const SyncState = {
   running: false,
   lastPulledAt: null, // ISO — curseur de pull (horloge serveur), persisté
-  queue: [],          // [{store, id, base_updated_at}]
+  queue: [],          // [{store, id, base_updated_at, attempts}]
   conflicts: [],      // [{store, id, base_updated_at, remote_updated_at, at}]
+  failures: [],       // SYNC-03 : [{store, id, base_updated_at, attempts, reason, status, at}]
   realtimeStarted: false,
 };
+
+// SYNC-03 : au-delà de N tentatives (erreurs transitoires : réseau, 5xx…),
+// l'élément sort de la file — il devient visible dans « Compte & synchro »
+// avec l'action « Réessayer ». Les erreurs permanentes sortent dès la 1re.
+const MAX_SYNC_ATTEMPTS = 5;
 
 // Pagination du pull (SYNC-02) : PostgREST/Supabase limite à 1000 lignes par
 // requête — on tire par pages avec un tri stable (updated_at, id).
@@ -47,24 +57,33 @@ function enqueueSync(store, id, base = null) {
   const item = { store, id, base_updated_at: base || null };
   SyncState.queue.push(item);
   SyncStore?.enqueuePersisted(item);
+  // SYNC-03 : une écriture locale fraîche rend l'élément à nouveau poussable
+  // — il quitte la « boîte aux lettres des échecs ».
+  if (SyncState.failures.some((f) => f.store === store && f.id === id)) {
+    SyncState.failures = SyncState.failures.filter((f) => !(f.store === store && f.id === id));
+    SyncStore?.saveFailures(SyncState.failures);
+  }
   updatePendingUI();
   scheduleSync();
 }
 
-// Restaure la file, le curseur et les conflits persistés (app.js : après
-// DB.init()). Sans cela, un rechargement perdait tout ce qui n'a pas encore
-// pu être poussé — c'était la raison d'être de pushAllLocal à chaque lancement.
+// Restaure la file, le curseur, les conflits et les échecs persistés
+// (app.js : après DB.init()). Sans cela, un rechargement perdait tout ce qui
+// n'a pas encore pu être poussé — c'était la raison d'être de pushAllLocal
+// à chaque lancement.
 async function initPersisted() {
   if (typeof SyncStore === "undefined") return;
   try {
-    const [queue, cursor, conflicts] = await Promise.all([
+    const [queue, cursor, conflicts, failures] = await Promise.all([
       SyncStore.loadQueue(),
       SyncStore.loadCursor(),
       SyncStore.loadConflicts(),
+      SyncStore.loadFailures(),
     ]);
     if (SyncState.queue.length === 0 && queue.length) SyncState.queue = queue;
     if (SyncState.lastPulledAt === null && cursor) SyncState.lastPulledAt = cursor;
     if (SyncState.conflicts.length === 0 && conflicts.length) SyncState.conflicts = conflicts;
+    if (SyncState.failures.length === 0 && failures.length) SyncState.failures = failures;
   } catch (e) {
     console.warn("Restauration de l'état de synchronisation échouée", e);
   }
@@ -168,7 +187,11 @@ async function applyRemote(store, remote) {
   // éventuel est tranché au PUSH (contrôle optimiste), plus silencieusement
   // pendant le pull.
   const isPending = SyncState.queue.some((q) => q.store === store && q.id === remote.id);
-  if (isPending) return;
+  // SYNC-03 : un élément « en erreur » (modification locale refusée par le
+  // serveur) reste aussi protégé du pull — l'écraser serait perdre une
+  // modification jamais poussée ; l'utilisateur tranche (Réessayer / Retirer).
+  const hasFailure = SyncState.failures.some((f) => f.store === store && f.id === remote.id);
+  if (isPending || hasFailure) return;
 
   // Une version distante plus ancienne que la copie locale n'est jamais
   // appliquée (« dernière écriture gagne », comparaison updated_at).
@@ -314,8 +337,20 @@ async function pushChanges() {
       // ne bloque plus le reste de la file : on remet SEULEMENT cet élément en
       // file et on poursuit, avec cause loggée.
       const reason = err && err.message ? err.message : String(err);
+      // SYNC-03 : compteur de tentatives par élément. Une erreur permanente
+      // (refus RLS 403, contrainte 409/422…) sort immédiatement de la file ;
+      // sinon après MAX_SYNC_ATTEMPTS tentatives. L'élément apparaît alors
+      // dans « Compte & synchro » avec son motif — plus de retry infini
+      // toutes les 5-30 s avec un message générique.
+      item.attempts = (item.attempts || 0) + 1;
+      const permanent = permanentSyncError(err);
+      console.error(`Push échoué — ${item.store}/${item.id} : ${reason}${permanent ? " (permanent)" : ""}`);
+      if (permanent || item.attempts >= MAX_SYNC_ATTEMPTS) {
+        await registerFailure(item, reason, permanent);
+        SyncStore?.removePersisted(item.id);
+        continue;
+      }
       if (!firstError) firstError = { store: item.store, id: item.id, reason };
-      console.error(`Push échoué — ${item.store}/${item.id} : ${reason}`);
       pending.push(item);
     }
   }
@@ -327,6 +362,75 @@ async function pushChanges() {
     const detail = firstError ? ` — premier échec : ${firstError.store}/${firstError.id} (${firstError.reason})` : "";
     throw new Error(`Push partiel : ${pending.length} élément(s) remis en file${detail}`);
   }
+}
+
+// SYNC-03 : classification d'une erreur de push. « Permanente » = re-renvoyer
+// la même requête n'a aucune chance de réussir (RLS 403, doublon 409, payload
+// 422, contrainte SQL…) → l'élément sort de la file dès le 1er échec.
+// Transitoire (réseau coupé, JWT expiré, 5xx…) → retenté, dans la limite de
+// MAX_SYNC_ATTEMPTS.
+const PERMANENT_SYNC_MATCHERS = new Set([
+  "401", "403", "409", "422",           // statuts HTTP permanents
+  "42501",                              // violation de policy RLS
+  "23502", "23503", "23505", "23514",   // contraintes : not null / FK / unique / check
+  "23001", "22001", "22003", "22P02",   // intégrité / valeur hors bornes / syntaxe
+  "42P01", "42703", "42883",            // table / colonne / fonction inconnue
+]);
+function permanentSyncError(err) {
+  if (!err) return false;
+  const code = String(err.code || "");
+  const status = String(err.status || err.statusCode || "");
+  const msg = String(err.message || "").toLowerCase();
+  if (PERMANENT_SYNC_MATCHERS.has(status) || PERMANENT_SYNC_MATCHERS.has(code)) return true;
+  // Requête PostgREST rejetée (sauf PGRST301 = JWT expiré, qui se retente).
+  if (code.startsWith("PGRST") && code !== "PGRST301") return true;
+  if (/row-level security|permission denied|violates|insufficient privilege|duplicate key|invalid input syntax/.test(msg)) return true;
+  return false;
+}
+
+// SYNC-03 : « boîte aux lettres des échecs » — élément refusé par le serveur
+// (RLS, contrainte…) ou trop souvent retenté. Persisté, visible dans
+// « Compte & synchro », avec résolution explicite : Réessayer ou Retirer de
+// la file. La copie locale n'est JAMAIS touchée (aucune perte de données).
+async function registerFailure(item, reason, permanent) {
+  const entry = {
+    store: item.store,
+    id: item.id,
+    base_updated_at: item.base_updated_at || null,
+    attempts: item.attempts || 0,
+    reason: String(reason || "Erreur inconnue").slice(0, 300),
+    status: permanent ? "permanent" : "limite_tentatives",
+    at: new Date().toISOString(),
+  };
+  SyncState.failures = SyncState.failures.filter((f) => !(f.store === item.store && f.id === item.id));
+  SyncState.failures.push(entry);
+  if (SyncState.failures.length > 100) SyncState.failures = SyncState.failures.slice(-100);
+  SyncStore?.saveFailures(SyncState.failures);
+  console.warn(`Sync : élément passé en erreur — ${item.store}/${item.id} (${entry.status}) : ${entry.reason}`);
+  updatePendingUI();
+}
+
+// SYNC-03 : action utilisateur « Réessayer » — remet l'élément en file
+// (avec sa version de base) et lance une synchronisation immédiate.
+async function retryFailed(store, id) {
+  const f = SyncState.failures.find((x) => x.store === store && x.id === id);
+  if (!f) return;
+  SyncState.failures = SyncState.failures.filter((x) => !(x.store === store && x.id === id));
+  SyncStore?.saveFailures(SyncState.failures);
+  enqueueSync(store, id, f.base_updated_at || null);
+  await runSync();
+}
+
+// SYNC-03 : action utilisateur « Retirer de la file » — abandon explicite :
+// l'élément ne repartira plus automatiquement (la copie locale reste sur
+// l'appareil). Jamais appelé automatiquement.
+function discardFailed(store, id) {
+  SyncState.queue = SyncState.queue.filter((q) => !(q.store === store && q.id === id));
+  SyncState.failures = SyncState.failures.filter((f) => !(f.store === store && f.id === id));
+  SyncStore?.removePersisted(id);
+  SyncStore?.saveQueue(SyncState.queue);
+  SyncStore?.saveFailures(SyncState.failures);
+  updatePendingUI();
 }
 
 // SYNC-01 : un conflit est enregistré (persisté) et signalé en UI — le haut
@@ -386,6 +490,7 @@ function updatePendingUI() {
   if (typeof state !== "undefined" && state.sync) {
     state.sync.pending = SyncState.queue.length;
     state.sync.conflicts = SyncState.conflicts.length;
+    state.sync.errors = SyncState.failures.length; // SYNC-03
     if (typeof updateOfflinePill === "function") updateOfflinePill();
   }
 }
@@ -458,11 +563,20 @@ async function runSync() {
 // « Tout renvoyer » explicite (Compte & synchro).
 const SYNC_STORES = ["clients", "interventions", "equipements", "pieces_utilisees", "appels", "rendezvous", "mesures", "photos", "pieces", "documents", "contrats_entretien"];
 
-async function pushAllLocal() {
+async function pushAllLocal(force = false) {
   if (!Supabase.configured()) return;
   for (const store of SYNC_STORES) {
     const rows = await DB.listRaw(store);
     for (const row of rows) {
+      // SYNC-03 : sans `force` (migration initiale), ne jamais re-pousser une
+      // ligne qui n'a pas été modifiée localement depuis sa dernière
+      // synchronisation (`synced_at` renseigné au pull et après chaque push
+      // ; remis à null par toute écriture locale). Sinon, des copies non
+      // modifiées (ex. rendez-vous de l'équipe que le technicien ne peut pas
+      // modifier) repartaient en erreur 403 à chaque synchro (cas (b)).
+      // Une tombstone (suppression locale) est toujours poussée.
+      const sansModifLocale = !row._deleted && row.synced_at && row.synced_at >= (row.updated_at || "");
+      if (!force && sansModifLocale) continue;
       enqueueSync(store, row.id, row.synced_at || null);
     }
   }
@@ -518,4 +632,4 @@ function initRealtime() {
   }
 }
 
-window.Sync = { runSync, pullChanges, pushChanges, enqueueSync, initRealtime, scheduleSync, initPersisted, initialPushIfNeeded, pushAllLocal, resolveConflict, uploadPendingSignatures, state: SyncState };
+window.Sync = { runSync, pullChanges, pushChanges, enqueueSync, initRealtime, scheduleSync, initPersisted, initialPushIfNeeded, pushAllLocal, resolveConflict, retryFailed, discardFailed, uploadPendingSignatures, state: SyncState };

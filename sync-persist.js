@@ -1,6 +1,7 @@
 /* =========================================================
-   Climat Elec — Persistance de l'état de synchronisation (SYNC-01 / SYNC-02)
-   La file de sync, le curseur de pull et les conflits sont persistés dans
+   Climat Elec — Persistance de l'état de synchronisation (SYNC-01 / SYNC-02 / SYNC-03)
+   La file de sync, le curseur de pull, les conflits et les échecs de push
+   sont persistés dans
    IndexedDB (stores `sync_queue` / `sync_cursor`, cf. idb.js) pour survivre
    à un rechargement de l'application.
    ========================================================= */
@@ -76,6 +77,25 @@ const SyncStore = {
       await DB.putRaw("sync_cursor", { key: "conflicts", value: list });
     } catch (e) {
       console.warn("Sauvegarde des conflits échouée", e);
+    }
+  },
+
+  // ---------- Éléments de sync en erreur (SYNC-03) ----------
+  // Un élément = { store, id, base_updated_at, attempts, reason, status, at }.
+  async loadFailures() {
+    try {
+      const r = await DB.getRaw("sync_cursor", "failures");
+      return r && Array.isArray(r.value) ? r.value : [];
+    } catch (e) {
+      console.warn("Chargement des échecs de sync échoué", e);
+      return [];
+    }
+  },
+  async saveFailures(list) {
+    try {
+      await DB.putRaw("sync_cursor", { key: "failures", value: list });
+    } catch (e) {
+      console.warn("Sauvegarde des échecs de sync échouée", e);
     }
   },
 };

@@ -363,7 +363,7 @@ let state = {
   clientsCache: [],
   auth: null,
   team: [],
-  sync: { pending: 0 },
+  sync: { pending: 0, conflicts: 0, errors: 0 },
 };
 
 // ---------------------------------------------------------
@@ -623,6 +623,9 @@ function updateOfflinePill() {
     } else if (state.sync.pending > 0) {
       syncPill.classList.add("show");
       if (txt) txt.textContent = `${state.sync.pending} changement(s) à synchroniser`;
+    } else if (state.sync.errors > 0) {
+      syncPill.classList.add("show");
+      if (txt) txt.textContent = `${state.sync.errors} élément(s) impossible(s) à synchroniser — voir Compte & synchro`;
     } else {
       syncPill.classList.remove("show");
     }
@@ -2921,6 +2924,8 @@ document.addEventListener("click", async (e) => {
   else if (action === "force-resend") forceResendAll();
   else if (action === "conflict-keep-local") resolveConflictAction(nav.dataset.store, nav.dataset.id, true);
   else if (action === "conflict-keep-remote") resolveConflictAction(nav.dataset.store, nav.dataset.id, false);
+  else if (action === "sync-retry-failed") retryFailedAction(nav.dataset.store, nav.dataset.id);         // SYNC-03
+  else if (action === "sync-discard-failed") discardFailedAction(nav.dataset.store, nav.dataset.id);    // SYNC-03
   else if (action === "appel-edit") go(`#/appel/${nav.dataset.id}`);
   else if (action === "appel-delete") {
     if (confirm("Supprimer cet appel ?")) { await DB.deleteAppel(nav.dataset.id); toast("Appel supprimé"); go("#/"); }
@@ -3084,6 +3089,11 @@ async function renderAccount() {
   // SYNC-01 : conflits en attente de résolution explicite.
   const conflicts = (window.Sync && Sync.state.conflicts) || [];
   const conflictRows = await Promise.all(conflicts.map(async (c) => ({ ...c, label: await conflictLabel(c) })));
+  // SYNC-03 : éléments refusés par le serveur (RLS, contrainte…) ou trop
+  // souvent retentés — en attente d'un choix explicite. Aucune perte : la
+  // copie locale reste intacte jusqu'à la résolution.
+  const failures = (window.Sync && Sync.state.failures) || [];
+  const failureRows = await Promise.all(failures.map(async (f) => ({ ...f, label: await conflictLabel(f) })));
 
   setApp(`
     ${topbar({ title: "Compte & synchro", back: true })}
@@ -3116,8 +3126,17 @@ async function renderAccount() {
                <div style="display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 10px;">
                  <button class="btn btn-primary" data-nav="conflict-keep-local" data-store="${esc(c.store)}" data-id="${esc(c.id)}">Garder ma version</button>
                  <button class="btn btn-ghost" data-nav="conflict-keep-remote" data-store="${esc(c.store)}" data-id="${esc(c.id)}">Garder la version serveur</button>
+             </div>`).join("")}` : ""}
+             ${failureRows.length ? `
+             <div class="sync-status warn"><span class="dot"></span>⚠ ${failureRows.length} élément(s) impossible(s) à synchroniser — vos données restent enregistrées sur cet appareil</div>
+             ${failureRows.map((f) => `
+               <div class="kv"><div class="k">${esc(f.store)}</div><div class="v">${esc(f.label)}</div></div>
+               <div class="block-text" style="font-size:12px;margin:0;">Motif : ${esc(f.reason || "Erreur inconnue")}${f.status === "permanent" ? " — erreur permanente" : ` — après ${f.attempts} tentatives`}</div>
+               <div style="display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 10px;">
+                 <button class="btn btn-primary" data-nav="sync-retry-failed" data-store="${esc(f.store)}" data-id="${esc(f.id)}">Réessayer</button>
+                 <button class="btn btn-ghost" data-nav="sync-discard-failed" data-store="${esc(f.store)}" data-id="${esc(f.id)}">Ne plus synchroniser cet élément</button>
                </div>`).join("")}` : ""}
-             <button class="btn btn-primary" data-nav="sync-now" style="margin-top:12px;">${ICONS.sync} Synchroniser maintenant</button>
+              <button class="btn btn-primary" data-nav="sync-now" style="margin-top:12px;">${ICONS.sync} Synchroniser maintenant</button>
              <button class="btn btn-ghost" data-nav="force-resend" style="margin-top:12px;">Tout renvoyer vers le serveur (récupération)</button>`
           : `<div class="sync-status warn"><span class="dot"></span>${supConfigured ? "Connectez-vous pour activer la synchronisation." : "Supabase non configuré (voir config.js)."}</div>`}
       </div>
@@ -3170,12 +3189,39 @@ async function resolveConflictAction(store, id, keepLocal) {
   await renderAccount();
 }
 
+// SYNC-03 : retente un élément passé en erreur (Compte & synchro).
+async function retryFailedAction(store, id) {
+  if (!navigator.onLine) { toast("Hors ligne — réessayez à la reconnexion", true); return; }
+  toast("Nouvel essai…");
+  try {
+    await Sync.retryFailed(store, id);
+    toast("Synchronisation de l'élément effectuée");
+  } catch (e) {
+    console.error("Nouvel essai de synchronisation échoué", e);
+    toast("Élément toujours en erreur — voir le motif", true);
+    scheduleSyncRetry();
+  }
+  await renderAccount();
+}
+
+// SYNC-03 : abandon explicite d'un élément (jamais appelé automatiquement) —
+// il ne sera plus poussé ; la copie locale reste sur l'appareil.
+async function discardFailedAction(store, id) {
+  const f = ((window.Sync && Sync.state.failures) || []).find((x) => x.store === store && x.id === id);
+  if (!f) { await renderAccount(); return; }
+  const label = `${f.store} — ${String(f.id).slice(0, 8)}…`;
+  if (!confirm(`Ne plus synchroniser « ${label} » ?\n\nLa modification concernée restera sur cet appareil, mais ne sera JAMAIS envoyée au serveur ni aux autres appareils.`)) return;
+  Sync.discardFailed(store, id);
+  toast("Élément retiré de la synchronisation");
+  await renderAccount();
+}
+
 // SYNC-01 : renvoi massif explicite et averti (récupération uniquement).
 async function forceResendAll() {
   if (!confirm("Renvoyer TOUTES les données locales vers le serveur ?\n\nAttention : en cas de divergence, la version locale écrasera celle du serveur. À n'utiliser qu'en cas de récupération nécessaire.")) return;
   toast("Renvoi en cours…");
   try {
-    await Sync.pushAllLocal();
+    await Sync.pushAllLocal(true); // SYNC-03 : force=true (action explicite de récupération)
     await Sync.runSync();
     toast("Données renvoyées");
   } catch (e) {

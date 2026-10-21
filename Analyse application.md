@@ -322,7 +322,7 @@ Mais la lecture du code révèle **des écarts importants entre ce que le PRD et
 **Étape 2 — Fiabilité**
 - [ ] **NUM-01** : numérotation serveur + index unique ; MAJ PRD §5.2.
 - [ ] **SYNC-02** : pagination, curseur `max(updated_at)` persisté, pull sans `data_url`, Realtime ciblé sur les 11 tables (ou au moins `rendezvous`).
-- [ ] **SYNC-03** : compteur d'échecs, statut `en_erreur` visible, contrôle du nombre de lignes affectées dans `Supabase.remove`.
+- [x] **SYNC-03** : compteur d'échecs par élément (`MAX_SYNC_ATTEMPTS`), erreurs permanentes (401/403/409/422, RLS `42501`, contraintes) sorties de la file dès le 1er échec, éléments en erreur visibles dans « Compte & synchro » avec motif + « Réessayer » / « Ne plus synchroniser », garde `applyRemote` étendue aux éléments en erreur, contrôle du nombre de lignes affectées dans `Supabase.remove` (existence `select` + `update … .select("id")`), `pushAllLocal()` sans re-push des lignes non modifiées (tombstones toujours poussées). **Test 2 appareils (RLS 403) restant à confirmer** (règle §7.1.7).
 - [ ] **COH-05** : masquer « Contrat d'entretien annuel » pour le technicien (ou ouvrir l'insertion en RLS si c'est voulu ; **trancher avec le client**).
 - [ ] **BP-01** : persistance du brouillon du wizard + bandeau de mise à jour + `navigator.storage.persist()`.
 - [ ] **SEC-03** : trigger d'immutabilité de `created_by`, `with check`, RPC `link_appel`. Tester avec un compte technicien le cas « relier un appel du responsable ».
