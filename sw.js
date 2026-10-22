@@ -21,7 +21,6 @@ const ASSETS = [
   "./logo-data.js",
   "./assets/logo-climat-elec.png",
   "./vendor/jspdf.umd.min.js",
-  "./vendor/pdf-lib.min.js",
   "./vendor/supabase-js.min.js",
   "./icons/favicon-16x16.png",
   "./icons/favicon-32x32.png",

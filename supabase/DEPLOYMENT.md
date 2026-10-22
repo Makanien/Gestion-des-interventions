@@ -10,6 +10,14 @@ dossier, documents importés, photos, base pièces, contrats).
 > migrée, relançable sans erreur ni effet de bord. Il n'y a plus d'ordre de
 > scripts à respecter.
 
+> ⚠️ **Workflow 4 statuts (13/10/2026)** : rejouer `schema.sql` (idempotent)
+> **avant** de déployer le front — le script normalise les anciens statuts
+> (`validee`/`facture_importee`/`facture_a_verifier` → `a_facturer` ;
+> `facture_verifiee`/`a_envoyer`/`cloturee` → `termine`) puis pose la contrainte
+> CHECK sur les 4 valeurs et le trigger de contrôle des transitions. La
+> contrainte CHECK doit être créée **après** le backfill (ordre garanti par le
+> script lui-même).
+
 ## 1. Prérequis
 
 - Un projet Supabase actif (déjà connecté à votre compte GitHub).

@@ -117,6 +117,15 @@ const Supabase = {
     return data || [];
   },
 
+  // Workflow 4 statuts (P2.6) : lecture d'une ligne unique, pour ré-aligner
+  // localement une fiche dont une transition a été refusée par le serveur.
+  async get(store, id) {
+    const c = initSupabase();
+    const { data, error } = await c.from(store).select("*").eq("id", id).maybeSingle();
+    if (error) throw error;
+    return data || null;
+  },
+
   async upsert(store, row) {
     const c = initSupabase();
     // C8 : on demande le retour de la ligne écrite pour récupérer `updated_at`

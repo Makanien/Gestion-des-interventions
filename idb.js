@@ -143,13 +143,36 @@ async function migrateV2toV3() {
     const interventions = await DB.listRaw("interventions");
     for (const itv of interventions) {
       if (!itv.statut_dossier) {
-        itv.statut_dossier = itv.statut === "terminee" ? "validee" : "a_valider";
+        itv.statut_dossier = itv.statut === "terminee" ? "a_facturer" : "a_valider";
         await DB.putRaw("interventions", itv);
       }
     }
     await DB.setMeta("migrated_v3_status", "done");
   } catch (e) {
     console.warn("migrateV2toV3 ignoré", e);
+  }
+}
+
+// Workflow 4 statuts (13/10/2026) : normalise localement les anciens statuts V3.
+// Le serveur est déjà migré par le bloc SQL P1 (trigger + backfill) : on ne met
+// PAS en file de synchro et on ne modifie ni `updated_at` ni `synced_at`, pour
+// éviter une tempête de push et un conflit « dernière écriture gagne » contre
+// l'horodatage serveur. Aucun store/index créé : pas de bump de DB_VERSION.
+async function migrateWorkflow4() {
+  try {
+    const done = await DB.getMeta("migrated_workflow_4");
+    if (done === "done") return;
+    const interventions = await DB.listRaw("interventions");
+    for (const itv of interventions) {
+      const norm = DB.normalizeStatut(itv.statut_dossier);
+      if (norm !== itv.statut_dossier) {
+        itv.statut_dossier = norm;
+        await DB.putRaw("interventions", itv);
+      }
+    }
+    await DB.setMeta("migrated_workflow_4", "done");
+  } catch (e) {
+    console.warn("migrateWorkflow4 ignoré", e);
   }
 }
 
@@ -179,7 +202,26 @@ const DB = {
     await migrateV1toV2();
     await migrateV2toV3();
     await migrateV3numero();
+    await migrateWorkflow4();
     return this._db;
+  },
+
+  // ---------- Workflow 4 statuts (13/10/2026) ----------
+  // Correspondance partagée anciens statuts V3 → 4 nouveaux statuts.
+  // Mêmes correspondances que côté serveur (`public.normalize_statut_dossier`).
+  // Statuts cibles : brouillon, a_valider, a_facturer, termine.
+  LEGACY_STATUT: {
+    validee: "a_facturer",
+    facture_importee: "a_facturer",
+    facture_a_verifier: "a_facturer",
+    facture_verifiee: "termine",
+    a_envoyer: "termine",
+    cloturee: "termine",
+  },
+  // Renvoie la valeur d'entrée inchangée si déjà normale ou inconnue.
+  normalizeStatut(s) {
+    if (s === null || s === undefined || s === "") return s;
+    return this.LEGACY_STATUT[s] || s;
   },
 
   // ---------- Helpers génériques ----------
@@ -484,11 +526,14 @@ const DB = {
     return true;
   },
   // Transition de statut dossier (simple raccourci qui conserve tout le reste).
-  async setStatutDossier(id, statut) {
+  // `extra` porte les champs de traçabilité du workflow 4 statuts (motif_retour,
+  // valide_par, valide_le, facture_par, facture_le) ; ils partent vers Supabase.
+  async setStatutDossier(id, statut, extra = {}) {
     const i = await this.getRaw("interventions", id);
     if (!i) return null;
     const base = i.synced_at || null; // SYNC-01 : version de base pour le push
-    i.statut_dossier = statut;
+    i.statut_dossier = this.normalizeStatut(statut);
+    Object.assign(i, extra);
     i.updated_at = new Date().toISOString();
     i.synced_at = null;
     await this.putRaw("interventions", i);
