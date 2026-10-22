@@ -82,6 +82,10 @@ alter table public.interventions add column if not exists type_entretien text no
 alter table public.interventions add column if not exists type_entretien_detail text not null default '';
 alter table public.interventions add column if not exists prochaine_intervention_prevue boolean not null default false;
 alter table public.interventions add column if not exists annee_installation text not null default '';
+-- Technicien affecté (uuid auth.users) : manquant dans la table V2, mais
+-- référencé par le trigger workflow, set_technicien_default et les RLS.
+alter table public.interventions add column if not exists technicien_id uuid references auth.users(id) on delete set null;
+create index if not exists interventions_technicien_id_idx on public.interventions(technicien_id);
 -- Fin d'intervention commune (§3.2.14, arb. 6.9) : case « Page ok » — attestation
 -- que toutes les informations obligatoires sont renseignées (contrôle à la validation).
 alter table public.interventions add column if not exists page_ok boolean not null default false;
