@@ -3338,6 +3338,44 @@ function scheduleSyncRetry(delay = 5000) {
 }
 
 // ---------------------------------------------------------
+// Synchronisation ↦ affichage : quand une modification venue d'un autre
+// appareil (Realtime ou pull de sync) vient d'être appliquée localement,
+// l'écran courant est re-rendu — plus besoin de rafraichir l'application
+// pour voir les changements des autres sessions.
+// Garde-fous : on n'interrompt JAMAIS une saisie (formulaire RDV / client /
+// appel / contrat, wizard de fiche, feuille « Créer », modale de signature,
+// champ actif) — la vue est rafraîchie à l'occasion suivante.
+// ---------------------------------------------------------
+window.onRemoteDataChanged = () => {
+  const hash = window.location.hash || "#/";
+  const safeHash =
+    hash === "#/" ||
+    ["#/clients", "#/stats", "#/account"].includes(hash) ||
+    hash.startsWith("#/detail/") ||
+    hash.startsWith("#/detail-contrat/");
+  if (!safeHash) return; // wizard / formulaires : on ne touche pas à l'écran
+  const ae = document.activeElement;
+  if (ae && (ae.tagName === "INPUT" || ae.tagName === "TEXTAREA" || ae.tagName === "SELECT" || ae.isContentEditable)) return;
+  if (document.querySelector(".sheet-overlay, .sig-overlay")) return;
+  if (hash === "#/" && $("#tab-content")) renderTab(); // onglet courant + position de défilement préservées
+  else route();
+};
+
+// Rattrapage des sessions restées ouvertes (Realtime coupé, onglet en
+// arrière-plan, WebSocket instable) : relance un pull + push au retour
+// sur l'application et régulièrement quand l'écran est visible.
+async function syncWhenIdle() {
+  if (!Supabase.configured() || !state.auth || !navigator.onLine) return;
+  if (Sync.state?.running) return;
+  try { await Sync.runSync(); } catch (e) { /* déjà journalisé — nouvel essai plus tard */ }
+}
+window.addEventListener("focus", syncWhenIdle);
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible") syncWhenIdle();
+});
+setInterval(() => { if (document.visibilityState === "visible") syncWhenIdle(); }, 60000);
+
+// ---------------------------------------------------------
 // Init
 // ---------------------------------------------------------
 window.addEventListener("online", updateOfflinePill);

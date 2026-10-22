@@ -126,6 +126,22 @@ const Supabase = {
     return data || null;
   },
 
+  // Réconciliation de périmètre (sync.js) : liste paginée des SEULS ids
+  // visibles par l'utilisateur connecté (RLS). Utilisée pour détecter les
+  // lignes qui ont QUITTÉ le périmètre (réaffectation à un autre
+  // technicien) : elles n'apparaissent plus dans le pull filtré par RLS.
+  async listIds(store, from = 0, limit = 1000) {
+    const c = initSupabase();
+    const { data, error } = await c
+      .from(store)
+      .select("id")
+      .order("updated_at", { ascending: true })
+      .order("id", { ascending: true })
+      .range(from, from + limit - 1);
+    if (error) throw error;
+    return (data || []).map((r) => r.id);
+  },
+
   async upsert(store, row) {
     const c = initSupabase();
     // C8 : on demande le retour de la ligne écrite pour récupérer `updated_at`

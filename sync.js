@@ -106,6 +106,7 @@ async function pullChanges() {
 
   const since = SyncState.lastPulledAt;
   let maxSeen = null; // max(updated_at) reçu — horloge SERVEUR (SYNC-02)
+  let applied = 0;    // modifications locales effectives (pour rafraîchir l'écran)
 
   for (const store of SYNC_STORES) {
     // SYNC-02 : pagination par pages stables ; plus de troncature silencieuse
@@ -114,7 +115,7 @@ async function pullChanges() {
     let rows = await Supabase.list(store, { since, from, limit: PULL_PAGE });
     while (rows.length > 0) {
       for (const row of rows) {
-        await applyRemote(store, row);
+        if (await applyRemote(store, row)) applied++;
         if (row.updated_at) maxSeen = maxISO(maxSeen, row.updated_at);
       }
       if (rows.length < PULL_PAGE) break;
@@ -133,6 +134,81 @@ async function pullChanges() {
   // SYNC-02 : les data_url (photos/documents) ne sont plus tirés en masse —
   // on complète les binaires manquants depuis Storage, à la demande.
   await healPulledBinaries();
+  await reconcileHiddenRows();
+  return applied;
+}
+
+// Réconciliation de périmètre : une ligne qui QUITTE le périmètre RLS de
+// l'utilisateur connecté (RDV ou fiche réaffecté(e) à un autre technicien)
+// n'arrive jamais par le pull — la requête filtrée par RLS ne la renvoie
+// plus — et son Realtime ne livre pas de version visible. Sans ceci, la
+// copie locale devient un « fantôme » qui s'affiche encore comme
+// affecté(e) à l'utilisateur alors que le serveur l'a donnée à quelqu'un
+// d'autre (même un rafraîchissement n'y remédiait pas).
+//
+// Le pull liste donc les ids ACTUELLEMENT visibles côté serveur (RLS) :
+// toute ligne locale active absente de cette liste a quitté le périmètre →
+// retirée localement. Le serveur garde la ligne : si elle revient dans le
+// périmètre (ré-affectation retour), le pull standard la ramène.
+// Les lignes jamais poussées (file de sync) ou en erreur (SYNC-03) sont
+// épargnées, comme dans applyRemote.
+const RECONCILE_STORES = ["rendezvous", "interventions"];
+const RECONCILE_PAGE = 1000; // limite PostgREST par requête
+const RECONCILE_MAX_PAGES = 5;
+
+// Miroir d'`isManager()` (app.js) : les managers voient tout — la sonde
+// de périmètre ne leur apporte rien et leur périmètre peut être volumineux.
+function canSeeEverything() {
+  if (typeof state === "undefined" || !state.auth) return true; // pas de session → pas de sonde
+  const role = state.auth?.profile?.role || "responsable";
+  return ["responsable", "secretaire", "developpeur"].includes(role);
+}
+
+async function reconcileHiddenRows() {
+  if (!navigator.onLine || canSeeEverything()) return;
+  for (const store of RECONCILE_STORES) {
+    try {
+      const visible = new Set();
+      let from = 0;
+      let budgetExceeded = false;
+      for (;;) {
+        const ids = await Supabase.listIds(store, from, RECONCILE_PAGE);
+        for (const id of ids) visible.add(id);
+        if (ids.length < RECONCILE_PAGE) break;
+        from += RECONCILE_PAGE;
+        if (from >= RECONCILE_PAGE * RECONCILE_MAX_PAGES) { visible.clear(); budgetExceeded = true; break; } // périmètre hors budget : on ne conclut rien
+      }
+      if (budgetExceeded) continue;
+      const locals = await DB.listRaw(store);
+      let removed = false;
+      for (const row of locals) {
+        if (row._deleted || visible.has(row.id)) continue;
+        if (SyncState.queue.some((q) => q.store === store && q.id === row.id)) continue; // jamais poussée : pas une réaffectation
+        if (SyncState.failures.some((f) => f.store === store && f.id === row.id)) continue; // en erreur explicite : résolution utilisateur
+        await DB.deleteRaw(store, row.id);
+        removed = true;
+      }
+      if (removed) notifyRemoteDataChanged();
+    } catch (e) {
+      console.warn(`Réconciliation du périmètre ignorée (${store})`, e); // réseau : retentée au prochain pull
+    }
+  }
+}
+
+// UI : quand une modification distante vient d'être appliquée localement
+// (Realtime ou pull), prévient l'écran courant — app.js re-rend alors la
+// vue affichée (avec ses propres garde-fous : jamais pendant une saisie).
+// Sans cela, la donnée arrivait bien sur l'appareil mais l'écran restait
+// figé sur l'ancienne version jusqu'à rechargement de l'application.
+let _remoteUiTimer = null;
+function notifyRemoteDataChanged() {
+  if (typeof window.onRemoteDataChanged !== "function") return;
+  clearTimeout(_remoteUiTimer);
+  _remoteUiTimer = setTimeout(() => {
+    try { window.onRemoteDataChanged(); } catch (e) {
+      console.warn("Rafraîchissement automatique de l'écran échoué", e);
+    }
+  }, 800);
 }
 
 // SYNC-02 : Storage est la source de vérité des binaires. Une ligne photo /
@@ -178,14 +254,14 @@ async function applyRemote(store, remote) {
   const isDeleted = !!remote.deleted_at;
 
   if (!local) {
-    if (isDeleted) return; // déja absent, rien à faire
+    if (isDeleted) return false; // déja absent, rien à faire
     const row = cleanRow(store, remote);
     // SYNC-01 : la copie locale répliquée emporte la version serveur vue
     // (base pour un éventuel futur push conditionnel).
     row.synced_at = remote.updated_at || null;
     await DB.putRaw(store, row);
     if (store === "photos" || store === "documents") fillBinaryUrl(store, remote.id);
-    return;
+    return true;
   }
 
   // C8 : une modification locale pas encore poussée (toujours dans la file de
@@ -197,12 +273,16 @@ async function applyRemote(store, remote) {
   // serveur) reste aussi protégé du pull — l'écraser serait perdre une
   // modification jamais poussée ; l'utilisateur tranche (Réessayer / Retirer).
   const hasFailure = SyncState.failures.some((f) => f.store === store && f.id === remote.id);
-  if (isPending || hasFailure) return;
+  if (isPending || hasFailure) return false;
 
   // Une version distante plus ancienne que la copie locale n'est jamais
   // appliquée (« dernière écriture gagne », comparaison updated_at).
   const localTime = local.updated_at || local.created_at || "";
   const remoteTime = remote.updated_at || remote.created_at || "";
+  // Rien ne change localement si c'est la version serveur exacte déjà
+  // obtenue (re-pull du recouvrement du curseur, doublon Realtime) — évite
+  // de réécrire en boucle et de rafraîchir l'écran à chaque pull.
+  if (!isDeleted && !local._deleted && local.updated_at === remoteTime && local.synced_at === remoteTime) return false;
   if (remoteTime >= localTime || isDeleted) {
     if (isDeleted) {
       await DB.deleteRaw(store, remote.id);
@@ -212,7 +292,9 @@ async function applyRemote(store, remote) {
       await DB.putRaw(store, merged);
       if (store === "photos" || store === "documents") fillBinaryUrl(store, remote.id);
     }
+    return true;
   }
+  return false;
 }
 
 // P4 : un dataURL de signature (capturé hors ligne) reste local tant qu'aucune
@@ -597,8 +679,11 @@ async function runSync() {
   try {
     if (navigator.onLine) {
       await uploadPendingSignatures();
-      await pullChanges();
+      const applied = await pullChanges();
       await pushChanges();
+      // Une modification venue d'un autre appareil a été appliquée :
+      // l'écran courant doit refléter la nouvelle donnée, sans rechargement.
+      if (applied > 0) notifyRemoteDataChanged();
     }
   } catch (e) {
     // Ne bloque pas la synchronisation : un échec réseau transitoire
@@ -674,10 +759,28 @@ function initRealtime() {
           // Le payload apporte la ligne complète (INSERT/UPDATE) ou l'ancien
           // id (DELETE) : application directe en local.
           try {
-            if (payload && payload.eventType === "DELETE" && payload.old && payload.old.id) {
-              DB.deleteRaw(store, payload.old.id).catch((e) => console.warn("Realtime delete échoué", e));
-            } else if (payload && payload.new && payload.new.id) {
-              applyRemote(store, payload.new).catch((e) => console.warn("Realtime apply échoué", e));
+            if (payload.eventType === "DELETE" && payload.old && payload.old.id) {
+              DB.deleteRaw(store, payload.old.id)
+                .then(() => notifyRemoteDataChanged())
+                .catch((e) => console.warn("Realtime delete échoué", e));
+            } else if (payload.eventType === "UPDATE" && payload.old && payload.old.id
+                       && (!payload.new || !payload.new.id)) {
+              // UPDATE sans version visible : la ligne a QUITTÉ le périmètre
+              // RLS de cet utilisateur (réaffectée à quelqu'un d'autre).
+              // On retire la copie locale — sauf si une modification locale
+              // est en attente / en erreur (aucune perte silencieuse).
+              const id = payload.old.id;
+              const pending = SyncState.queue.some((q) => q.store === store && q.id === id)
+                || SyncState.failures.some((f) => f.store === store && f.id === id);
+              if (!pending) {
+                DB.deleteRaw(store, id)
+                  .then(() => notifyRemoteDataChanged())
+                  .catch((e) => console.warn("Realtime retrait de périmètre échoué", e));
+              }
+            } else if (payload.new && payload.new.id) {
+              applyRemote(store, payload.new)
+                .then((applied) => { if (applied) notifyRemoteDataChanged(); })
+                .catch((e) => console.warn("Realtime apply échoué", e));
             }
           } catch (e) {
             console.warn("Realtime : événement non traité", e);
@@ -691,4 +794,4 @@ function initRealtime() {
   }
 }
 
-window.Sync = { runSync, pullChanges, pushChanges, enqueueSync, initRealtime, scheduleSync, initPersisted, initialPushIfNeeded, pushAllLocal, resolveConflict, retryFailed, discardFailed, uploadPendingSignatures, state: SyncState };
+window.Sync = { runSync, pullChanges, pushChanges, enqueueSync, initRealtime, scheduleSync, initPersisted, initialPushIfNeeded, pushAllLocal, resolveConflict, retryFailed, discardFailed, uploadPendingSignatures, notifyRemoteDataChanged, state: SyncState };
