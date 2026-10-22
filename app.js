@@ -296,7 +296,7 @@ const ENTRETIEN_META = {
     label: "Entretien Air/Eau - Sol/Eau",
     icon: "droplet",
     types: ["Aérothermie", "Géothermie", "Aquathermie"],
-    maxEq: 3,
+    maxEq: 5,
     cerfa: true,
     mesures: [
       { section: "Vérification Groupe extérieur", items: BLOC_GROUPE_EXTERIEUR },
@@ -311,7 +311,7 @@ const ENTRETIEN_META = {
     // requalifiées à l'ouverture — l'ancienne valeur reste proposée au
     // sélecteur, cf. stepEntretienHTML.
     types: ["Mono Split", "Multi Split", "Gainable"],
-    maxEq: 3, // même bloc de données que la page 3/6 de « Nouvelle intervention » (6.5)
+    maxEq: 5, // même bloc de données que la page 3/6 de « Nouvelle intervention » (6.5)
     cerfa: true,
     mesures: [
       { section: "Vérification Groupe extérieur", items: BLOC_GROUPE_EXTERIEUR_AIR_AIR },
@@ -325,7 +325,7 @@ const ENTRETIEN_META = {
     // les anciens libellés (Granulés, Bûches, Pellets) des fiches existantes
     // restent proposés au sélecteur (option tolérante, cf. stepEntretienHTML).
     types: ["Chaudière Bûches", "Chaudière Granulés", "Chaudière Déchiquettée"],
-    maxEq: 3,
+    maxEq: 5,
     cerfa: false, // aucun champ fluide frigorigène — CERFA n°15497 non applicable (confirmé 09/10)
     prochaine: true, // « Prochaine intervention prévue » conservée (arb. 6.3)
     mesures: [
@@ -345,7 +345,7 @@ const ENTRETIEN_META = {
     label: "Entretien installation solaire",
     icon: "sun",
     types: [], // liste des types d'installation : à venir du client (§11 du PRD)
-    maxEq: 3,
+    maxEq: 5,
     cerfa: false, // pas de fluide frigorigène — CERFA n°15497 a priori non applicable (6.10)
     trameAttente: true, // trame en préparation : données client à venir
     mesures: [
@@ -382,7 +382,7 @@ let state = {
   clientsCache: [],
   auth: null,
   team: [],
-  sync: { pending: 0 },
+  sync: { pending: 0, conflicts: 0, errors: 0 },
 };
 
 // ---------------------------------------------------------
@@ -661,6 +661,9 @@ function updateOfflinePill() {
     } else if (state.sync.pending > 0) {
       syncPill.classList.add("show");
       if (txt) txt.textContent = `${state.sync.pending} changement(s) à synchroniser`;
+    } else if (state.sync.errors > 0) {
+      syncPill.classList.add("show");
+      if (txt) txt.textContent = `${state.sync.errors} élément(s) impossible(s) à synchroniser — voir Compte & synchro`;
     } else {
       syncPill.classList.remove("show");
     }
@@ -1833,7 +1836,7 @@ function equipLineHTML(eq, idx) {
 function stepEquipHTML() {
   const d = state.draft;
   const meta = draftMeta();
-  const max = meta?.maxEq || 3;
+  const max = meta?.maxEq || 5;
   return `
   ${meta ? `<div class="card" style="padding:14px;margin-bottom:12px;"><div class="field" style="margin-bottom:0;"><label>Année d'installation</label><input id="f-annee" type="text" inputmode="numeric" placeholder="Ex : 2021" value="${esc(d.annee_installation)}" /></div></div>` : ""}
   <div id="eq-reuse"></div>
@@ -1845,7 +1848,7 @@ function stepEquipHTML() {
 function wireEquipStep() {
   $("#add-eq").addEventListener("click", () => {
     const meta = draftMeta();
-    if (state.draft.equipements.length >= (meta?.maxEq || 3)) { toast(`Maximum ${meta?.maxEq || 3} équipements`, true); return; }
+    if (state.draft.equipements.length >= (meta?.maxEq || 5)) { toast(`Maximum ${meta?.maxEq || 5} équipements`, true); return; }
     state.draft.equipements.push({ intitule: "", marque: "", modele: "", numero_serie: "" });
     $("#eq-list").innerHTML = state.draft.equipements.map(equipLineHTML).join("");
     wireEquipLines();
@@ -3003,6 +3006,11 @@ document.addEventListener("click", async (e) => {
   else if (action === "logout") signOutUser();
   else if (action === "stats") go("#/stats");
   else if (action === "sync-now") runSyncNow();
+  else if (action === "force-resend") forceResendAll();
+  else if (action === "conflict-keep-local") resolveConflictAction(nav.dataset.store, nav.dataset.id, true);
+  else if (action === "conflict-keep-remote") resolveConflictAction(nav.dataset.store, nav.dataset.id, false);
+  else if (action === "sync-retry-failed") retryFailedAction(nav.dataset.store, nav.dataset.id);         // SYNC-03
+  else if (action === "sync-discard-failed") discardFailedAction(nav.dataset.store, nav.dataset.id);    // SYNC-03
   else if (action === "appel-edit") go(`#/appel/${nav.dataset.id}`);
   else if (action === "appel-delete") {
     if (confirm("Supprimer cet appel ?")) { await DB.deleteAppel(nav.dataset.id); toast("Appel supprimé"); go("#/"); }
@@ -3152,11 +3160,25 @@ async function signOutUser() {
 // ---------------------------------------------------------
 // COMPTE & SYNCHRONISATION (V2)
 // ---------------------------------------------------------
+// SYNC-01 : libellé lisible d'un conflit selon la table concernée.
+async function conflictLabel(c) {
+  const row = await DB.getRaw(c.store, c.id).catch(() => null);
+  return row?.numero || row?.nom || row?.designation || row?.legende || c.id;
+}
+
 async function renderAccount() {
   const supConfigured = Supabase.configured();
   const user = state.auth?.user;
   const profile = state.auth?.profile;
   const pending = state.sync.pending || 0;
+  // SYNC-01 : conflits en attente de résolution explicite.
+  const conflicts = (window.Sync && Sync.state.conflicts) || [];
+  const conflictRows = await Promise.all(conflicts.map(async (c) => ({ ...c, label: await conflictLabel(c) })));
+  // SYNC-03 : éléments refusés par le serveur (RLS, contrainte…) ou trop
+  // souvent retentés — en attente d'un choix explicite. Aucune perte : la
+  // copie locale reste intacte jusqu'à la résolution.
+  const failures = (window.Sync && Sync.state.failures) || [];
+  const failureRows = await Promise.all(failures.map(async (f) => ({ ...f, label: await conflictLabel(f) })));
 
   setApp(`
     ${topbar({ title: "Compte & synchro", back: true })}
@@ -3182,7 +3204,25 @@ async function renderAccount() {
         ${supConfigured && state.auth
           ? `<div class="sync-status ${navigator.onLine ? "ok" : "warn"}"><span class="dot"></span>${navigator.onLine ? "En ligne — synchronisation automatique active" : "Hors ligne — les changements seront synchronisés dès le retour du réseau"}</div>
              <div class="sync-status ${pending === 0 ? "ok" : "warn"}"><span class="dot"></span>${pending === 0 ? "Aucun changement en attente" : `${pending} changement(s) en attente d'envoi`}</div>
-             <button class="btn btn-primary" data-nav="sync-now" style="margin-top:12px;">${ICONS.sync} Synchroniser maintenant</button>`
+             ${conflictRows.length ? `
+             <div class="sync-status warn"><span class="dot"></span>⚠ ${conflictRows.length} conflit(s) : versions locale et serveur divergentes — aucune donnée n'a été écrasée</div>
+             ${conflictRows.map((c) => `
+               <div class="kv"><div class="k">${esc(c.store)}</div><div class="v">${esc(c.label)}</div></div>
+               <div style="display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 10px;">
+                 <button class="btn btn-primary" data-nav="conflict-keep-local" data-store="${esc(c.store)}" data-id="${esc(c.id)}">Garder ma version</button>
+                 <button class="btn btn-ghost" data-nav="conflict-keep-remote" data-store="${esc(c.store)}" data-id="${esc(c.id)}">Garder la version serveur</button>
+             </div>`).join("")}` : ""}
+             ${failureRows.length ? `
+             <div class="sync-status warn"><span class="dot"></span>⚠ ${failureRows.length} élément(s) impossible(s) à synchroniser — vos données restent enregistrées sur cet appareil</div>
+             ${failureRows.map((f) => `
+               <div class="kv"><div class="k">${esc(f.store)}</div><div class="v">${esc(f.label)}</div></div>
+               <div class="block-text" style="font-size:12px;margin:0;">Motif : ${esc(f.reason || "Erreur inconnue")}${f.status === "permanent" ? " — erreur permanente" : ` — après ${f.attempts} tentatives`}</div>
+               <div style="display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 10px;">
+                 <button class="btn btn-primary" data-nav="sync-retry-failed" data-store="${esc(f.store)}" data-id="${esc(f.id)}">Réessayer</button>
+                 <button class="btn btn-ghost" data-nav="sync-discard-failed" data-store="${esc(f.store)}" data-id="${esc(f.id)}">Ne plus synchroniser cet élément</button>
+               </div>`).join("")}` : ""}
+              <button class="btn btn-primary" data-nav="sync-now" style="margin-top:12px;">${ICONS.sync} Synchroniser maintenant</button>
+             <button class="btn btn-ghost" data-nav="force-resend" style="margin-top:12px;">Tout renvoyer vers le serveur (récupération)</button>`
           : `<div class="sync-status warn"><span class="dot"></span>${supConfigured ? "Connectez-vous pour activer la synchronisation." : "Supabase non configuré (voir config.js)."}</div>`}
       </div>
 
@@ -3209,7 +3249,8 @@ async function runSyncNow() {
   if (!navigator.onLine) { toast("Hors ligne — synchronisation impossible", true); return; }
   toast("Synchronisation…");
   try {
-    await Sync.pushAllLocal();
+    // SYNC-01 : plus de pushAllLocal ici — seules les lignes réellement
+    // modifiées localement (file persistée) sont envoyées.
     await Sync.runSync();
     toast("Synchronisation terminée");
     if (window.location.hash === "#/account") await renderAccount();
@@ -3221,6 +3262,61 @@ async function runSyncNow() {
   }
 }
 
+// SYNC-01 : résolution explicite d'un conflit (Compte & synchro).
+async function resolveConflictAction(store, id, keepLocal) {
+  try {
+    await Sync.resolveConflict(store, id, keepLocal);
+    toast(keepLocal ? "Votre version a été renvoyée" : "Version serveur appliquée");
+  } catch (e) {
+    console.error(e);
+    toast("Résolution impossible — réessayez", true);
+  }
+  await renderAccount();
+}
+
+// SYNC-03 : retente un élément passé en erreur (Compte & synchro).
+async function retryFailedAction(store, id) {
+  if (!navigator.onLine) { toast("Hors ligne — réessayez à la reconnexion", true); return; }
+  toast("Nouvel essai…");
+  try {
+    await Sync.retryFailed(store, id);
+    toast("Synchronisation de l'élément effectuée");
+  } catch (e) {
+    console.error("Nouvel essai de synchronisation échoué", e);
+    toast("Élément toujours en erreur — voir le motif", true);
+    scheduleSyncRetry();
+  }
+  await renderAccount();
+}
+
+// SYNC-03 : abandon explicite d'un élément (jamais appelé automatiquement) —
+// il ne sera plus poussé ; la copie locale reste sur l'appareil.
+async function discardFailedAction(store, id) {
+  const f = ((window.Sync && Sync.state.failures) || []).find((x) => x.store === store && x.id === id);
+  if (!f) { await renderAccount(); return; }
+  const label = `${f.store} — ${String(f.id).slice(0, 8)}…`;
+  if (!confirm(`Ne plus synchroniser « ${label} » ?\n\nLa modification concernée restera sur cet appareil, mais ne sera JAMAIS envoyée au serveur ni aux autres appareils.`)) return;
+  Sync.discardFailed(store, id);
+  toast("Élément retiré de la synchronisation");
+  await renderAccount();
+}
+
+// SYNC-01 : renvoi massif explicite et averti (récupération uniquement).
+async function forceResendAll() {
+  if (!confirm("Renvoyer TOUTES les données locales vers le serveur ?\n\nAttention : en cas de divergence, la version locale écrasera celle du serveur. À n'utiliser qu'en cas de récupération nécessaire.")) return;
+  toast("Renvoi en cours…");
+  try {
+    await Sync.pushAllLocal(true); // SYNC-03 : force=true (action explicite de récupération)
+    await Sync.runSync();
+    toast("Données renvoyées");
+  } catch (e) {
+    console.warn(e);
+    toast("Renvoi partiel — nouvel essai automatique", true);
+    scheduleSyncRetry();
+  }
+  await renderAccount();
+}
+
 let _retryTimer = null;
 function scheduleSyncRetry(delay = 5000) {
   if (_retryTimer) return;
@@ -3228,7 +3324,8 @@ function scheduleSyncRetry(delay = 5000) {
     _retryTimer = null;
     if (!navigator.onLine) return;
     try {
-      await Sync.pushAllLocal();
+      // SYNC-01 : la file persistée est déjà l'état de la vérité locale ;
+      // on ne repousse plus l'intégralité des données à chaque retry.
       await Sync.runSync();
       toast("Synchronisation réussie");
       if (window.location.hash === "#/account") await renderAccount();
@@ -3248,6 +3345,7 @@ window.addEventListener("offline", updateOfflinePill);
 
 async function init() {
   await DB.init();
+  await Sync.initPersisted(); // SYNC-01/02 : restaure file, curseur, conflits
   initSupabase();
   if (Supabase.configured()) {
     Supabase.onAuthChange(async (event, session) => {
@@ -3257,7 +3355,10 @@ async function init() {
         const team = await Supabase.listProfiles().catch(() => null);
         state.team = team || [];
         Sync.initRealtime();
-        if (event === "SIGNED_IN" || event === "INITIAL_SESSION") await Sync.pushAllLocal();
+        // SYNC-01 : la migration initiale (données locales créées avant la
+        // première connexion) n'est jouée qu'une fois (marqueur _meta) — plus
+        // de pushAllLocal à chaque lancement / INITIAL_SESSION.
+        if (event === "SIGNED_IN" || event === "INITIAL_SESSION") await Sync.initialPushIfNeeded();
         await Sync.runSync().catch((e) => {
           console.warn("Sync échec (nouvel essai automatique)", e);
           toast("Synchronisation en attente de réseau", true);
