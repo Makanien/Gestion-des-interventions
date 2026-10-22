@@ -3355,7 +3355,10 @@ window.onRemoteDataChanged = () => {
     hash.startsWith("#/detail-contrat/");
   if (!safeHash) return; // wizard / formulaires : on ne touche pas à l'écran
   const ae = document.activeElement;
-  if (ae && (ae.tagName === "INPUT" || ae.tagName === "TEXTAREA" || ae.tagName === "SELECT" || ae.isContentEditable)) return;
+  // Seule la saisie de TEXTE en cours est préservée (un re-rendu effacerait
+  // le champ non validé). Un filtre <select> focus ne fait pas perdre de
+  // saisie : on laisse passer le rafraîchissement.
+  if (ae && (ae.tagName === "INPUT" || ae.tagName === "TEXTAREA" || ae.isContentEditable)) return;
   if (document.querySelector(".sheet-overlay, .sig-overlay")) return;
   if (hash === "#/" && $("#tab-content")) renderTab(); // onglet courant + position de défilement préservées
   else route();
@@ -3373,7 +3376,7 @@ window.addEventListener("focus", syncWhenIdle);
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible") syncWhenIdle();
 });
-setInterval(() => { if (document.visibilityState === "visible") syncWhenIdle(); }, 60000);
+setInterval(() => { if (document.visibilityState === "visible") syncWhenIdle(); }, 30000);
 
 // ---------------------------------------------------------
 // Init

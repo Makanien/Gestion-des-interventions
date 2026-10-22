@@ -107,20 +107,29 @@ async function pullChanges() {
   const since = SyncState.lastPulledAt;
   let maxSeen = null; // max(updated_at) reçu — horloge SERVEUR (SYNC-02)
   let applied = 0;    // modifications locales effectives (pour rafraîchir l'écran)
+  const failed = [];  // stores dont le pull a échoué (table absente, réseau…)
 
   for (const store of SYNC_STORES) {
     // SYNC-02 : pagination par pages stables ; plus de troncature silencieuse
     // à 1000 lignes (photos/documents/mesures atteignent ce volume vite).
+    // Chaque store est isolé : l'échec d'UNE table (ex. schéma en avance de
+    // phase sur la base) ne doit ni bloquer les suivants, ni empêcher le
+    // rafraîchissement de l'écran ni la réconciliation de périmètre.
     let from = 0;
-    let rows = await Supabase.list(store, { since, from, limit: PULL_PAGE });
-    while (rows.length > 0) {
-      for (const row of rows) {
-        if (await applyRemote(store, row)) applied++;
-        if (row.updated_at) maxSeen = maxISO(maxSeen, row.updated_at);
+    try {
+      let rows = await Supabase.list(store, { since, from, limit: PULL_PAGE });
+      while (rows.length > 0) {
+        for (const row of rows) {
+          if (await applyRemote(store, row)) applied++;
+          if (row.updated_at) maxSeen = maxISO(maxSeen, row.updated_at);
+        }
+        if (rows.length < PULL_PAGE) break;
+        from += PULL_PAGE;
+        rows = await Supabase.list(store, { since, from, limit: PULL_PAGE });
       }
-      if (rows.length < PULL_PAGE) break;
-      from += PULL_PAGE;
-      rows = await Supabase.list(store, { since, from, limit: PULL_PAGE });
+    } catch (e) {
+      failed.push(`${store} (${e && e.message ? e.message : e})`);
+      console.warn(`Pull partiel — ${store} ignoré pour ce cycle`, e);
     }
   }
 
@@ -135,6 +144,14 @@ async function pullChanges() {
   // on complète les binaires manquants depuis Storage, à la demande.
   await healPulledBinaries();
   await reconcileHiddenRows();
+  if (applied > 0) {
+    // Une modification venue d'un autre appareil a été appliquée :
+    // l'écran courant doit refléter la nouvelle donnée, sans rechargement.
+    notifyRemoteDataChanged();
+  }
+  // L'erreur est relancée APRÈS le rafraîchissement/réconciliation, pour que
+  // les automatismes (retry, bandeau d'attente) voient l'échec persistant.
+  if (failed.length) throw new Error(`Pull partiel : ${failed.join(", ")}`);
   return applied;
 }
 
@@ -160,8 +177,7 @@ const RECONCILE_MAX_PAGES = 5;
 // de périmètre ne leur apporte rien et leur périmètre peut être volumineux.
 function canSeeEverything() {
   if (typeof state === "undefined" || !state.auth) return true; // pas de session → pas de sonde
-  const role = state.auth?.profile?.role || "responsable";
-  return ["responsable", "secretaire", "developpeur"].includes(role);
+  return ["responsable", "secretaire", "developpeur"].includes(state.auth?.profile?.role || "");
 }
 
 async function reconcileHiddenRows() {
@@ -679,11 +695,8 @@ async function runSync() {
   try {
     if (navigator.onLine) {
       await uploadPendingSignatures();
-      const applied = await pullChanges();
+      await pullChanges();
       await pushChanges();
-      // Une modification venue d'un autre appareil a été appliquée :
-      // l'écran courant doit refléter la nouvelle donnée, sans rechargement.
-      if (applied > 0) notifyRemoteDataChanged();
     }
   } catch (e) {
     // Ne bloque pas la synchronisation : un échec réseau transitoire
