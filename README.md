@@ -66,10 +66,10 @@ plein écran comme une application native, **même sans connexion** après la pr
 Depuis ce dossier, avec Python déjà installé :
 
 ```bash
-python3 -m http.server 8080
+python3 -m http.server 3000
 ```
 
-Puis ouvrir `http://localhost:8080` dans le navigateur (le mode PWA/offline fonctionne
+Puis ouvrir `http://localhost:3000` dans le navigateur (le mode PWA/offline fonctionne
 aussi en `localhost`, c'est une exception acceptée par les navigateurs).
 
 ## Fonctionnement
@@ -90,10 +90,9 @@ aussi en `localhost`, c'est une exception acceptée par les navigateurs).
 - **Client existant** : auto-remplissage depuis l'historique. **Pièces** : la
   désignation est auto-complétée depuis la base pièces.
 - **Signature électronique** (V2) : signature tactile au doigt (client + technicien).
-- **Workflow de dossier** (V3) : Brouillon → À valider → Validée → À facturer →
-  Facture importée → À vérifier → Vérifiée → À envoyer → Clôturée. Le devis et la
-  facture (produits par un logiciel externe) sont **importés en PDF** et attachés
-  au dossier.
+- **Workflow de dossier** (4 statuts — 13/10/2026) : Brouillon → À valider →
+  À facturer → Terminé ; le devis est importé en PDF, la facture reste dans le
+  logiciel externe.
 - **Numérotation** (V3) : référence unique `FIC-AAAA-NNN` / `ENT-AAAA-NNN`.
 - **Mode brouillon** (V3) : enregistre une fiche non terminée pour la reprendre.
 - **Duplication** (V3) : bouton « Dupliquer » sur le détail (utile pour les

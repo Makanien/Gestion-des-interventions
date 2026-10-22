@@ -10,6 +10,14 @@ dossier, documents importés, photos, base pièces, contrats).
 > migrée, relançable sans erreur ni effet de bord. Il n'y a plus d'ordre de
 > scripts à respecter.
 
+> ⚠️ **Workflow 4 statuts (13/10/2026)** : rejouer `schema.sql` (idempotent)
+> **avant** de déployer le front — le script normalise les anciens statuts
+> (`validee`/`facture_importee`/`facture_a_verifier` → `a_facturer` ;
+> `facture_verifiee`/`a_envoyer`/`cloturee` → `termine`) puis pose la contrainte
+> CHECK sur les 4 valeurs et le trigger de contrôle des transitions. La
+> contrainte CHECK doit être créée **après** le backfill (ordre garanti par le
+> script lui-même).
+
 ## 1. Prérequis
 
 - Un projet Supabase actif (déjà connecté à votre compte GitHub).
@@ -55,6 +63,39 @@ window.SUPABASE_CONFIG = {
 
 Où trouver la clé : **Dashboard → Project Settings → API** → section
 *Publishable keys* (ou *anon key*).
+
+### Base de développement vs production
+
+`config.js` gère désormais **deux environnements** (`window.SUPABASE_ENVS`),
+sélectionnés automatiquement au chargement :
+
+| Contexte | Environnement utilisé |
+|---|---|
+| Ouverture en `localhost` / `127.0.0.1` / `file://` | `development` |
+| Site déployé (production) | `production` |
+| Paramètre d'URL `?env=development` ou `?env=production` | force l'environnement |
+| `localStorage.setItem("supabaseEnv", "development")` | choix persistant |
+
+Mise en place de la base de dev :
+
+1. Sur `https://supabase.com/dashboard` → **New project** (ex. `climat-elec-dev`),
+   même région, plan gratuit suffisant.
+2. Exécuter `supabase/schema.sql` (idempotent) dans **SQL Editor** de ce
+   nouveau projet — identique à la prod.
+3. Copier son URL et sa clé publishable dans `config.js` →
+   `SUPABASE_ENVS.development`.
+4. Dans **Authentication → Sign In / Providers** de ce projet : activer Email,
+   **désactiver l'inscription publique** et ajouter `http://localhost:8080`
+   dans **Redirect URLs** ; créer les comptes de test (§4) et leur attribuer
+   les rôles (`set_user_role()`).
+5. La prod est laissée intacte : l'app déployée continue de pointer vers
+   l'URL déjà présente dans `SUPABASE_ENVS.production`.
+
+> Les sessions d'auth sont stockées séparément (`climatelec-auth-development` /
+> `climatelec-auth-production`) : se déconnecter d'un environnement ne
+> déconnecte pas l'autre. Si l'environnement de dev n'est pas encore
+> configuré, l'app affiche « Supabase non configuré » en local ; tester la
+> prod depuis localhost avec `?env=production`.
 
 ## 4. Authentification
 

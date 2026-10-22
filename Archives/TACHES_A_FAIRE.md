@@ -639,3 +639,47 @@ Sans modification : `idb.js`, `supabase/schema.sql`, `style.css` (classes exista
 `pdf.js`. Aucun changement de schéma (jointure `client_id` existante).
 
 **Fichiers :** `app.js`, `sw.js`, `PRD_App_Interventions_Climat_Elec.md`
+## 22. Simplification du workflow de dossier — 4 statuts (13/10/2026)
+
+**Objectif :** ramener les 9 statuts (Brouillon → … → Clôturée) à **4** :
+`brouillon` → `a_valider` → `a_facturer` → `termine` (§3.3.3 / §3.3.4 du PRD v1.28,
+source de vérité). Plan détaillé : `PLAN_ACTION_workflow_4_statuts.md`.
+
+- [x] **P1 — Backend (`supabase/schema.sql`)** : colonnes `motif_retour`/`valide_par`/`valide_le`/
+      `facture_par`/`facture_le` ; fonction `normalize_statut_dossier` + trigger
+      `interventions_10_normalize_statut` (AVANT le contrôle) ; backfill des 6 anciennes
+      valeurs ; contrainte CHECK 4 statuts (APRES le backfill) ; trigger
+      `interventions_20_enforce_statut` (6 transitions, rôles, horodatage serveur
+      `valide_*`/`facture_*`, errcode 42501) ; commentaire `documents.type` mis à jour
+      (`facture` obsolète, lignes conservées)
+- [x] **P2 — Données locales & synchro (`idb.js`, `sync.js`, `supabase.js`)** : `DB.LEGACY_STATUT`
+      + `normalizeStatut`; `migrateWorkflow4()` (pas de bump de `DB_VERSION`, pas de push) ;
+      migration V2→V3 corrigée (`terminee` → `a_facturer`, plus `validee`) ;
+      `setStatutDossier(id, statut, extra)` ; normalisation au push (`cleanRow`) et au
+      pull/Realtime (`applyRemote`) ; refus de transition (42501) : pas de retry, toast
+      « Changement de statut refusé — fiche resynchronisée », `Supabase.get` +
+      `realignAfterRefus` (ré-alignement ciblé de la ligne)
+- [x] **P3 — Constantes & rôles (`app.js`)** : `STATUT_DOSSIER`/`STATUT_DOSSIER_ICON` à
+      4 entrées ; `STATUT_ORDER` ; `canValidate()` / `canReopen()` ; `workflowActions(itv)`
+      remplace `WORKFLOW_NEXT`
+- [x] **P4 — Écran détail (`app.js`)** : suppression `hasFacture`/`dossierPret`/bouton
+      « Générer le dossier final »/`#doc-input` + import facture ; boutons de transition
+      générés par `workflowActions` (incl. modale de motif libre facultatif `askMotif`) ;
+      verrouillage d'édition (bouton « Modifier » + garde route `#/edit/:id` → « Seul un
+      brouillon peut être modifié ») ; bandeau « Renvoyé : <motif> » (détail + wizard) ;
+      traçabilité « Validée/Facturée le … par … » ; PDF de fiche disponible à tous les statuts
+- [x] **P5 — Listes / Tableau de bord / Tâches (`app.js`)** : « en cours » et dossiers en
+      cours sur `!== "termine"` (normalisé) ; groupes du Tableau de bord sur `STATUT_ORDER`
+      (brouillon, a_valider, a_facturer + bloc Devis) ; groupe « Terminé » replié en bas
+      (recherche et fiche client restent des accès) ; ouverture fiche/RDV normalisée
+- [x] **P6 — Code mort (`pdf.js`, `app.js`, `index.html`, `sw.js`, `vendor/`)** :
+      `buildMergedDossierPDF` / `downloadMergedDossierPDF` supprimés ; `pdf-lib` retiré
+      (script `index.html`, tableau `ASSETS` de `sw.js`, `vendor/pdf-lib.min.js`) ;
+      route `import-facture` supprimée, `importDocument` ne prend plus que le devis
+- [ ] **P7/P8 — Déploiement & recette (humain)** : rejouer `schema.sql` AVANT de déployer
+      le front ; matrice de tests manuels P8 (18 scénarios, comptes Jérémy/Delphine/Régis)
+
+**Fichiers :** `supabase/schema.sql`, `idb.js`, `sync.js`, `supabase.js`, `app.js`, `pdf.js`,
+`index.html`, `sw.js`, `vendor/pdf-lib.min.js` (supprimé), `README.md`,
+`supabase/DEPLOYMENT.md`, `PRD_App_Interventions_Climat_Elec.md`.
+**Sans modification :** planning, appels, fiches d'entretien, contrats.
