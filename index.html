@@ -5,6 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
 <title>Climat Elec — Interventions</title>
 <meta name="description" content="Fiches d'intervention Climat Elec — utilisable hors ligne" />
+<!-- SEC-12 : CSP. Scripts uniquement same-origin (aucun CDN, aucun inline script).
+     'unsafe-inline' sur style-src : l'app utilise des style="" inline (87 usages).
+     Hôte Supabase : *.supabase.co (REST, Realtime wss, Storage). Si le projet de
+     dev/prod change de domaine personnalisé, ajuster connect-src / img-src.
+     frame-ancestors ne fonctionne pas en meta : à poser côté hébergeur. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.supabase.co; connect-src 'self' data: blob: https://*.supabase.co wss://*.supabase.co; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'" />
+<meta name="referrer" content="strict-origin-when-cross-origin" />
 
 <link rel="manifest" href="manifest.json" />
 <meta name="theme-color" content="#16303f" />

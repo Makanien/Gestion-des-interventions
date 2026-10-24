@@ -648,14 +648,15 @@ language sql stable security definer set search_path = public as $$
   select public.current_role() in ('responsable', 'secretaire', 'developpeur');
 $$;
 
--- Changement de rôle réservé aux managers (responsable / secretaire).
--- Accepte un utilisateur sans profil existant (création au besoin).
+-- Changement de rôle (SEC-07) : réservé au RESPONSABLE. Un secrétaire ou un
+-- développeur ne peut ni promouvoir un compte en responsable, ni créer un
+-- développeur. Accepte un utilisateur sans profil existant (création au besoin).
 create or replace function public.set_user_role(target uuid, new_role text)
 returns void
 language plpgsql security definer set search_path = public as $$
 begin
-  if not public.is_manager() then
-    raise exception 'Réservé aux gestionnaires (responsable ou secrétaire)';
+  if public.current_role() <> 'responsable' then
+    raise exception 'Réservé au responsable';
   end if;
   if new_role not in ('responsable', 'technicien', 'secretaire', 'developpeur') then
     raise exception 'Rôle invalide';
@@ -688,6 +689,30 @@ begin
   return new;
 end;
 $$;
+
+-- SEC-03 : le propriétaire d'une ligne (created_by) est immuable. Sans ce
+-- garde-fou, un utilisateur pouvait transférer ou « cacher » une fiche en
+-- modifiant created_by. Seul le rôle postgres/service (auth.uid() null, p. ex.
+-- migrations) peut le modifier.
+create or replace function public.prevent_created_by_change()
+returns trigger language plpgsql as $$
+begin
+  if new.created_by is distinct from old.created_by and auth.uid() is not null then
+    raise exception 'created_by est immuable';
+  end if;
+  return new;
+end;
+$$;
+
+do $$
+declare t text;
+begin
+  foreach t in array array['clients','interventions','equipements','pieces_utilisees',
+    'appels','rendezvous','mesures','photos','pieces','documents','contrats_entretien'] loop
+    execute format('drop trigger if exists %I_prevent_created_by_change on public.%I', t, t);
+    execute format('create trigger %I_prevent_created_by_change before update on public.%I for each row execute function public.prevent_created_by_change()', t, t);
+  end loop;
+end $$;
 
 create or replace function public.set_technicien_default()
 returns trigger language plpgsql as $$
@@ -824,62 +849,82 @@ values
   ('documents', 'documents', false)
 on conflict (id) do nothing;
 
--- signatures : lecture publique (URL directe dans le PDF), écriture authentifiée.
--- Choix assumé (point S2 de la revue `synchro-supabase`) : le bucket reste public
--- pour permettre l'URL directe dans le PDF et l'affichage hors ligne. L'exposition
--- est limitée par des NOMS D'OBJETS NON DEVINABLES (UUID) : l'app ne génère plus de
--- noms prédictibles (`Date.now()`) et utilise `uuid()` / l'id de la ligne. Risque
--- résiduel : quiconque possède l'URL exacte peut lire l'image — accepté (le PDF signé
--- est destiné au client de toute façon).
+-- signatures (SEC-01) : bucket public — les URLs publiques restent servies
+-- directement (affichage et PDF). AUCUNE policy `select` : l'énumération via
+-- l'API `list()` avec la clé anon est impossible. Les noms d'objets sont des
+-- UUID (non devinables). Le bucket public sert les objets par URL sans policy.
 drop policy if exists signatures_read on storage.objects;
-create policy signatures_read on storage.objects
-  for select using (bucket_id = 'signatures');
 
 drop policy if exists signatures_insert on storage.objects;
 create policy signatures_insert on storage.objects
   for insert to authenticated with check (bucket_id = 'signatures');
 
+-- Une signature est figée : pas de remplacement ni de suppression par un
+-- non-manager (SEC-08 : le remplacement silencieux d'une preuve est exclu).
 drop policy if exists signatures_update on storage.objects;
-create policy signatures_update on storage.objects
-  for update to authenticated using (bucket_id = 'signatures');
-
 drop policy if exists signatures_delete on storage.objects;
 create policy signatures_delete on storage.objects
-  for delete to authenticated using (bucket_id = 'signatures');
+  for delete to authenticated using (bucket_id = 'signatures' and public.is_manager());
 
--- photos : privées, lecture & écriture authentifiées.
+-- photos & documents (SEC-02 / SEC-11) : privés. Les objets sont nommés
+-- `{intervention_id}/{uuid}.ext` ; le périmètre suit la règle de la table
+-- liée (manager, ou créateur / technicien affecté de l'intervention).
+-- Le premier segment du chemin = identifiant de l'intervention.
+create or replace function public.can_access_intervention_object(object_name text)
+returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (
+    select 1 from public.interventions i
+    where i.id::text = (storage.foldername(object_name))[1]
+      and (public.is_manager() or i.created_by = auth.uid() or i.technicien_id = auth.uid())
+  );
+$$;
+revoke all on function public.can_access_intervention_object(text) from public;
+grant execute on function public.can_access_intervention_object(text) to authenticated;
+
 drop policy if exists photos_read on storage.objects;
 create policy photos_read on storage.objects
-  for select to authenticated using (bucket_id = 'photos');
+  for select to authenticated
+  using (bucket_id = 'photos' and public.can_access_intervention_object(name));
 
 drop policy if exists photos_insert on storage.objects;
 create policy photos_insert on storage.objects
-  for insert to authenticated with check (bucket_id = 'photos');
+  for insert to authenticated
+  with check (bucket_id = 'photos' and public.can_access_intervention_object(name));
 
 drop policy if exists photos_update on storage.objects;
 create policy photos_update on storage.objects
-  for update to authenticated using (bucket_id = 'photos');
+  for update to authenticated
+  using (bucket_id = 'photos' and public.is_manager())
+  with check (bucket_id = 'photos' and public.is_manager());
 
 drop policy if exists photos_delete on storage.objects;
 create policy photos_delete on storage.objects
-  for delete to authenticated using (bucket_id = 'photos');
+  for delete to authenticated
+  using (bucket_id = 'photos' and public.can_access_intervention_object(name));
 
--- documents : privés (devis/factures/contrats), lecture & écriture authentifiées.
 drop policy if exists documents_read on storage.objects;
 create policy documents_read on storage.objects
-  for select to authenticated using (bucket_id = 'documents');
+  for select to authenticated
+  using (bucket_id = 'documents' and public.can_access_intervention_object(name));
 
 drop policy if exists documents_insert on storage.objects;
 create policy documents_insert on storage.objects
-  for insert to authenticated with check (bucket_id = 'documents');
+  for insert to authenticated
+  with check (bucket_id = 'documents' and public.can_access_intervention_object(name));
 
+-- Factures / devis : modification réservée aux managers (pas de remplacement
+-- silencieux d'un justificatif par un technicien).
 drop policy if exists documents_update on storage.objects;
 create policy documents_update on storage.objects
-  for update to authenticated using (bucket_id = 'documents');
+  for update to authenticated
+  using (bucket_id = 'documents' and public.is_manager())
+  with check (bucket_id = 'documents' and public.is_manager());
 
 drop policy if exists documents_delete on storage.objects;
 create policy documents_delete on storage.objects
-  for delete to authenticated using (bucket_id = 'documents');
+  for delete to authenticated
+  using (bucket_id = 'documents' and public.is_manager());
 
 -- ---------------------------------------------------------
 -- ROW LEVEL SECURITY
@@ -934,6 +979,11 @@ drop policy if exists interventions_update on public.interventions;
 create policy interventions_update on public.interventions
   for update to authenticated
   using (
+    public.is_manager()
+    or created_by = auth.uid()
+    or technicien_id = auth.uid()
+  )
+  with check (
     public.is_manager()
     or created_by = auth.uid()
     or technicien_id = auth.uid()
@@ -1046,7 +1096,8 @@ create policy rendezvous_insert on public.rendezvous for insert to authenticated
   with check (public.is_manager() or (technicien_id is null or technicien_id = auth.uid()));
 drop policy if exists rendezvous_update on public.rendezvous;
 create policy rendezvous_update on public.rendezvous for update to authenticated
-  using (public.is_manager() or created_by = auth.uid() or technicien_id = auth.uid());
+  using (public.is_manager() or created_by = auth.uid() or technicien_id = auth.uid())
+  with check (public.is_manager() or created_by = auth.uid() or technicien_id = auth.uid());
 drop policy if exists rendezvous_delete on public.rendezvous;
 create policy rendezvous_delete on public.rendezvous for delete to authenticated
   using (public.is_manager() or created_by = auth.uid());
