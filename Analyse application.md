@@ -219,6 +219,8 @@ Mais la lecture du code révèle **des écarts importants entre ce que le PRD et
 - `initRealtime` : `realtimeStarted` n'est jamais remis à `false` à la déconnexion et les canaux ne sont pas fermés (`removeChannel`).
 - `app.js:306` : `state.auth.profile.full_name` utilisé pour la suggestion de signature ; valeur issue d'un champ librement éditable par l'utilisateur (`updateProfile`) → elle sert aussi à la RLS des RDV par **nom** (`rendezvous_select`) : un utilisateur peut se renommer « Régis » pour voir les RDV de Régis. Ne **pas** baser la RLS sur le nom ; ne garder que `technicien_id` (le backfill et la résolution `resolveTechId()` existent déjà).
 
+> **Corrigé le 24/10/2026 (branche `fix/sync-04-num-01`) :** purge de périmètre déjà livrée au préalable (réconciliation RLS `reconcileHiddenRows` + Realtime « UPDATE sans version visible », commits `b2e5e61`/`8dceaf4`) ; Realtime désormais arrêté à la déconnexion (`stopRealtime` — `removeChannel` + `realtimeStarted` réinitialisé, appelé depuis `signOutUser` et le listener d'authentification) ; RLS `rendezvous_select` débarrassée du repli sur `full_name` (visibilité = `technicien_id` uniquement ; règle « RDV sans intervenant visibles de l'équipe » conservée). La suggestion de signature à partir du `full_name` du profil reste en l'état (usage UX uniquement, sans effet RLS).
+
 ---
 
 ## 4. Schéma SQL (Supabase)
@@ -320,8 +322,8 @@ Mais la lecture du code révèle **des écarts importants entre ce que le PRD et
 - [ ] **SEC-06** : dépôt privé, retrait des emails du SQL versionné, `.gitignore`, déploiement d'un dossier `dist/` restreint, retrait du bandeau « maquettes ».
 
 **Étape 2 — Fiabilité**
-- [ ] **NUM-01** : numérotation serveur + index unique ; MAJ PRD §5.2.
-- [ ] **SYNC-02** : pagination, curseur `max(updated_at)` persisté, pull sans `data_url`, Realtime ciblé sur les 11 tables (ou au moins `rendezvous`).
+- [x] **NUM-01** : numérotation serveur + index unique + MAJ PRD §5.2 — table `numero_counteurs` (compteur par type/année, verrou consultatif, reprise du max existant), triggers `set_numero_intervention` / `set_numero_contrat` (n'attribuent que si `numero` vide — références historiques conservées), index uniques partiels `interventions_numero_uniq` / `contrats_numero_uniq`, dédoublonnage idempotent des numéros hérités (suffixe -2, -3…) au re-jouage du `schema.sql`. App : plus de numérotation locale quand Supabase est configuré (affichage « n° à la synchronisation », numéro rapatrié au push via le retour d'upsert), repli compteur local sans Supabase (mode V1). Schéma rejoué 2× sans erreur sur Postgres 16 jetable, attribution/dédoublonnage/unicité testés ; **scénario 2 appareils hors ligne restant à confirmer** (règle §7.1.7).
+- [x] **SYNC-02** : pagination, curseur `max(updated_at)` persisté, pull sans `data_url`, Realtime sur les 11 tables tirées. **Vérifié le 24/10/2026 :** le curseur (`sync.js` `pullChanges`) est bien dérivé du `max(updated_at)` reçu, sur horloge SERVEUR, avec recouvrement 60 s (`PULL_OVERLAP_MS`) — indépendant de l'horloge du téléphone.
 - [x] **SYNC-03** : compteur d'échecs par élément (`MAX_SYNC_ATTEMPTS`), erreurs permanentes (401/403/409/422, RLS `42501`, contraintes) sorties de la file dès le 1er échec, éléments en erreur visibles dans « Compte & synchro » avec motif + « Réessayer » / « Ne plus synchroniser », garde `applyRemote` étendue aux éléments en erreur, contrôle du nombre de lignes affectées dans `Supabase.remove` (existence `select` + `update … .select("id")`), `pushAllLocal()` sans re-push des lignes non modifiées (tombstones toujours poussées). **Test 2 appareils (RLS 403) restant à confirmer** (règle §7.1.7).
 - [ ] **COH-05** : masquer « Contrat d'entretien annuel » pour le technicien (ou ouvrir l'insertion en RLS si c'est voulu ; **trancher avec le client**).
 - [ ] **BP-01** : persistance du brouillon du wizard + bandeau de mise à jour + `navigator.storage.persist()`.
