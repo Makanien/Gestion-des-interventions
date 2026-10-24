@@ -13,6 +13,17 @@
 -- de bord, sur une base neuve comme sur une base déjà migrée.
 -- Il n'y a plus d'ordre d'exécution à respecter : un seul fichier.
 --
+-- DB-02 (SEC-06) : le bloc BACKFILL attribuant les rôles aux adresses
+-- réelles ne se trouve plus ici mais dans `supabase/seed.local.sql`
+-- (fichier NON versionné, cf. .gitignore). Sur une base vierge :
+-- exécuter ce script PUIS seed.local.sql après création des comptes.
+--
+-- DB-01 : les identités des tables sont attribuées par gen_random_uuid()
+-- (natif PostgreSQL 13+, chaque projet Supabase le dispose) ; plus aucune
+-- dépendance à l'extension uuid-ossp. Les contraintes d'intégrité
+-- (CHECK / FK) sont posées en NOT VALID — tolérance des valeurs
+-- historiques — cf. section 13.
+--
 -- Attention : ce fichier suppose que le rôle `anon` n'a AUCUN
 -- privilège sur les tables (seul `authenticated` est servi).
 -- La barrière d'accès reste l'inscription publique DÉSACTIVÉE
@@ -21,14 +32,17 @@
 
 -- ---------------------------------------------------------
 -- EXTENSIONS
+-- Aucune extension nécessaire : gen_random_uuid() est natif
+-- (DB-01). Une base déjà migrée qui aurait encore uuid-ossp
+-- installée le garde : sans effet, les défauts des tables
+-- existantes sont re-normalisés en section 13.
 -- ---------------------------------------------------------
-create extension if not exists "uuid-ossp";
 
 -- ---------------------------------------------------------
 -- 1. TABLE clients (V2)
 -- ---------------------------------------------------------
 create table if not exists public.clients (
-  id            uuid primary key default uuid_generate_v4(),
+  id            uuid primary key default gen_random_uuid(),
   nom           text not null default '',
   adresse       text not null default '',
   code_postal   text not null default '',
@@ -47,15 +61,15 @@ create table if not exists public.clients (
 -- 2. TABLE interventions (V2 + colonnes V3)
 -- ---------------------------------------------------------
 create table if not exists public.interventions (
-  id                   uuid primary key default uuid_generate_v4(),
+  id                   uuid primary key default gen_random_uuid(),
   client_id            uuid references public.clients(id) on delete set null,
   type_intervention    text not null default '',
   date                 date,
-  heure_arrivee        text not null default '',
-  heure_depart         text not null default '',
+  heure_arrivee        text not null default '', -- HH:MM (input type=time, DB-01 §13b)
+  heure_depart         text not null default '', -- HH:MM (input type=time, DB-01 §13b)
   forfait_deplacement  text not null default '',
-  temps_intervention   text not null default '', -- calculé par le frontend (heure_arrivee/heure_depart)
-  statut               text not null default 'terminee', -- 'terminee' | 'a_prevoir'
+  temps_intervention   text not null default '', -- « 1h30 » calculé par le frontend (heure_arrivee/heure_depart)
+  statut               text not null default 'a_prevoir', -- 'a_prevoir' | 'terminee' | 'terminee_suite' (COH-02 : aligné PRD §5.1 + app.js:1774)
   descriptif_demande   text not null default '',
   action_realisee      text not null default '',
   devis_souhaite       boolean not null default false,
@@ -268,7 +282,7 @@ create trigger interventions_20_enforce_statut
 -- 3. TABLE equipements (historique réutilisable par client)
 -- ---------------------------------------------------------
 create table if not exists public.equipements (
-  id              uuid primary key default uuid_generate_v4(),
+  id              uuid primary key default gen_random_uuid(),
   client_id       uuid references public.clients(id) on delete cascade,
   intitule        text not null default '',
   marque          text not null default '',
@@ -292,7 +306,7 @@ create index if not exists equipements_intervention_id_idx on public.equipements
 -- 4. TABLE pieces_utilisees (V2)
 -- ---------------------------------------------------------
 create table if not exists public.pieces_utilisees (
-  id              uuid primary key default uuid_generate_v4(),
+  id              uuid primary key default gen_random_uuid(),
   intervention_id uuid references public.interventions(id) on delete cascade,
   designation     text not null default '',
   reference       text not null default '',
@@ -328,7 +342,7 @@ alter table public.profiles
 -- 6. TABLE appels (V3, US-01)
 -- ---------------------------------------------------------
 create table if not exists public.appels (
-  id                uuid primary key default uuid_generate_v4(),
+  id                uuid primary key default gen_random_uuid(),
   nom               text not null default '',
   adresse           text not null default '',
   code_postal       text not null default '',
@@ -353,7 +367,7 @@ create table if not exists public.appels (
 -- 7. TABLE rendezvous (V3, US-02, planning)
 -- ---------------------------------------------------------
 create table if not exists public.rendezvous (
-  id            uuid primary key default uuid_generate_v4(),
+  id            uuid primary key default gen_random_uuid(),
   technicien_id uuid references auth.users(id) on delete set null,
   intervenant   text not null default '', -- nom affiché (Jérémy / Régis)
   date          date,
@@ -379,7 +393,7 @@ create index if not exists rendezvous_technicien_id_idx on public.rendezvous(tec
 -- 8. TABLE mesures (V3, US-19, fiches d'entretien)
 -- ---------------------------------------------------------
 create table if not exists public.mesures (
-  id              uuid primary key default uuid_generate_v4(),
+  id              uuid primary key default gen_random_uuid(),
   intervention_id uuid references public.interventions(id) on delete cascade,
   type_entretien  text not null default '',
   code            text not null default '',
@@ -398,7 +412,7 @@ create index if not exists mesures_intervention_id_idx on public.mesures(interve
 -- 9. TABLE photos (V3, US-21)
 -- ---------------------------------------------------------
 create table if not exists public.photos (
-  id              uuid primary key default uuid_generate_v4(),
+  id              uuid primary key default gen_random_uuid(),
   intervention_id uuid references public.interventions(id) on delete cascade,
   data_url        text not null default '',   -- image (dataURL) offline-first
   fichier_url     text not null default '',   -- URL Storage publique si uploadée
@@ -415,7 +429,7 @@ create index if not exists photos_intervention_id_idx on public.photos(intervent
 -- 10. TABLE pieces (base pièces, V3, US-23 — désignation seule)
 -- ---------------------------------------------------------
 create table if not exists public.pieces (
-  id              uuid primary key default uuid_generate_v4(),
+  id              uuid primary key default gen_random_uuid(),
   designation     text not null default '',
   -- Champs réservés pour une extension ultérieure (porte non fermée) :
   -- reference, prix, disponibilite_par_technicien
@@ -431,7 +445,7 @@ create index if not exists pieces_designation_idx on public.pieces(designation);
 -- 11. TABLE documents (devis / facture / contrat importés, V3, US-07·09)
 -- ---------------------------------------------------------
 create table if not exists public.documents (
-  id              uuid primary key default uuid_generate_v4(),
+  id              uuid primary key default gen_random_uuid(),
   intervention_id uuid references public.interventions(id) on delete cascade,
   type            text not null default '', -- 'devis' | 'contrat_entretien' — 'facture' obsolète (workflow 4 statuts), lignes existantes conservées
   nom             text not null default '',
@@ -450,7 +464,7 @@ create index if not exists documents_intervention_id_idx on public.documents(int
 -- 12. TABLE contrats_entretien (V3, US-24)
 -- ---------------------------------------------------------
 create table if not exists public.contrats_entretien (
-  id                     uuid primary key default uuid_generate_v4(),
+  id                     uuid primary key default gen_random_uuid(),
   client_id              uuid references public.clients(id) on delete set null,
   nb_passages            text not null default '',
   tarification_zone_km   text not null default '',
@@ -609,6 +623,115 @@ drop trigger if exists contrats_set_numero on public.contrats_entretien;
 create trigger contrats_set_numero
   before insert or update on public.contrats_entretien
   for each row execute function public.set_numero_contrat();
+
+-- ---------------------------------------------------------
+-- 13. INTÉGRITÉ (DB-01) — contraintes CHECK, FK, index de synchro
+-- Tout est idempotent (drop if exists + add) et posé en `not valid`
+-- : les lignes historiques atypiques ne BLOQUENT PAS la pose de la
+-- contrainte (tolérance historique). Les écritures nouvelles sont
+-- systématiquement validées (23514 CHECK / 23503 FK → SYNC-03 les
+-- classe en erreur visible « Compte & synchro »). Un nettoyage
+-- ciblé puis `alter table … validate constraint …` pourront être
+-- effectués manuellement plus tard pour verrouiller l'existant.
+--
+-- Valeurs = littéraux réellement écrits par app.js :
+--   statut            : app.js:1774-1775, 2168-2170 (segmented UI)
+--   type_entretien    : ENTRETIEN_META (app.js:294+), clé machine
+--   rendezvous.type   : selects app.js:776/1411-1412
+--   action_sortie     : app.js:1338/1461/1470/1479/1490
+--   documents.type    : importDocument('devis') ; « facture » = lignes
+--                       historiques conservées (PRD §5.2 du 13/10)
+--   nb_passages       : select app.js:2817 ('1'..'4') + défaut ''
+--       reste LIBRE (libellés d'affichage, non énumérables côté SQL
+--       en l'état) : interventions.type_intervention (« Dépannage »,
+--       « Sur devis »…), type_entretien_detail (liste client à venir),
+--       temps_intervention (« 1h30 », calculé), tarification_zone_km
+--       (« Z2 — 25 € »).
+-- ---------------------------------------------------------
+
+-- Défauts re-normalisés sur les bases déjà migrées : les
+-- littéraux des `create table if not exists` ne s'appliquent qu'aux
+-- bases neuves ; ce bloc aligne aussi la production.
+do $$
+declare t text;
+begin
+  foreach t in array array['clients','interventions','equipements','pieces_utilisees',
+    'appels','rendezvous','mesures','photos','pieces','documents','contrats_entretien'] loop
+    execute format('alter table public.%I alter column id set default gen_random_uuid()', t);
+  end loop;
+end $$;
+-- Défaut aligné sur l'usage réel (COH-02) : nouvelle fiche = « À effectuer ».
+alter table public.interventions alter column statut set default 'a_prevoir';
+
+-- 13a. Énumérations
+alter table public.interventions drop constraint if exists interventions_statut_check;
+alter table public.interventions add constraint interventions_statut_check
+  check (statut in ('a_prevoir','terminee','terminee_suite')) not valid;
+
+alter table public.interventions drop constraint if exists interventions_type_entretien_check;
+alter table public.interventions add constraint interventions_type_entretien_check
+  check (type_entretien in ('','air_eau','air_air','chaudiere','solaire')) not valid;
+
+alter table public.mesures drop constraint if exists mesures_type_entretien_check;
+alter table public.mesures add constraint mesures_type_entretien_check
+  check (type_entretien in ('','air_eau','air_air','chaudiere','solaire')) not valid;
+
+alter table public.rendezvous drop constraint if exists rendezvous_type_check;
+alter table public.rendezvous add constraint rendezvous_type_check
+  check (type in ('depannage','entretien','rdv_devis')) not valid;
+
+alter table public.rendezvous drop constraint if exists rendezvous_statut_check;
+alter table public.rendezvous add constraint rendezvous_statut_check
+  check (statut in ('planifie')) not valid;
+
+alter table public.appels drop constraint if exists appels_action_sortie_check;
+alter table public.appels add constraint appels_action_sortie_check
+  check (action_sortie in ('rdv','intervention','sans_suite')) not valid;
+
+alter table public.documents drop constraint if exists documents_type_check;
+alter table public.documents add constraint documents_type_check
+  check (type in ('','devis','contrat_entretien','facture')) not valid;
+
+alter table public.contrats_entretien drop constraint if exists contrats_nb_passages_check;
+alter table public.contrats_entretien add constraint contrats_nb_passages_check
+  check (nb_passages in ('','1','2','3','4')) not valid;
+
+-- 13b. Formats horaires (input type=time → « HH:MM » ; vide accepté)
+alter table public.interventions drop constraint if exists interventions_heure_arrivee_check;
+alter table public.interventions add constraint interventions_heure_arrivee_check
+  check (heure_arrivee ~ '^[0-9]{2}:[0-9]{2}$' or heure_arrivee = '') not valid;
+alter table public.interventions drop constraint if exists interventions_heure_depart_check;
+alter table public.interventions add constraint interventions_heure_depart_check
+  check (heure_depart ~ '^[0-9]{2}:[0-9]{2}$' or heure_depart = '') not valid;
+alter table public.rendezvous drop constraint if exists rendezvous_heure_debut_check;
+alter table public.rendezvous add constraint rendezvous_heure_debut_check
+  check (heure_debut ~ '^[0-9]{2}:[0-9]{2}$' or heure_debut = '') not valid;
+alter table public.rendezvous drop constraint if exists rendezvous_heure_fin_check;
+alter table public.rendezvous add constraint rendezvous_heure_fin_check
+  check (heure_fin ~ '^[0-9]{2}:[0-9]{2}$' or heure_fin = '') not valid;
+
+-- 13c. Clé étrangère manquante (COH-03) — `not valid` : les références
+-- orphelines historiques (RDV supprimé) ne bloquent pas la pose ; les
+-- suppressions futures remettent la colonne à NULL (même choix que
+-- rendezvous.appel_id). Un push référence un RDV inexistant = 23503.
+alter table public.appels drop constraint if exists appels_rendezvous_id_fkey;
+alter table public.appels add constraint appels_rendezvous_id_fkey
+  foreign key (rendezvous_id) references public.rendezvous(id) on delete set null not valid;
+
+-- 13d. Index de tirage delta (SYNC-02 : gte(updated_at, since)) sur les
+-- 11 tables de SYNC_STORES sync.js. Attention aux deux tables « pieces »
+-- : noms d'index distincts.
+create index if not exists clients_updated_at_idx            on public.clients(updated_at);
+create index if not exists interventions_updated_at_idx      on public.interventions(updated_at);
+create index if not exists equipements_updated_at_idx        on public.equipements(updated_at);
+create index if not exists pieces_utilisees_updated_at_idx   on public.pieces_utilisees(updated_at);
+create index if not exists appels_updated_at_idx             on public.appels(updated_at);
+create index if not exists rendezvous_updated_at_idx         on public.rendezvous(updated_at);
+create index if not exists mesures_updated_at_idx            on public.mesures(updated_at);
+create index if not exists photos_updated_at_idx             on public.photos(updated_at);
+create index if not exists pieces_updated_at_idx             on public.pieces(updated_at);
+create index if not exists documents_updated_at_idx          on public.documents(updated_at);
+create index if not exists contrats_updated_at_idx           on public.contrats_entretien(updated_at);
 
 -- ---------------------------------------------------------
 -- FONCTIONS
@@ -1202,39 +1325,16 @@ begin
 end $$;
 
 -- ---------------------------------------------------------
--- BACKFILL (à adapter aux emails réels)
--- Exécutez ce bloc après avoir créé les 3 comptes dans le Dashboard
--- (idéalement après leur première connexion, pour que la ligne profiles
--- existe ; sinon set_user_role() peut aussi créer la ligne à la demande).
+-- BACKFILL DES RÔLES — SORTI DU FICHIER VERSIONNÉ (SEC-06 / DB-02)
+-- Le bloc d'attribution des rôles par email (données personnelles
+-- réelles) vit désormais dans `supabase/seed.local.sql`, fichier NON
+-- versionné (listé dans .gitignore). Ne JAMAIS remettre d'emails
+-- réels dans ce fichier. Sur une base vierge : exécuter ce script
+-- d'abord, puis `seed.local.sql` après la création des comptes dans
+-- le Dashboard (idéalement après leur première connexion, pour que
+-- la ligne profiles existe ; sinon set_user_role() peut aussi créer
+-- la ligne à la demande).
 -- ---------------------------------------------------------
-do $$
-declare
-  v_responsable uuid;
-  v_technicien  uuid;
-  v_secretaire  uuid;
-  v_developpeur uuid;
-begin
-  select id into v_responsable from auth.users where email = 'regis.chanteux@gmail.com';
-  select id into v_technicien  from auth.users where email = 'jgardaisclimatelec@gmail.com';
-  select id into v_secretaire  from auth.users where email = 'contactdsolutions49@gmail.com';
-  select id into v_developpeur from auth.users where email = 'makanien@gmail.com';
-
-  -- Rôles (si la ligne profiles existe déjà)
-  update public.profiles set role = 'responsable' where id = v_responsable;
-  update public.profiles set role = 'technicien'  where id = v_technicien;
-  update public.profiles set role = 'secretaire' where id = v_secretaire;
-  update public.profiles set role = 'developpeur' where id = v_developpeur;
-
-  -- Lien auteur/technicien sur l'existant. Avant cette migration,
-  -- created_by / technicien_id n'étaient jamais renseignés (null).
-  -- On rattache l'existant au responsable (qui voit tout de toute façon).
-  -- Si l'historique doit être réparti entre Régis et Jérémy, ajustez
-  -- la requête (ex. selon technicien_nom) avant exécution.
-  update public.interventions
-    set created_by    = coalesce(created_by, v_responsable),
-        technicien_id = coalesce(technicien_id, v_responsable)
-    where created_by is null;
-end $$;
 
 -- Rendez-vous : rattache technicien_id au profil dont le nom correspond
 -- à l'intervenant du RDV (données existantes). L'affectation se fait par

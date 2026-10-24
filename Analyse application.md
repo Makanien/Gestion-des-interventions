@@ -230,18 +230,28 @@ Mais la lecture du code révèle **des écarts importants entre ce que le PRD et
 - **Effet :** sur une base **vierge**, le script échoue à la création de la première policy qui référence la colonne. La base de production actuelle fonctionne probablement parce que la colonne a été créée par un script antérieur aujourd'hui supprimé (`migrations/002_v3.sql`) : le « fichier maître » ne représente donc **pas** l'état réel.
 - **Correctif attendu :** `alter table public.interventions add column if not exists technicien_id uuid references auth.users(id) on delete set null;` + index. **Valider en exécutant le script sur un projet Supabase vierge**, puis comparer avec la production (`supabase db diff`).
 
+> **Corrigé le 24/10/2026 (branche `fix/schema-sql`):** la colonne et son index sont présents dans le fichier maître (`alter table … add column if not exists technicien_id …` + `interventions_technicien_id_idx`). **Validé par replay** : `schema.sql` exécuté 2× sans erreur sur Postgres 16 jetable (shim minimal `auth`/`storage`/`supabase_realtime`), policies et triggers créés correctement. `supabase db diff` contre la production restant à faire (CLI absente de ce poste) ; sur projet Supabase avéré (auth.users réel), à re-vérifier dans l'étape 0 du plan.
+
 #### DB-01 🟡 — Contraintes manquantes
 - Aucun `CHECK`/enum pour `statut`, `statut_dossier`, `type_intervention`, `type_entretien`, `rendezvous.type/statut`, `appels.action_sortie`, `documents.type`. → ajouter des `CHECK … in (…)` (ou types enum), en tolérant les valeurs historiques.
 - Heures (`heure_arrivee`, `heure_debut`…) et `nb_passages`/`tarification_zone_km` en `text` : contrôler le format (`CHECK (heure ~ '^\d{2}:\d{2}$' or heure = '')`) ou typer `time`/`numeric`.
 - `appels.rendezvous_id` sans FK ; `uuid-ossp` → préférer `gen_random_uuid()` (natif).
 - Index manquants pour la synchro : `(updated_at)` sur les tables tirées par `gte(updated_at, …)`.
 
+> **Corrigé le 24/10/2026 (branche `fix/schema-sql`), section 13 en fin de fichier :**
+> CHECK `not valid` (tolérance des valeurs historiques ; nettoyage puis `validate constraint` possibles ensuite) sur `interventions.statut` (`a_prevoir|terminee|terminee_suite`) et `type_entretien`, `mesures.type_entretien` (clés machine `air_eau/air_air/chaudiere/solaire`), `rendezvous.type/statut`, `appels.action_sortie`, `documents.type` (`devis|contrat_entretien` + `facture` historique toléré) et `contrats.nb_passages` (`1..4|''`) ; formats `^HH:MM$` sur les 4 colonnes d'heures ; FK `appels.rendezvous_id → rendezvous(id) on delete set null` (cohere avec `rendezvous.appel_id`) ; défauts `gen_random_uuid()` natifs (plus d'extension `uuid-ossp`) re-normalisés sur base existante ; défaut `interventions.statut = 'a_prevoir'` (COH-02) ; **11 index `(updated_at)`** sur les tables de `SYNC_STORES`. **Testé** : replay 2× sans erreur sur Postgres 16 jetable ; CHECK/FK vérifiés par inserts négatifs (23514/23503) ; numéro serveur NUM-01 non régressé.
+> **Écarts assumés** (valeur = libellé d'affichage libre, non énumérable côté SQL en l'état) : `type_intervention` (« Dépannage », « Sur devis »…), `type_entretien_detail` (liste client à venir), `temps_intervention` (« 1h30 », calculé) et `tarification_zone_km` (« Z2 — 25 € ») restent des textes sans `CHECK` — à contraindre seulement si la saisie durcit côté app.
+
 #### DB-02 🟡 — Cycle de vie des migrations
 - Un seul fichier « tout-en-un » qui fait `drop policy if exists … create policy …` est pratique pour une première installation, mais **le relancer en production ré-applique toutes les policies** et contient un `BACKFILL` aux emails réels. Passer à des **migrations Supabase CLI** horodatées (`supabase/migrations/*.sql`) + `supabase/seed.sql` + une vérification CI (`supabase db reset` sur une base jetable).
+
+> **Partiel le 24/10/2026 (branche `fix/schema-sql`) :** le bloc BACKFILL aux emails réels est sorti du fichier versionné vers `supabase/seed.local.sql` (**non versionné**, listé dans `.gitignore` ; testé : rôles attribués + backfill historique idempotent sur base de test). Le rejeu en production n'expose plus d'adresses réelles (les policies restent ré-appliquées comme avant). **Restant :** migrations Supabase CLI horodatées + `supabase db reset` en CI (voir BP-02).
 
 #### DB-03 🟡 — Autres
 - `profiles_insert` autorise un utilisateur à insérer son propre profil avec `role = 'technicien'` : cohérent. Mais `profiles_select using (true)` expose `full_name`/`role` de tous (accepté, équipe de 4).
 - `documents.data_url` / `photos.data_url` : colonnes `text` volumineuses dans des tables pull-ées en `select *` (voir SYNC-02) ; envisager de les retirer du schéma.
+
+> **Pris en partie le 24/10/2026 (branche `fix/schema-sql`) :** `profiles_select using (true)` conservé tel quel (accepté, équipe de 4). Le retrait des colonnes `data_url` du schéma n'est **pas** fait : le front pousse encore les `data_url` en base (double stockage, SYNC-02), leur suppression SQL sans migration app créerait des échecs de synchronisation — dépend d'IMP-05 (binaires en Storage uniquement).
 
 ---
 
@@ -311,11 +321,11 @@ Mais la lecture du code révèle **des écarts importants entre ce que le PRD et
 
 **Étape 0 — Filet de sécurité (avant tout)**
 - [ ] Faire une **sauvegarde complète** de la base et des buckets Supabase de production.
-- [ ] Créer un projet Supabase **de test** et exécuter `schema.sql` : constater l'échec SCHEMA-01.
+- [x] Créer un projet Supabase **de test** et exécuter `schema.sql` : constater l'échec SCHEMA-01. *(échec constaté à l'analyse du 09/10 ; après incorporation du correctif au fichier maître, replay vérifié 2× sans erreur sur Postgres 16 jetable — cf. SCHEMA-01)*
 - [ ] Reproduire SYNC-01 avec deux navigateurs (profils distincts) et consigner le résultat.
 
 **Étape 1 — Bloquants (sécurité & intégrité)**
-- [ ] **SCHEMA-01** : ajouter `interventions.technicien_id` (+ index), rejouer sur base vierge, comparer avec la prod.
+- [x] **SCHEMA-01** : ajouter `interventions.technicien_id` (+ index), rejouer sur base vierge, comparer avec la prod. *(colonne + `interventions_technicien_id_idx` intégrés au fichier maître ; replay 2× sans erreur sur Postgres 16 jetable ; `supabase db diff` contre la prod restant à faire — CLI absente)*
 - [ ] **SEC-01** : supprimer `signatures_read` (ou passer en bucket privé + URLs signées). Test `curl` anon.
 - [ ] **SEC-02 / SEC-11** : chemins `{intervention_id}/{id}.ext` + policies Storage par propriétaire ; migrer/renommer les objets existants ; supprimer l'objet à la suppression de la ligne.
 - [ ] **SYNC-01** : retirer `pushAllLocal()` des chemins automatiques, persister la file, contrôle optimiste au push. Ajouter le test E2E du scénario A/B.
@@ -339,7 +349,8 @@ Mais la lecture du code révèle **des écarts importants entre ce que le PRD et
 
 **Étape 4 — Qualité durable**
 - [ ] **BP-02** : lint + tests unitaires + E2E + tests RLS + GitHub Actions.
-- [ ] **DB-01 / DB-02** : contraintes `CHECK`, FK manquante, migrations CLI.
+- [x] **DB-01** : contraintes `CHECK` (`not valid`, tolérance historique), FK `appels.rendezvous_id`, `gen_random_uuid()` natif (plus d'`uuid-ossp`), défaut `statut = 'a_prevoir'`, index `(updated_at)` sur les 11 tables tirées — détail et tests au §4 (replay 2× sur base jetable + inserts négatifs).
+- [ ] **DB-02** : migrations Supabase CLI horodatées + vérification CI (`supabase db reset` sur base jetable) — extraction du BACKFILL emails vers `supabase/seed.local.sql` (non versionné) déjà faite, le reste demeure.
 - [ ] **BP-03 / BP-04 / BP-05 / BP-06 / BP-07 / BP-08** : modularisation progressive, SW automatisé, accessibilité, journal d'erreurs, dépendances, hygiène du dépôt.
 - [ ] **COH-01…COH-11** : mise à jour du PRD (scission PRD / CHANGELOG / ARCHITECTURE), du README, archivage de `TACHES_A_FAIRE.md` et de la revue.
 
