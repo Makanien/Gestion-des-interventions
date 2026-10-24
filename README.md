@@ -40,11 +40,18 @@ permettra pas l'installation ni le mode hors ligne.
 
 ### Option la plus simple : héberger gratuitement en HTTPS
 
+⚠️ **SEC-06** : commencer par construire le dossier restreint
+`bash scripts/build-dist.sh`, puis ne déployer **que `dist/`**. Déployer le
+dépôt entier exposerait la documentation interne, la maquette, le schéma SQL
+et le PRD.
+
 1. **Netlify Drop** (le plus rapide, sans compte) : aller sur https://app.netlify.com/drop
-   et glisser-déposer ce dossier entier. Un lien HTTPS est généré immédiatement.
-2. **GitHub Pages** : créer un dépôt, y pousser ce dossier, activer "Pages" dans les
-   paramètres du dépôt (branche principale, dossier racine).
-3. Toute autre solution d'hébergement statique HTTPS convient (Vercel, OVH, etc.).
+   et glisser-déposer **le dossier `dist/`** généré par `scripts/build-dist.sh`.
+   Un lien HTTPS est généré immédiatement.
+2. **GitHub Pages** : publier **le contenu de `dist/`** (dépôt privé + activer
+   "Pages" sur la branche qui en découle, ou via `git subtree push`).
+3. Toute autre solution d'hébergement statique HTTPS convient (Vercel, OVH, etc.),
+   en ne servant que `dist/`.
 
 Une fois le lien HTTPS obtenu, ouvre-le sur le smartphone du technicien avec Chrome
 (Android) ou Safari (iPhone), puis :

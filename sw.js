@@ -7,7 +7,9 @@
 // v31 : branche fix/sync-04-num-01 (v30 est utilisé par la branche
 // fix/securite-analyse, non encore fusionnée — saut volontaire pour éviter
 // le recoupement).
-const CACHE_VERSION = "climatelec-v31";
+// v32 : fix/etape-1 — suppression de l'objet Storage à la suppression
+// photo/document (SEC-02/SEC-11), retrait du bandeau « maquettes » (SEC-06).
+const CACHE_VERSION = "climatelec-v32";
 const ASSETS = [
   "./",
   "./index.html",

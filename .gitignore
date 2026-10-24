@@ -4,3 +4,6 @@
 
 # Supabase — données locales exploitant (emails réels : SEC-06 / DB-02)
 supabase/seed.local.sql
+
+# Sortie de build — dossier déployable restreint (SEC-06, scripts/build-dist.sh)
+dist/
