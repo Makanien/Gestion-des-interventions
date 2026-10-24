@@ -26,6 +26,7 @@ const SyncState = {
   conflicts: [],      // [{store, id, base_updated_at, remote_updated_at, at}]
   failures: [],       // SYNC-03 : [{store, id, base_updated_at, attempts, reason, status, at}]
   realtimeStarted: false,
+  realtimeChannels: [], // SYNC-04 : canaux créés, fermés à la déconnexion
 };
 
 // SYNC-03 : au-delà de N tentatives (erreurs transitoires : réseau, 5xx…),
@@ -456,6 +457,10 @@ async function pushChanges() {
           const localRow = await DB.getRaw(item.store, item.id);
           if (localRow) {
             const aligned = { ...localRow, updated_at: serverRow.updated_at, synced_at: serverRow.updated_at };
+            // NUM-01 : le serveur pose la référence (trigger `set_numero_*`)
+            // si la ligne en était dépourvue — on rapatrie ce numéro sans
+            // remettre la ligne en file (la copie locale vient d'être alignée).
+            if (serverRow.numero && !localRow.numero) aligned.numero = serverRow.numero;
             await DB.putRaw(item.store, aligned);
             // Un push réussi signifie que la copie locale est de nouveau
             // alignée sur le serveur : les conflits enregistrés pour cette
@@ -764,8 +769,9 @@ function initRealtime() {
   if (!c) return;
   SyncState.realtimeStarted = true;
   try {
+    SyncState.realtimeChannels = [];
     SYNC_STORES.forEach((store) => {
-      c.channel(`realtime-${store}`).on(
+      const ch = c.channel(`realtime-${store}`).on(
         "postgres_changes",
         { event: "*", schema: "public", table: store },
         (payload) => {
@@ -800,6 +806,7 @@ function initRealtime() {
           }
         }
       ).subscribe();
+      SyncState.realtimeChannels.push(ch);
     });
   } catch (e) {
     SyncState.realtimeStarted = false;
@@ -807,4 +814,23 @@ function initRealtime() {
   }
 }
 
-window.Sync = { runSync, pullChanges, pushChanges, enqueueSync, initRealtime, scheduleSync, initPersisted, initialPushIfNeeded, pushAllLocal, resolveConflict, retryFailed, discardFailed, uploadPendingSignatures, notifyRemoteDataChanged, state: SyncState };
+// SYNC-04 : arrêt propre du Realtime à la déconnexion. Les canaux Supabase
+// n'étaient jamais fermés (removeChannel) et `realtimeStarted` n'était jamais
+// remis à false : après déconnexion/reconnexion (ou changement de compte),
+// les événements du compte précédent continuaient d'être reçus (et appliqués
+// localement), et un second abonnement se superposait au premier.
+async function stopRealtime() {
+  if (typeof Supabase === "undefined") return;
+  const c = initSupabase();
+  const channels = SyncState.realtimeChannels || [];
+  SyncState.realtimeChannels = [];
+  SyncState.realtimeStarted = false;
+  if (!c) return;
+  await Promise.all(
+    channels.map((ch) =>
+      c.removeChannel(ch).catch((e) => console.warn("Retrait du canal Realtime échoué", e))
+    )
+  );
+}
+
+window.Sync = { runSync, pullChanges, pushChanges, enqueueSync, initRealtime, stopRealtime, scheduleSync, initPersisted, initialPushIfNeeded, pushAllLocal, resolveConflict, retryFailed, discardFailed, uploadPendingSignatures, notifyRemoteDataChanged, state: SyncState };

@@ -1590,7 +1590,7 @@ async function renderWizard() {
     <div class="topbar">
       <div class="topbar-row">
         <button class="back-btn" data-nav="cancel">${ICONS.close}</button>
-        <div><h1>${esc(title)}</h1>${state.draft?.numero ? `<div class="subtitle">${esc(state.draft.numero)}</div>` : ""}</div>
+        <div><h1>${esc(title)}</h1><div class="subtitle">${state.draft?.numero ? esc(state.draft.numero) : (Supabase.configured() ? "n° attribué à la synchronisation" : "")}</div></div>
       </div>
       ${stepsBarHTML(state.step, steps.length)}
     </div>
@@ -2535,7 +2535,10 @@ async function renderDetail(id) {
     </div>
     <main>
       <div class="detail-header">
-        <div class="meta">${itv.numero ? `${esc(itv.numero)} · ` : ""}${fmtDateShortLong(itv.date)}</div>
+        <div class="meta">${itv.numero
+          ? `${esc(itv.numero)} · `
+          : (Supabase.configured() ? "n° à la synchronisation · " : "")
+        }${fmtDateShortLong(itv.date)}</div>
         <div class="ii-tags" style="margin-top:10px;">
           <span class="tag ${statutDossierCls(itv.statut_dossier)}">${statutDossierLabel(itv.statut_dossier)}</span>
           <span class="tag ${interventionStatutCls(itv.statut)}">${interventionStatutLabel(itv.statut)}</span>
@@ -2865,7 +2868,10 @@ async function renderContrat(id) {
         if (state.contratDraft._technicien_sig_blob) state.contratDraft.technicien_signature_url = await Supabase.uploadSignature(`ct-tech-${uuid()}`, state.contratDraft._technicien_sig_blob);
       } catch (e) { console.warn("Upload signature échoué", e); }
     }
-    if (!state.contratDraft.numero) state.contratDraft.numero = await DB.nextNumero("CTR");
+    // NUM-01 : référence attribuée côté serveur à la première synchronisation
+    // (trigger `set_numero_contrat`) — plus de compteur local source de
+    // doublons entre appareils. Repli local uniquement sans Supabase (mode V1).
+    if (!state.contratDraft.numero && !Supabase.configured()) state.contratDraft.numero = await DB.nextNumero("CTR");
     const saved = await DB.saveContrat({ ...state.contratDraft });
     state.contratDraft = null;
     toast("Contrat enregistré");
@@ -3155,6 +3161,10 @@ function renderAuth() {
 async function signOutUser() {
   if (!confirm("Se déconnecter ? Vos données déjà enregistrées restent sur cet appareil.")) return;
   try { if (Supabase.configured()) await Supabase.signOut(); } catch (e) { console.warn(e); }
+  // SYNC-04 : ferme les canaux Realtime et permet un ré-abonnement propre
+  // à la reconnexion (sinon les événements du compte précédent continuent
+  // d'être reçus, et un second abonnement se superpose au premier).
+  Sync.stopRealtime();
   state.auth = null;
   go("#/login");
 }
@@ -3408,6 +3418,9 @@ async function init() {
           scheduleSyncRetry();
         });
       } else {
+        // SYNC-04 : session terminée (déconnexion, token révoqué…) — arrêt
+        // propre du Realtime, symétrique de initRealtime() à la connexion.
+        Sync.stopRealtime();
         state.auth = null;
       }
       if (window.location.hash === "#/login") await renderHome();

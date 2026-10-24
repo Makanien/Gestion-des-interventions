@@ -469,6 +469,148 @@ create table if not exists public.contrats_entretien (
 create index if not exists contrats_client_id_idx on public.contrats_entretien(client_id);
 
 -- ---------------------------------------------------------
+-- 12bis. NUMÉROTATION SERVEUR (NUM-01)
+-- La référence `PREFIX-AAAA-NNN` (FIC-…, ENT-…, CTR-…) est attribuée par le
+-- SERVEUR à la première synchronisation au lieu d'un compteur local par
+-- appareil (deux appareils produisaient le même numéro — COH-01/NUM-01).
+--   - compteur par (prefix, année) dans `numero_counteurs` ;
+--   - attribué uniquement si `numero` est vide (les références historiques
+--     déjà posées par l'ancienne numérotation locale sont conservées) ;
+--   - index unique PARTIEL sur `numero <> ''` : garantie d'unicité définitive
+--     même face à deux pushs concurrents ;
+--   - année = année de la date de la fiche (contrats : année d'attribution).
+-- Le client affiche « n° à la synchronisation » tant que le numéro est vide,
+-- et rapatrie le numéro posé (retour de l'upsert, sync.js).
+-- Bloc IDEMPOTENT : relançable sans erreur ni effet de bord.
+-- ---------------------------------------------------------
+
+create table if not exists public.numero_counteurs (
+  prefix  text not null,
+  annee   int  not null,
+  dernier int  not null default 0,
+  primary key (prefix, annee)
+);
+alter table public.numero_counteurs enable row level security;
+-- Aucune policy : table interne, lue/écrite uniquement par les fonctions
+-- `security definer` ci-dessous (invisibles et inaccessibles aux sessions).
+
+-- Dédoublonnage AVANT la pose des index uniques : l'ancienne numérotation
+-- locale a pu produire le même numéro sur deux lignes (jamais contrôlé).
+-- Les doublons sont renommés avec un suffixe numérique (-2, -3… selon leur
+-- rang), le premier conservant la référence d'origine. Idempotent : après la
+-- première passe il n'existe plus de doublon, l'update ne touche donc aucune
+-- ligne ; ensuite, les index uniques garantissent qu'aucun nouveau doublon
+-- ne peut apparaître (les pushs concurrents échouent en 409, traités par
+-- SYNC-03 comme erreur permanente visible).
+do $$
+declare r record;
+begin
+  for r in
+    select 'interventions' as t
+    union all select 'contrats_entretien'
+  loop
+    execute format($f$
+      update public.%I d
+      set numero = d.numero || '-' || x.rn
+      from (
+        select id, row_number() over (partition by numero order by created_at, id) rn
+        from public.%I
+        where numero <> ''
+      ) x
+      where d.id = x.id and x.rn > 1
+    $f$, r.t, r.t);
+  end loop;
+end $$;
+
+-- Index uniques partiels : `numero` vide = référence pas encore attribuée.
+create unique index if not exists interventions_numero_uniq
+  on public.interventions(numero)
+  where numero is not null and numero <> '';
+create unique index if not exists contrats_numero_uniq
+  on public.contrats_entretien(numero)
+  where numero is not null and numero <> '';
+
+-- Compteur partagé par (prefix, année), protégé par un verrou consultatif
+-- transactionnel pour sérialiser deux sessions concurrentes.
+create or replace function public.alloc_numero(p_prefix text, p_annee int, p_table text)
+returns int
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_max  int;
+  v_next int;
+begin
+  insert into public.numero_counteurs (prefix, annee, dernier)
+    values (p_prefix, p_annee, 0)
+    on conflict (prefix, annee) do nothing;
+  perform pg_advisory_xact_lock(hashtext('numero_counteurs:' || p_prefix || ':' || p_annee));
+  -- reprend le max des références déjà présentes (historique des compteurs
+  -- locaux par appareil) pour ne jamais réattribuer un numéro existant
+  execute format(
+    'select coalesce(max(substring(i.numero from ''(\d+)$'')::int), 0)
+       from public.%I i where i.numero like %L',
+    p_table, p_prefix || '-' || p_annee::text || '-%'
+  ) into v_max;
+  update public.numero_counteurs
+    set dernier = greatest(dernier, v_max) + 1
+    where prefix = p_prefix and annee = p_annee
+    returning dernier into v_next;
+  return v_next;
+end $$;
+
+create or replace function public.set_numero_intervention()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_prefix text;
+  v_annee  int;
+  v_next   int;
+begin
+  if new.numero is not null and new.numero <> '' then
+    return new; -- référence historique conservée telle quelle
+  end if;
+  v_prefix := case when coalesce(new.type_entretien, '') <> '' then 'ENT' else 'FIC' end;
+  v_annee  := coalesce(extract(year from new."date")::int, extract(year from current_date)::int);
+  v_next   := public.alloc_numero(v_prefix, v_annee, 'interventions');
+  new.numero := v_prefix || '-' || v_annee::text || '-' || lpad(v_next::text, 3, '0');
+  return new;
+end $$;
+
+create or replace function public.set_numero_contrat()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_annee int;
+  v_next  int;
+begin
+  if new.numero is not null and new.numero <> '' then
+    return new;
+  end if;
+  v_annee := extract(year from current_date)::int;
+  v_next  := public.alloc_numero('CTR', v_annee, 'contrats_entretien');
+  new.numero := 'CTR-' || v_annee::text || '-' || lpad(v_next::text, 3, '0');
+  return new;
+end $$;
+
+drop trigger if exists interventions_set_numero on public.interventions;
+create trigger interventions_set_numero
+  before insert or update on public.interventions
+  for each row execute function public.set_numero_intervention();
+
+drop trigger if exists contrats_set_numero on public.contrats_entretien;
+create trigger contrats_set_numero
+  before insert or update on public.contrats_entretien
+  for each row execute function public.set_numero_contrat();
+
+-- ---------------------------------------------------------
 -- FONCTIONS
 -- ---------------------------------------------------------
 
@@ -931,24 +1073,24 @@ create policy appels_delete on public.appels for delete to authenticated
   using (public.is_manager() or created_by = auth.uid());
 
 -- rendezvous : managers voient tout, technicien son planning.
--- La visibilité du technicien passe par technicien_id OU le nom
--- d'intervenant ; les RDV non affectés (intervenant vide) restent
--- visibles par toute l'équipe.
+-- SYNC-04 : la visibilité du technicien repose UNIQUEMENT sur `technicien_id`
+-- (affecté à la création par l'app via `resolveTechId`, aligné sur l'historique
+-- par le backfill de fin de script) — JAMAIS sur le nom `intervenant` : le nom
+-- affiché est modifiable par l'utilisateur (updateProfile), il ne doit servir
+-- ni à la sécurité ni au périmètre RLS. Les RDV non affectés (intervenant
+-- vide et technicien_id absent) restent visibles par toute l'équipe.
+-- Pour un RDV affecté (technicien_id posé, intervenant non renseigné ou
+-- renommé), le technicien concerné reste visible.
 drop policy if exists rendezvous_select on public.rendezvous;
 create policy rendezvous_select on public.rendezvous for select to authenticated
   using (
     public.is_manager()
     or created_by = auth.uid()
     or technicien_id = auth.uid()
-    or intervenant is null or intervenant = ''
-    or exists (
-      select 1 from public.profiles p
-      where p.id = auth.uid()
-        and p.full_name is not null and p.full_name <> ''
-        and (p.full_name = public.rendezvous.intervenant
-             or split_part(p.full_name, ' ', 1) = public.rendezvous.intervenant)
-    )
+    or (intervenant is null or intervenant = '')
   );
+-- RDV affectés : `technicien_id = auth.uid()` ci-dessus suffit — pas de
+-- clause de repli sur `full_name` (voir SYNC-04).
 drop policy if exists rendezvous_insert on public.rendezvous;
 create policy rendezvous_insert on public.rendezvous for insert to authenticated
   with check (public.is_manager() or (technicien_id is null or technicien_id = auth.uid()));

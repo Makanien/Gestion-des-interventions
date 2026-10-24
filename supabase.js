@@ -40,6 +40,14 @@ const LIGHT_COLUMNS = {
 };
 const PULL_PAGE_SIZE = 500; // SYNC-02 : PostgREST/Supabase tronque à 1000 lignes par requête
 
+// NUM-01 : les tables numérotées côté serveur (trigger `set_numero_*`)
+// renvoient la référence posée lors du push — sans la demander, l'app ignore
+// l'attribution jusqu'au pull suivant. Colonnes limitées aux seules tables
+// concernées : `numero` n'existe pas ailleurs (PostgREST renverrait une erreur).
+function returnCols(store) {
+  return (store === "interventions" || store === "contrats_entretien")
+    ? "id, updated_at, numero"
+    : "id, updated_at";
 // Identifiant non devinable pour les objets Storage (SEC-11). `uuid()` est
 // défini dans idb.js ; repli sur crypto.getRandomValues si indisponible.
 function uuidV4() {
@@ -159,7 +167,7 @@ const Supabase = {
     // serveur est la référence pour la résolution de conflits. On ne sélectionne
     // que les petites colonnes : les lignes `photos` / `documents` contiennent
     // un `data_url` volumineux qu'il serait coûteux de renvoyer à chaque push.
-    const { data, error } = await c.from(store).upsert(row).select("id, updated_at");
+    const { data, error } = await c.from(store).upsert(row).select(returnCols(store));
     if (error) throw error;
     return (data && data[0]) || null;
   },
@@ -179,7 +187,7 @@ const Supabase = {
       .update(payload)
       .eq("id", row.id)
       .eq("updated_at", baseUpdated)
-      .select("id, updated_at");
+      .select(returnCols(store));
     if (error) throw error;
     if (data && data.length === 1) return { row: data[0], conflict: false, remote: null };
     // 0 ligne affectée : la ligne a changé côté serveur (conflit), ou n'existe
