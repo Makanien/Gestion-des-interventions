@@ -402,15 +402,17 @@ function toast(msg, isError) {
   toast._t = setTimeout(() => el.classList.remove("show"), 2600);
 }
 
-function currentRole() { return state.auth?.profile?.role || "responsable"; }
-function isManager() { return !state.auth || ["responsable", "secretaire", "developpeur"].includes(currentRole()); }
+// SEC-09 : moindre privilège. Un profil non chargé (échec réseau, profil absent)
+// ne doit JAMAIS donner l'interface manager. Rôle inconnu = technicien.
+// Hors connexion : pas de manager (les données restent protégées par la RLS).
+function currentRole() { return state.auth?.profile?.role || "technicien"; }
+function isManager() { return !!state.auth && ["responsable", "secretaire", "developpeur"].includes(currentRole()); }
 // Workflow 4 statuts : validation et facturation = managers
 // (responsable / secrétaire / developpeur).
 function canValidate() { return isManager(); }
 // Rouverture d'un dossier Terminé : responsable uniquement
-// (developpeur toléré pour les tests). Hors connexion (mode local sans
-// compte), on conserve le comportement permissif d'isManager().
-function canReopen() { return !state.auth || ["responsable", "developpeur"].includes(currentRole()); }
+// (developpeur toléré pour les tests). SEC-09 : hors session, aucun droit.
+function canReopen() { return !!state.auth && ["responsable", "developpeur"].includes(currentRole()); }
 
 // Résout le nom d'intervenant (texte) vers l'uuid du profil, pour que la
 // RLS serveur (technicien_id = auth.uid()) laisse le bon technicien
@@ -2436,7 +2438,7 @@ async function finishWizard() {
       const photo = d.photos[i];
       if (!photo || !photo.data_url || photo.fichier_url) continue;
       try {
-        photo.fichier_url = await Supabase.uploadPhoto(`photo-${Date.now()}-${i}`, photo.data_url);
+        photo.fichier_url = await Supabase.uploadPhoto(d.id, photo.data_url);
       } catch (e) { console.warn("Upload photo échoué", e); }
     }
   }
@@ -2697,7 +2699,7 @@ async function importDocument(interventionId, type, inputEl) {
   // Le dataURL local est conservé pour l'affichage offline-first.
   if (Supabase.configured() && state.auth && navigator.onLine) {
     try {
-      doc.fichier_url = await Supabase.uploadDocument(`doc-${Date.now()}-${type}`, dataUrl);
+      doc.fichier_url = await Supabase.uploadDocument(interventionId, dataUrl);
     } catch (e) { console.warn("Upload document échoué", e); }
   }
   await DB.addDocument(interventionId, doc);

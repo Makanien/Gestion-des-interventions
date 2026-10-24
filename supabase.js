@@ -40,6 +40,16 @@ const LIGHT_COLUMNS = {
 };
 const PULL_PAGE_SIZE = 500; // SYNC-02 : PostgREST/Supabase tronque à 1000 lignes par requête
 
+// Identifiant non devinable pour les objets Storage (SEC-11). `uuid()` est
+// défini dans idb.js ; repli sur crypto.getRandomValues si indisponible.
+function uuidV4() {
+  if (typeof uuid === "function") return uuid();
+  const b = crypto.getRandomValues(new Uint8Array(16));
+  b[6] = (b[6] & 0x0f) | 0x40; b[8] = (b[8] & 0x3f) | 0x80;
+  const h = [...b].map((x) => x.toString(16).padStart(2, "0")).join("");
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+}
+
 const Supabase = {
   configured() {
     return !!initSupabase();
@@ -260,10 +270,13 @@ const Supabase = {
   // Les buckets "photos" et "documents" sont privés : on conserve le chemin
   // de l'objet dans fichier_url (les données restent lisibles en local via
   // le dataURL/base64, ce qui préserve le mode offline-first).
-  async uploadPhoto(id, dataUrl) {
+  // SEC-02 / SEC-11 : chemin `{intervention_id}/{uuid}.ext` — le premier segment
+  // identifie l'intervention, ce qui permet à la policy Storage de restreindre
+  // la lecture au même périmètre que la table `photos`.
+  async uploadPhoto(interventionId, dataUrl) {
     const c = initSupabase();
     const blob = await (await fetch(dataUrl)).blob();
-    const path = `${id}.jpg`;
+    const path = `${interventionId}/${uuidV4()}.jpg`;
     const { error } = await c.storage.from("photos").upload(path, blob, {
       contentType: "image/jpeg",
       upsert: true,
@@ -272,10 +285,10 @@ const Supabase = {
     return path;
   },
 
-  async uploadDocument(id, dataUrl) {
+  async uploadDocument(interventionId, dataUrl) {
     const c = initSupabase();
     const blob = await (await fetch(dataUrl)).blob();
-    const path = `${id}.pdf`;
+    const path = `${interventionId}/${uuidV4()}.pdf`;
     const { error } = await c.storage.from("documents").upload(path, blob, {
       contentType: "application/pdf",
       upsert: true,
