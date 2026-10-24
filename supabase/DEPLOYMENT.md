@@ -5,10 +5,15 @@ Ce document décrit la mise en place du backend Supabase nécessaire pour la V2
 dossier, documents importés, photos, base pièces, contrats).
 
 > Le schéma est désormais **un fichier unique** : `supabase/schema.sql` contient
-> l'état final complet (tables V2 + V3, rôles, RLS, Storage, Realtime, backfill).
-> Il est **idempotent** : exécutable sur une base neuve comme sur une base déjà
-> migrée, relançable sans erreur ni effet de bord. Il n'y a plus d'ordre de
-> scripts à respecter.
+> l'état final complet (tables V2 + V3, contraintes, rôles, RLS, Storage,
+> Realtime). Il est **idempotent** : exécutable sur une base neuve comme sur une
+> base déjà migrée, relançable sans erreur ni effet de bord. Il n'y a plus
+> d'ordre de scripts à respecter.
+>
+> ⚠️ Le backfill des rôles aux **emails réels** n'est plus dans le fichier
+> versionné (SEC-06 / DB-02) : il vit dans `supabase/seed.local.sql`
+> (**non versionné**, cf. `.gitignore`). Sur une base vierge : exécuter
+> `schema.sql` **puis** `seed.local.sql` après création des comptes.
 
 > ⚠️ **Workflow 4 statuts (13/10/2026)** : rejouer `schema.sql` (idempotent)
 > **avant** de déployer le front — le script normalise les anciens statuts
@@ -119,11 +124,11 @@ Créez les 4 comptes via **Authentication → Users → Add user** :
 | `makanien@gmail.com` | `developpeur` (Alexandre) |
 
 > Le rôle ne se règle **pas** à la création du compte : il est attribué par le
-> backfill du schéma (fin de `schema.sql`) ou via `set_user_role()`. La ligne
-> `profiles` est créée automatiquement à la première connexion (trigger
-> `handle_new_user`). Si le backfill doit répartir l'historique entre Régis et
-> Jérémy plutôt que « tout au responsable », ajustez la requête dans le bloc
-> `BACKFILL` avant exécution.
+> backfill du fichier **non versionné** `supabase/seed.local.sql` (local, hors
+> dépôt) ou via `set_user_role()`. La ligne `profiles` est créée
+> automatiquement à la première connexion (trigger `handle_new_user`). Si le
+> backfill doit répartir l'historique entre Régis et Jérémy plutôt que « tout
+> au responsable », ajustez la requête dans `seed.local.sql` avant exécution.
 
 ### Alternative : attribuer un rôle à un compte déjà créé
 

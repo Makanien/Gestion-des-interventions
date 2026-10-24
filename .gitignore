@@ -1,3 +1,6 @@
 # Fichiers temporaires Office (verrouillage à l'ouverture)
 ~$*
 *.~vsd*
+
+# Supabase — données locales exploitant (emails réels : SEC-06 / DB-02)
+supabase/seed.local.sql
