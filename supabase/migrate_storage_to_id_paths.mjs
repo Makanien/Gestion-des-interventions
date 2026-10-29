@@ -84,11 +84,13 @@ async function storageList(bucket, prefix = "") {
   return res.json();
 }
 
+// API Storage : le corps attendu est { bucketId, sourceKey, destinationKey }
+// (400 "required property 'sourceKey'" si on envoie sourceName/destinationPath).
 async function storageMove(bucket, sourceName, destinationPath) {
   const res = await fetch(`${SUPABASE_URL}/storage/v1/object/move`, {
     method: "POST",
     headers: headers(),
-    body: JSON.stringify({ bucketId: bucket, sourceName, destinationPath, destinationBucket: bucket }),
+    body: JSON.stringify({ bucketId: bucket, sourceKey: sourceName, destinationKey: destinationPath }),
   });
   if (!res.ok) {
     const body = await res.text().catch(() => "");
@@ -105,6 +107,16 @@ async function patchFichierUrl(store, id, fichierUrl) {
     headers: headers("return=minimal"),
     body: JSON.stringify({ fichier_url: fichierUrl }),
   });
+}
+
+// La source est absente : soit un lancement interrompu a déjà déplacé
+// l'objet (reprise), soit l'objet n'existe vraiment pas. Si la destination
+// existe déjà, on rattrape `fichier_url` ; sinon on signale.
+async function storageObjectExists(bucket, path) {
+  const dir = path.split("/").slice(0, -1).join("/") + "/";
+  const name = path.split("/").pop();
+  const items = await storageList(bucket, dir);
+  return items.some((o) => o.name === name || o.name === path);
 }
 
 function extFrom(path, bucket) {
@@ -155,7 +167,17 @@ function extractPath(fichierUrl, bucket) {
         console.log(`  [dry-run] move ${path} → ${destination}`);
       } else {
         const res = await storageMove(bucket, path, destination);
-        if (res.missing) { report.missing++; console.warn(`  ! objet absent : ${bucket}/${path}`); continue; }
+        if (res.missing) {
+          if (await storageObjectExists(bucket, destination)) {
+            await patchFichierUrl(bucket, row.id, destination);
+            console.log(`  ✓ (déjà déplacé, reprise) ${destination} (+ fichier_url rattrapée)`);
+            report.updated++;
+          } else {
+            report.missing++;
+            console.warn(`  ! objet absent : ${bucket}/${path}`);
+          }
+          continue;
+        }
         await patchFichierUrl(bucket, row.id, destination);
         console.log(`  ✓ ${path} → ${destination} (+ fichier_url mise à jour)`);
       }
