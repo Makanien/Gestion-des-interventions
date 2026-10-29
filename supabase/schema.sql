@@ -1302,6 +1302,14 @@ grant select, insert, update, delete on public.pieces              to authentica
 grant select, insert, update, delete on public.documents           to authenticated;
 grant select, insert, update, delete on public.contrats_entretien  to authenticated;
 
+-- service_role : utilisé par les scripts exploitant (ex. migration Storage
+-- SEC-02/11) et le backfill. Supabase l'accorde par défaut via ALTER DEFAULT
+-- PRIVILEGES ; sur une base créée AVANT ce réglage (prod), les tables
+-- existantes n'ont aucun privilège pour ce rôle (42501 au /rest/v1).
+-- GRANT explicite, idempotent, indépendant des default privileges.
+grant usage on schema public to service_role;
+grant select, insert, update, delete on all tables in schema public to service_role;
+
 -- ---------------------------------------------------------
 -- REALTIME
 -- Idempotent : n'ajoute que les tables qui ne sont pas déjà membres
