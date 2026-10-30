@@ -146,6 +146,7 @@ function extractPath(fichierUrl, bucket) {
   console.log(`SUPABASE_URL=${SUPABASE_URL}   DRY_RUN=${DRY_RUN ? "oui" : "NON — application réelle"}`);
   const report = { moved: 0, updated: 0, missing: 0, skipped: 0, deletedRows: 0, badUrls: 0 };
   const orphans = [];
+  const softDeletedPaths = new Set();
 
   for (const bucket of BUCKETS) {
     const rows = await listRows(bucket);
@@ -158,6 +159,7 @@ function extractPath(fichierUrl, bucket) {
         // Ligne soft-supprimée : l'objet correspondant devient orphelin candidat
         // — destruction volontaire (RGPD/purge) laissée à une action délibérée.
         report.deletedRows++;
+        softDeletedPaths.add(`${bucket}/${path}`);
         orphans.push(`LIGNE SUPPRIMÉE ${bucket}/${path}`);
         continue;
       }
@@ -189,15 +191,14 @@ function extractPath(fichierUrl, bucket) {
   // Objets racine restants sans ligne connue (orphelins) — inventaire seul.
   // Les entrées de DOSSIER renvoyées par l'API list ont `id: null` : ne pas
   // les compter comme orphelins (faux positifs = dossiers {intervention_id}).
-  // Dédupe avec les objets déjà signalés via les lignes soft-supprimées.
-  const declared = new Set(orphans.map((o) => o.split(" ")[1]));
+  // Dédupe via softDeletedPaths (libellés multi-mots : ne pas parser le texte).
   for (const bucket of BUCKETS) {
     const roots = (await storageList(bucket)).filter(
       (o) => !String(o.name).includes("/") && o.id != null
     );
     for (const o of roots) {
-      const label = `ORPHELIN ${bucket}/${o.name}`;
-      if (!declared.has(`${bucket}/${o.name}`)) orphans.push(label);
+      if (softDeletedPaths.has(`${bucket}/${o.name}`)) continue;
+      orphans.push(`ORPHELIN ${bucket}/${o.name}`);
     }
   }
 
