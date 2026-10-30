@@ -328,7 +328,7 @@ Mais la lecture du code révèle **des écarts importants entre ce que le PRD et
 ### 7.2 Étapes
 
 **Étape 0 — Filet de sécurité (avant tout)**
-- [ ] Faire une **sauvegarde complète** de la base et des buckets Supabase de production.
+- [x] Faire une **sauvegarde complète** de la base et des buckets Supabase de production. *(Confirmée faite par l'exploitant le 30/10/2026 — prérees sur ce poste : pensez à la recopier sur un 2ᵉ support et à tenir le journal de `documentation/PROCEDURE_SAUVEGARDE.md`.)*
 - [x] Créer un projet Supabase **de test** et exécuter `schema.sql` : constater l'échec SCHEMA-01. *(échec constaté à l'analyse du 09/10 ; après incorporation du correctif au fichier maître, replay vérifié 2× sans erreur sur Postgres 16 jetable — cf. SCHEMA-01)*
 - [ ] Reproduire SYNC-01 avec deux navigateurs (profils distincts) et consigner le résultat.
 
