@@ -7,3 +7,7 @@ supabase/seed.local.sql
 
 # Sortie de build — dossier déployable restreint (SEC-06, scripts/build-dist.sh)
 dist/
+
+# Sauvegardes Supabase locales (docs/PROCEDURE_SAUVEGARDE.md) — JAMAIS dans le dépôt
+supabase-backup-*/
+*-sauvegarde-*/
