@@ -240,7 +240,7 @@ async function healPulledBinaries() {
     const rows = await DB.listRaw(store).catch(() => []);
     for (const row of rows) {
       if (!navigator.onLine) return; // le reste attend le prochain pull
-      if (row._deleted || row.data_url || !row.fichier_url) continue;
+      if (row._deleted || row.data_url) continue; // repli lecture selon fillBinaryUrl (sans fichier_url, contenu SQL)
       await fillBinaryUrl(store, row.id);
     }
   }
@@ -249,12 +249,25 @@ async function healPulledBinaries() {
 async function fillBinaryUrl(store, id) {
   try {
     const row = await DB.getRaw(store, id);
-    if (!row || row._deleted || row.data_url || !row.fichier_url) return;
-    const dataUrl = await Supabase.getBinaryDataUrl(store, row.fichier_url);
-    // Écriture côté pull : re-enqueuer la ligne serait inutile (le serveur a
-    // déjà ce binaire dans Storage et la colonne SQL n'est plus volontairement
-    // lue en masse).
-    await DB.putRaw(store, { ...row, data_url: dataUrl });
+    if (!row || row._deleted || row.data_url) return;
+    if (row.fichier_url) {
+      const dataUrl = await Supabase.getBinaryDataUrl(store, row.fichier_url);
+      // Écriture côté pull : re-enqueuer la ligne serait inutile (le serveur a
+      // déjà ce binaire dans Storage et la colonne SQL n'est plus volontairement
+      // lue en masse).
+      await DB.putRaw(store, { ...row, data_url: dataUrl });
+      return;
+    }
+    // Repli (SYNC-02, complément du 30/10) : sans fichier_url, Storage ne
+    // peut pas reconstituer — mais le contenu existe côté serveur si la
+    // ligne a été poussée depuis un appareil qui conservait son dataURL
+    // (cleanRow ne neutralise que les signatures). Lecture unitaire une fois
+    // pour toutes ; le versement à Storage est fait par l'appareil
+    // d'origine (uploadPendingBinaries) ou le script de migration.
+    if (!navigator.onLine) return;
+    const full = await Supabase.get(store, id);
+    const dataUrl = full && !full.deleted_at ? full.data_url : null;
+    if (dataUrl) await DB.putRaw(store, { ...row, data_url: dataUrl });
   } catch (e) {
     console.warn(`Binaire ${store}/${id} non récupéré (retenté plus tard)`, e);
   }
@@ -367,6 +380,41 @@ async function uploadPendingSignatures() {
       if (changed) {
         await DB.putRaw(store, row);
         enqueueSync(store, row.id, row.synced_at || null);
+      }
+    }
+  }
+}
+
+// C4 (complément photos/documents) : même mécanisme que les signatures —
+// une ligne photo/document poussée dont l'objet Storage n'existe pas encore
+// (upload au moment de l'enregistrement en échec, création hors ligne sans
+// nouvel enregistrement…) laisse fichier_url vide : les AUTRES appareils ne
+// peuvent plus reconstituer l'affichage (le pull ne tire plus les data_url).
+// L'appareil qui détient la copie locale (data_url) crée donc l'objet
+// manquant au prochain cycle de sync, puis re-pousse la ligne — un refus RLS
+// définitif (autre périmètre) arrête les tentatives pour cette ligne.
+const BINARY_UPLOAD_BAIL = new Set(); // "store/id"
+async function uploadPendingBinaries() {
+  if (!Supabase.configured() || !navigator.onLine) return;
+  for (const store of ["photos", "documents"]) {
+    const rows = await DB.listRaw(store).catch(() => []);
+    for (const row of rows) {
+      if (row._deleted || row.deleted_at) continue;
+      if (row.fichier_url || !row.data_url || !row.intervention_id) continue;
+      if (BINARY_UPLOAD_BAIL.has(`${store}/${row.id}`)) continue;
+      try {
+        const upload = store === "photos" ? Supabase.uploadPhoto : Supabase.uploadDocument;
+        row.fichier_url = await upload(row.intervention_id, row.data_url);
+        await DB.putRaw(store, row);
+        enqueueSync(store, row.id, row.synced_at || null);
+      } catch (e) {
+        const m = String(e?.message || e);
+        if (e?.status === 403 || m.includes("403") || m.includes("42501") || m.includes("row level security")) {
+          BINARY_UPLOAD_BAIL.add(`${store}/${row.id}`); // refus permanent
+          console.warn(`Upload ${store}/${row.id} refusé (RLS) — abandon pour cette session`, e);
+        } else {
+          console.warn(`Upload différé ${store}/${row.id} vers Storage échoué (retenté au prochain cycle)`, e);
+        }
       }
     }
   }
@@ -700,6 +748,7 @@ async function runSync() {
   try {
     if (navigator.onLine) {
       await uploadPendingSignatures();
+      await uploadPendingBinaries();
       await pullChanges();
       await pushChanges();
     }
@@ -833,4 +882,4 @@ async function stopRealtime() {
   );
 }
 
-window.Sync = { runSync, pullChanges, pushChanges, enqueueSync, initRealtime, stopRealtime, scheduleSync, initPersisted, initialPushIfNeeded, pushAllLocal, resolveConflict, retryFailed, discardFailed, uploadPendingSignatures, notifyRemoteDataChanged, state: SyncState };
+window.Sync = { runSync, pullChanges, pushChanges, enqueueSync, initRealtime, stopRealtime, scheduleSync, initPersisted, initialPushIfNeeded, pushAllLocal, resolveConflict, retryFailed, discardFailed, uploadPendingSignatures, uploadPendingBinaries, notifyRemoteDataChanged, state: SyncState };
