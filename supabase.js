@@ -48,6 +48,7 @@ function returnCols(store) {
   return (store === "interventions" || store === "contrats_entretien")
     ? "id, updated_at, numero"
     : "id, updated_at";
+}
 // Identifiant non devinable pour les objets Storage (SEC-11). `uuid()` est
 // défini dans idb.js ; repli sur crypto.getRandomValues si indisponible.
 function uuidV4() {
@@ -247,6 +248,13 @@ const Supabase = {
       throw new Error(`Suppression non appliquée (refus RLS ou ligne non modifiable) — ${store}/${id.slice(0, 8)}…`);
     }
     return true;
+  },
+
+  async rpc(name, params = {}) {
+    const c = initSupabase();
+    const { data, error } = await c.rpc(name, params);
+    if (error) throw error;
+    return data;
   },
 
   // ---------------- Storage (signatures) ----------------

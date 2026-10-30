@@ -4,10 +4,8 @@
    100% hors ligne après la première visite (avec réseau).
    Incrémenter CACHE_VERSION à chaque déploiement de nouvelle version.
    ========================================================= */
-// v31 : branche fix/sync-04-num-01 (v30 est utilisé par la branche
-// fix/securite-analyse, non encore fusionnée — saut volontaire pour éviter
-// le recoupement).
-const CACHE_VERSION = "climatelec-v31";
+// v32 : étape 2 fiabilité (BP-01 persistance brouillon, bandeau MAJ, storage.persist).
+const CACHE_VERSION = "climatelec-v32";
 const ASSETS = [
   "./",
   "./index.html",
