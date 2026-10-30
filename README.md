@@ -48,8 +48,11 @@ et le PRD.
 1. **Netlify Drop** (le plus rapide, sans compte) : aller sur https://app.netlify.com/drop
    et glisser-déposer **le dossier `dist/`** généré par `scripts/build-dist.sh`.
    Un lien HTTPS est généré immédiatement.
-2. **GitHub Pages** : publier **le contenu de `dist/`** (dépôt privé + activer
-   "Pages" sur la branche qui en découle, ou via `git subtree push`).
+2. **GitHub Pages** : publier **le contenu de `dist/`** — sur un compte gratuit,
+   Pages ne fonctionne que depuis un dépôt PUBLIC : créer un mini-dépôt public
+   dédié (ex. `climatelec-site`) ne contenant que `dist/` (`git subtree push`
+   ou copie manuelle), le dépôt du code source restant privé. Un dépôt privé + Pages
+   exige GitHub Pro.
 3. Toute autre solution d'hébergement statique HTTPS convient (Vercel, OVH, etc.),
    en ne servant que `dist/`.
 
