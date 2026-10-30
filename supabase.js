@@ -40,6 +40,29 @@ const LIGHT_COLUMNS = {
 };
 const PULL_PAGE_SIZE = 500; // SYNC-02 : PostgREST/Supabase tronque à 1000 lignes par requête
 
+// NUM-01 : les tables numérotées côté serveur (trigger `set_numero_*`)
+// renvoient la référence posée lors du push — sans la demander, l'app ignore
+// l'attribution jusqu'au pull suivant. Colonnes limitées aux seules tables
+// concernées : `numero` n'existe pas ailleurs (PostgREST renverrait une erreur).
+function returnCols(store) {
+  return (store === "interventions" || store === "contrats_entretien")
+    ? "id, updated_at, numero"
+    : "id, updated_at";
+}
+
+// Identifiant non devinable pour les objets Storage (SEC-11). `uuid()` est
+// défini dans idb.js ; repli sur crypto.getRandomValues si indisponible.
+// (accolade fermante de `returnCols` restaurée dans fix/etape-1 : son absence
+// accompagnait `uuidV4` enfoui dans la fonction — l'attribution des noms
+// `{intervention_id}/{uuid}.ext` levait une ReferenceError à l'upload.)
+function uuidV4() {
+  if (typeof uuid === "function") return uuid();
+  const b = crypto.getRandomValues(new Uint8Array(16));
+  b[6] = (b[6] & 0x0f) | 0x40; b[8] = (b[8] & 0x3f) | 0x80;
+  const h = [...b].map((x) => x.toString(16).padStart(2, "0")).join("");
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+}
+
 const Supabase = {
   configured() {
     return !!initSupabase();
@@ -149,7 +172,7 @@ const Supabase = {
     // serveur est la référence pour la résolution de conflits. On ne sélectionne
     // que les petites colonnes : les lignes `photos` / `documents` contiennent
     // un `data_url` volumineux qu'il serait coûteux de renvoyer à chaque push.
-    const { data, error } = await c.from(store).upsert(row).select("id, updated_at");
+    const { data, error } = await c.from(store).upsert(row).select(returnCols(store));
     if (error) throw error;
     return (data && data[0]) || null;
   },
@@ -169,7 +192,7 @@ const Supabase = {
       .update(payload)
       .eq("id", row.id)
       .eq("updated_at", baseUpdated)
-      .select("id, updated_at");
+      .select(returnCols(store));
     if (error) throw error;
     if (data && data.length === 1) return { row: data[0], conflict: false, remote: null };
     // 0 ligne affectée : la ligne a changé côté serveur (conflit), ou n'existe
@@ -220,7 +243,15 @@ const Supabase = {
     // appareils). On teste d'abord l'existence côté serveur : une ligne
     // jamais poussée n'a rien à supprimer (succès).
     const stamp = updated_at || new Date().toISOString();
-    const { data: existing, error: errSel } = await c.from(store).select("id").eq("id", id).maybeSingle();
+    // SEC-11 : pour photos/documents il faut connaître `fichier_url` AVANT la
+    // suppression, afin de retirer l'objet Storage au moment où la ligne est
+    // supprimée (sinon fichier orphelin éternellement en base Storage).
+    const needsFichierUrl = store === "photos" || store === "documents";
+    const { data: existing, error: errSel } = await c
+      .from(store)
+      .select(needsFichierUrl ? "id,fichier_url" : "id")
+      .eq("id", id)
+      .maybeSingle();
     if (errSel) throw errSel;
     if (!existing) return false;
     const { data, error } = await c.from(store).update({ deleted_at: stamp, updated_at: stamp }).eq("id", id).select("id");
@@ -228,7 +259,34 @@ const Supabase = {
     if (!data || data.length === 0) {
       throw new Error(`Suppression non appliquée (refus RLS ou ligne non modifiable) — ${store}/${id.slice(0, 8)}…`);
     }
+    // SEC-11 : best-effort — un échec (ancien chemin racine refusé par la
+    // policy RLS, objet déjà absent, photo jamais uploadée) ne bloque pas la
+    // suppression de la ligne ; les orphelins résiduels sont traités par le
+    // script de migration `supabase/migrate_storage_to_id_paths.mjs`.
+    if (needsFichierUrl && existing.fichier_url) {
+      await this.removeStorageObject(store, existing.fichier_url);
+    }
     return true;
+  },
+
+  async removeStorageObject(bucket, pathOrUrl) {
+    try {
+      const c = initSupabase();
+      let path = String(pathOrUrl || "");
+      if (!path) return;
+      // Anciens schémas versa parfois une URL publique complète : extraire le
+      // chemin de l'objet après `/object/<bucket>/` ; toute URL non mappable
+      // est ignorée plutôt que risquer une fausse suppression.
+      const marker = `/object/${bucket}/`;
+      if (path.includes("://") && path.includes(marker)) path = path.split(marker).pop();
+      else if (path.includes("://")) return;
+      while (path.startsWith("/")) path = path.slice(1);
+      if (!path) return;
+      const { error } = await c.storage.from(bucket).remove([path]);
+      if (error) console.warn(`[SEC-11] Objet Storage non supprimé (${bucket})`, path, error);
+    } catch (e) {
+      console.warn(`[SEC-11] Objet Storage non supprimé (${bucket})`, pathOrUrl, e);
+    }
   },
 
   // ---------------- Storage (signatures) ----------------
@@ -260,10 +318,13 @@ const Supabase = {
   // Les buckets "photos" et "documents" sont privés : on conserve le chemin
   // de l'objet dans fichier_url (les données restent lisibles en local via
   // le dataURL/base64, ce qui préserve le mode offline-first).
-  async uploadPhoto(id, dataUrl) {
+  // SEC-02 / SEC-11 : chemin `{intervention_id}/{uuid}.ext` — le premier segment
+  // identifie l'intervention, ce qui permet à la policy Storage de restreindre
+  // la lecture au même périmètre que la table `photos`.
+  async uploadPhoto(interventionId, dataUrl) {
     const c = initSupabase();
     const blob = await (await fetch(dataUrl)).blob();
-    const path = `${id}.jpg`;
+    const path = `${interventionId}/${uuidV4()}.jpg`;
     const { error } = await c.storage.from("photos").upload(path, blob, {
       contentType: "image/jpeg",
       upsert: true,
@@ -272,10 +333,10 @@ const Supabase = {
     return path;
   },
 
-  async uploadDocument(id, dataUrl) {
+  async uploadDocument(interventionId, dataUrl) {
     const c = initSupabase();
     const blob = await (await fetch(dataUrl)).blob();
-    const path = `${id}.pdf`;
+    const path = `${interventionId}/${uuidV4()}.pdf`;
     const { error } = await c.storage.from("documents").upload(path, blob, {
       contentType: "application/pdf",
       upsert: true,

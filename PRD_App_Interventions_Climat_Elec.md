@@ -495,7 +495,7 @@ Tension d'alimentation (Absente / Vérifiée / Non vérifiée / Non vérifiable)
 - **Retrait** de l'import de facture, de la génération du « dossier final » fusionné (`pdf-lib`, bouton « Générer le dossier final ») et des transitions de vérification. La génération du **PDF de la fiche** (`pdf.js`) est conservée.
 - **Nouvelles actions** : « Renvoyer en brouillon » (motif libre) depuis À valider, « Marquer comme facturé » depuis À facturer, « Rouvrir » depuis Terminé (Régis seul, motif libre).
 - **Migration** (`supabase/schema.sql` + backfill `idb.js`) : `validee`/`a_facturer`/`facture_importee`/`facture_a_verifier` → `a_facturer` ; `facture_verifiee`/`a_envoyer`/`cloturee` → `termine` ; `brouillon` et `a_valider` inchangés. Mise à jour de la contrainte/enum Supabase et incrément de `CACHE_VERSION` dans `sw.js`.
-- **Numérotation** : référence unique `PREFIX-AAAA-NNN` (FIC / ENT / CTR), compteur local synchronisé.
+- **Numérotation** : référence unique `PREFIX-AAAA-NNN` (FIC / ENT / CTR) attribuée par le **serveur** à la première synchronisation (compteur par type/année + index unique partiel sur `numero`, trigger `set_numero_*`) — corrige NUM-01 (compteur local par appareil : doublons garantis à 2 techniciens) ; affichage « n° à la synchronisation » tant que la référence n'est pas attribuée ; hors Supabase (mode V1), repli sur le compteur local.
 - **Statistiques** (US transverse) : total, par mois (6 derniers), par type, par technicien, par statut **et par client** (tri décroissant).
 
 ### Synchronisation & robustesse
@@ -728,7 +728,7 @@ ContratEntretien {
 
 > **Cycle de vie de l'appel :** `action_sortie` enregistre la sortie (`rdv` / `intervention` / `sans_suite` — ce dernier signifie « en attente », étiquette « À traiter »). Les champs de lien `rendezvous_id` / `intervention_id` (et `rendezvous.appel_id`) sont renseignés lorsque le RDV ou la fiche est créé depuis l'appel ; l'appel est alors retiré de la liste active du bloc « Appels » mais reste en base (traçabilité). Un rendez-vous peut à son tour produire une intervention via « Créer l'intervention » sur son détail (reprise du client et du motif) ; le RDV enregistre de son côté `intervention_id` pour éviter qu'un même rendez-vous produise deux fiches (anti-doublon).
 >
-> **Numérotation :** un compteur par type de document (fiche d'intervention/entretien, dossier) génère les références uniques (ex. `FIC-2026-001`). Le format exact reste à valider (§11).
+> **Numérotation :** la référence `PREFIX-AAAA-NNN` (ex. `FIC-2026-001`) est attribuée par le **serveur** à la première synchronisation (compteur par type/année, index unique partiel) ; tant que la fiche n'a pas été synchronisée, elle s'affiche « n° à la synchronisation ». Le format exact reste à valider (§11).
 >
 > **CERFA n°15497 :** le formulaire est intégré aux fiches d'entretien PAC avec ses champs réglementaires (contrôle d'étanchéité, quantités de fluide, déchets ADR/RID), sur une seule page ; les données sont stockées dans le bloc `Mesure` / des colonnes dédiées.
 >

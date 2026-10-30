@@ -322,7 +322,9 @@ const DB = {
     }
   },
 
-  // ---------- Numérotation (référence unique) ----------
+  // ---------- Numérotation locale de repli ----------
+  // NUM-01 : réservée au mode hors Supabase (mode V1) et au backfill
+  // historique — la numérotation de référence est attribuée par le serveur.
   // Format : PREFIX-AAAA-NNN (ex. FIC-2026-001, ENT-2026-001).
   async nextNumero(prefix = "FIC") {
     const year = new Date().getFullYear();
@@ -462,7 +464,12 @@ const DB = {
       itv.id = uuid();
       itv.created_at = now;
     }
-    if (!itv.numero) itv.numero = await this.nextNumero(itv.type_entretien ? "ENT" : "FIC");
+    // NUM-01 : la référence n'est plus attribuée localement — le serveur la
+    // pose à la première synchronisation (trigger `set_numero_intervention`,
+    // index unique sur `numero`). Tant qu'elle n'est pas attribuée, la fiche
+    // s'affiche « n° à la synchronisation ». Repli : sans Supabase (mode
+    // local V1), la numérotation locale est conservée.
+    if (!itv.numero && !Supabase?.configured()) itv.numero = await this.nextNumero(itv.type_entretien ? "ENT" : "FIC");
     itv.updated_at = now;
     itv.synced_at = null;
 
