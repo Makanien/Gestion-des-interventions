@@ -118,10 +118,15 @@ Créez les 4 comptes via **Authentication → Users → Add user** :
 
 | Email | Rôle cible |
 |---|---|
-| `regis.chanteux@gmail.com` | `responsable` |
-| `jgardaisclimatelec@gmail.com` | `technicien` |
-| `contactdsolutions49@gmail.com` | `secretaire` |
-| `makanien@gmail.com` | `developpeur` (Alexandre) |
+| `responsable@exemple.com` | `responsable` |
+| `technicien@exemple.com` | `technicien` |
+| `secretaire@exemple.com` | `secretaire` |
+| `developpeur@exemple.com` | `developpeur` |
+
+> ⚠️ **SEC-06** : les adresses réelles de l'équipe ne sont plus dans ce fichier
+> versionné (dépôt public). Renseignez-les uniquement dans le fichier **non
+> versionné** `supabase/seed.local.sql` (cf. section BACKFILL) — celui-ci est
+> exclu du dépôt via `.gitignore`.
 
 > Le rôle ne se règle **pas** à la création du compte : il est attribué par le
 > backfill du fichier **non versionné** `supabase/seed.local.sql` (local, hors
