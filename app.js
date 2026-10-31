@@ -503,6 +503,10 @@ async function loadDraftFromIntervention(id) {
   const d = emptyDraft(state.draftType);
   Object.assign(d, {
     id: itv.id,
+    // SYNC-01 : version serveur vue à l'ouverture (base du push conditionnel).
+    // Absente si la copie locale a des modifications non poussées (synced_at null) :
+    // la base de la file de synchronisation prévaut alors.
+    ...(itv.synced_at ? { _base_updated_at: itv.synced_at } : {}),
     client_id: itv.client_id,
     type_intervention: itv.type_intervention,
     type_entretien: itv.type_entretien || "",

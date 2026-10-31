@@ -52,10 +52,23 @@ function maxISO(a, b) {
 // dernier horodatage serveur connu de la copie locale avant modification ;
 // `synced_at` renseigné au pull C4/D5/applyRemote, et après chaque push).
 // File d'attente persistée : elle survit au rechargement de l'application.
-function enqueueSync(store, id, base = null) {
+function enqueueSync(store, id, base = null, opts = {}) {
   if (!Supabase.configured()) return;
+  // SYNC-01 : la version de base doit rester celle du PREMIER état serveur vu
+  // avant les modifications locales non poussées. Un nouvel enregistrement local
+  // (qui remet `synced_at` à null) ne doit pas la perdre : on conserve la base de
+  // l'élément déjà en file, ou, à défaut, celle d'un conflit en cours — sinon le
+  // push suivant devient inconditionnel et écrase le serveur.
+  // `authoritative` : résolution explicite d'un conflit (la base fournie fait foi).
+  let effectiveBase = base || null;
+  if (!opts.authoritative) {
+    const queued = SyncState.queue.find((q) => q.store === store && q.id === id);
+    const conflict = SyncState.conflicts.find((cf) => cf.store === store && cf.id === id);
+    if (queued && queued.base_updated_at) effectiveBase = queued.base_updated_at;
+    else if (!queued && conflict && conflict.base_updated_at) effectiveBase = conflict.base_updated_at;
+  }
   SyncState.queue = SyncState.queue.filter((q) => !(q.store === store && q.id === id));
-  const item = { store, id, base_updated_at: base || null };
+  const item = { store, id, base_updated_at: effectiveBase };
   SyncState.queue.push(item);
   SyncStore?.enqueuePersisted(item);
   // SYNC-03 : une écriture locale fraîche rend l'élément à nouveau poussable
@@ -664,7 +677,7 @@ async function resolveConflict(store, id, keepLocal) {
   const cf = SyncState.conflicts[idx];
   try {
     if (keepLocal) {
-      enqueueSync(store, id, cf.remote_updated_at || null);
+      enqueueSync(store, id, cf.remote_updated_at || null, { authoritative: true });
       await runSync();
     } else {
       const remote = await Supabase.get(store, id);

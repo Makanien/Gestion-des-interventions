@@ -459,7 +459,12 @@ const DB = {
     // SYNC-01 : la version de base (dernier état serveur connu) est capturée
     // AVANT la modification, pour le push conditionnel.
     const prev = itv.id ? await this.getRaw("interventions", itv.id).catch(() => null) : null;
-    const base = (prev && prev.synced_at) || itv.synced_at || null;
+    // `_base_updated_at` : version serveur que le FORMULAIRE avait à l'ouverture
+    // (posée par `loadDraftFromIntervention`). Elle prime sur la copie locale, qui
+    // a pu avancer entre-temps (Realtime / pull) sans que le formulaire ne le
+    // sache : sinon l'enregistrement écraserait silencieusement la version distante.
+    const base = itv._base_updated_at || (prev && prev.synced_at) || itv.synced_at || null;
+    delete itv._base_updated_at;
     if (isNew) {
       itv.id = uuid();
       itv.created_at = now;
