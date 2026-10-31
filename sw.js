@@ -12,7 +12,8 @@
 // v33 : rattrapage Storage photos/documents (uploadPendingBinaries, repli data_url).
 // v34 : étape 2 fiabilité — BP-01 (brouillon wizard persistant, bandeau MAJ, storage.persist), COH-05, SEC-03.
 // v35 : SEC-03 — abandon de la RPC link_appel (lien appel → intervention via la synchronisation normale).
-const CACHE_VERSION = "climatelec-v35";
+// v36 : signatures — upload sans upsert (la RLS du bucket interdit INSERT … ON CONFLICT DO UPDATE).
+const CACHE_VERSION = "climatelec-v36";
 const ASSETS = [
   "./",
   "./index.html",

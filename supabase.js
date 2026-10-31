@@ -293,11 +293,19 @@ const Supabase = {
   async uploadSignature(id, blob) {
     const c = initSupabase();
     const path = `${id}.png`;
+    // SEC-01/SEC-08 : le bucket « signatures » n'a ni policy `select` ni `update`
+    // (une signature est figée). Un upload en `upsert: true` (INSERT … ON CONFLICT
+    // DO UPDATE) est donc toujours refusé par la RLS, même pour un nouvel objet.
+    // On insère simplement ; si l'objet existe déjà (nom déterministe, relance
+    // après coupure), on le conserve et on réutilise son URL.
     const { error } = await c.storage.from("signatures").upload(path, blob, {
       contentType: "image/png",
-      upsert: true,
+      upsert: false,
     });
-    if (error) throw error;
+    if (error) {
+      const dup = String(error.statusCode || "") === "409" || /already exists|duplicate/i.test(error.message || "");
+      if (!dup) throw error;
+    }
     return c.storage.from("signatures").getPublicUrl(path).data.publicUrl;
   },
 
