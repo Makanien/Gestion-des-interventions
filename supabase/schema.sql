@@ -807,6 +807,10 @@ language plpgsql security definer set search_path = public as $$
 declare
   v_intervention_id uuid;
 begin
+  if p_rdv_id is null and p_intervention_id is null then
+    return; -- rien à relier : ne touche pas à la ligne
+  end if;
+
   select intervention_id into v_intervention_id
   from public.appels
   where id = p_appel_id;
@@ -1242,8 +1246,31 @@ drop policy if exists appels_insert on public.appels;
 create policy appels_insert on public.appels for insert to authenticated with check (true);
 drop policy if exists appels_update on public.appels;
 create policy appels_update on public.appels for update to authenticated
-  using (true)
-  with check (new.created_by is not distinct from old.created_by);
+  using (true);
+-- SEC-03 : `NEW`/`OLD` n'existent pas dans une policy RLS (uniquement dans un
+-- trigger). La restriction des colonnes modifiables est donc portée par le
+-- trigger `appels_restrict_update` ci-dessous ; l'immutabilité de created_by
+-- l'est par `prevent_created_by_change`.
+create or replace function public.appels_restrict_update()
+returns trigger language plpgsql as $$
+begin
+  -- Responsable, créateur de l'appel, ou contexte service (auth.uid() null) :
+  -- aucune restriction. Sinon (technicien qui relie une fiche / un RDV) :
+  -- seules les colonnes de lien et de traçabilité peuvent changer.
+  if auth.uid() is null or public.is_manager() or old.created_by = auth.uid() then
+    return new;
+  end if;
+  if (to_jsonb(new) - array['intervention_id','rendezvous_id','action_sortie','updated_at','updated_by'])
+     is distinct from
+     (to_jsonb(old) - array['intervention_id','rendezvous_id','action_sortie','updated_at','updated_by']) then
+    raise exception 'Modification non autorisée : seules les colonnes de lien d''un appel sont modifiables';
+  end if;
+  return new;
+end;
+$$;
+drop trigger if exists appels_restrict_update on public.appels;
+create trigger appels_restrict_update before update on public.appels
+  for each row execute function public.appels_restrict_update();
 drop policy if exists appels_delete on public.appels;
 create policy appels_delete on public.appels for delete to authenticated
   using (public.is_manager() or created_by = auth.uid());

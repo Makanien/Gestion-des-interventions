@@ -289,6 +289,13 @@ const Supabase = {
     }
   },
 
+  async rpc(name, params = {}) {
+    const c = initSupabase();
+    const { data, error } = await c.rpc(name, params);
+    if (error) throw error;
+    return data;
+  },
+
   // ---------------- Storage (signatures) ----------------
   async uploadSignature(id, blob) {
     const c = initSupabase();

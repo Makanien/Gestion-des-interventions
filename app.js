@@ -3491,6 +3491,29 @@ window.addEventListener("focus", syncWhenIdle);
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible") syncWhenIdle();
 });
+
+// BP-01 : sauvegarde du brouillon du wizard à la saisie (debounce), au passage
+// en arrière-plan et à la fermeture — sans cela, la saisie de l'étape courante
+// est perdue si l'OS tue l'application.
+function isWizardRoute() {
+  const h = window.location.hash || "";
+  return !!state.draft && (h.startsWith("#/new") || h.startsWith("#/entretien"));
+}
+function snapshotWizardDraft(immediate) {
+  if (!isWizardRoute()) return;
+  try { readStepIntoDraftSilently(); } catch (e) { /* champs absents : on garde le brouillon tel quel */ }
+  persistDraft(immediate);
+}
+function readStepIntoDraftSilently() {
+  const s = wizardSteps()[state.step - 1];
+  if (s && s.read) s.read();
+}
+document.addEventListener("input", () => snapshotWizardDraft(false));
+document.addEventListener("change", () => snapshotWizardDraft(false));
+window.addEventListener("pagehide", () => snapshotWizardDraft(true));
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "hidden") snapshotWizardDraft(true);
+});
 setInterval(() => { if (document.visibilityState === "visible") syncWhenIdle(); }, 30000);
 
 // ---------------------------------------------------------

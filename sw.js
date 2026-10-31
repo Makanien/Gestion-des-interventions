@@ -9,7 +9,9 @@
 // le recoupement).
 // v32 : fix/etape-1 — suppression de l'objet Storage à la suppression
 // photo/document (SEC-02/SEC-11), retrait du bandeau « maquettes » (SEC-06).
-const CACHE_VERSION = "climatelec-v33";
+// v33 : rattrapage Storage photos/documents (uploadPendingBinaries, repli data_url).
+// v34 : étape 2 fiabilité — BP-01 (brouillon wizard persistant, bandeau MAJ, storage.persist), COH-05, SEC-03.
+const CACHE_VERSION = "climatelec-v34";
 const ASSETS = [
   "./",
   "./index.html",
