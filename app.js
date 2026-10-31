@@ -1550,21 +1550,11 @@ async function linkAppelToIntervention(appelId, interventionId) {
   if (!appelId || !interventionId) return;
   const appel = await DB.getRaw("appels", appelId);
   if (!appel || appel._deleted) return;
-  // SEC-03 : seules les colonnes de lien sont modifiables, via une RPC
-  // security definer qui interdit le changement de propriétaire (created_by).
-  // Un appel uniquement local n'existe pas encore côté serveur : on l'enregistre
-  // localement et le lien est poussé à la prochaine synchronisation.
-  if (Supabase.configured() && state.auth && navigator.onLine) {
-    try {
-      await Supabase.rpc("link_appel", { p_appel_id: appelId, p_intervention_id: interventionId });
-      appel.intervention_id = interventionId;
-      appel.action_sortie = "intervention";
-      await DB.saveAppel(appel);
-      return;
-    } catch (e) {
-      console.warn("RPC link_appel indisponible, repli local", e);
-    }
-  }
+  // SEC-03 : le lien s'écrit en local puis part avec la synchronisation normale
+  // (l'intervention n'existe pas encore côté serveur à cet instant : un appel
+  // direct au serveur échouerait sur la clé étrangère). Les droits sont portés
+  // par la RLS (`appels_select`/`appels_update`) et le trigger
+  // `appels_restrict_update` côté base.
   appel.intervention_id = interventionId;
   appel.action_sortie = "intervention";
   await DB.saveAppel(appel);

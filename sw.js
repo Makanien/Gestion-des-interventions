@@ -11,7 +11,8 @@
 // photo/document (SEC-02/SEC-11), retrait du bandeau « maquettes » (SEC-06).
 // v33 : rattrapage Storage photos/documents (uploadPendingBinaries, repli data_url).
 // v34 : étape 2 fiabilité — BP-01 (brouillon wizard persistant, bandeau MAJ, storage.persist), COH-05, SEC-03.
-const CACHE_VERSION = "climatelec-v34";
+// v35 : SEC-03 — abandon de la RPC link_appel (lien appel → intervention via la synchronisation normale).
+const CACHE_VERSION = "climatelec-v35";
 const ASSETS = [
   "./",
   "./index.html",

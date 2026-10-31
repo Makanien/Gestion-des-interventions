@@ -793,61 +793,11 @@ $$;
 revoke all on function public.set_user_role(uuid, text) from public;
 grant execute on function public.set_user_role(uuid, text) to authenticated;
 
--- SEC-03 : remplace la mise à jour directe d'un appel (appels_update en
--- using(true), qui autorise n'importe quel authentifié à retoucher n'importe
--- quelle colonne) par une RPC qui n'autorise que les colonnes de lien
--- (intervention_id, rendezvous_id, action_sortie). Un appel ne peut être
--- rattaché à une intervention différente de celle qui le porte déjà.
-create or replace function public.link_appel(
-  p_appel_id uuid,
-  p_rdv_id uuid default null,
-  p_intervention_id uuid default null
-) returns void
-language plpgsql security definer set search_path = public as $$
-declare
-  v_intervention_id uuid;
-begin
-  if p_rdv_id is null and p_intervention_id is null then
-    return; -- rien à relier : ne touche pas à la ligne
-  end if;
-
-  select intervention_id into v_intervention_id
-  from public.appels
-  where id = p_appel_id;
-
-  if not found then
-    raise exception 'Appel introuvable';
-  end if;
-
-  if p_intervention_id is not null
-     and v_intervention_id is not null
-     and v_intervention_id is distinct from p_intervention_id then
-    raise exception 'Cet appel est déjà lié à une autre intervention';
-  end if;
-
-  if p_rdv_id is not null then
-    perform 1 from public.rendezvous where id = p_rdv_id;
-    if not found then
-      raise exception 'Rendez-vous introuvable';
-    end if;
-  end if;
-
-  update public.appels
-  set intervention_id = coalesce(p_intervention_id, intervention_id),
-      rendezvous_id = coalesce(p_rdv_id, rendezvous_id),
-      action_sortie = case
-        when p_intervention_id is not null then 'intervention'
-        when p_rdv_id is not null then 'rdv'
-        else action_sortie
-      end,
-      updated_by = auth.uid(),
-      updated_at = now()
-  where id = p_appel_id;
-end;
-$$;
-
-revoke all on function public.link_appel(uuid, uuid, uuid) from public;
-grant execute on function public.link_appel(uuid, uuid, uuid) to authenticated;
+-- SEC-03 : la RPC `link_appel` envisagée initialement est abandonnée (le lien
+-- appel -> intervention part avec la synchronisation normale, l'intervention
+-- n'existant pas encore côté serveur au moment de la liaison). On supprime la
+-- fonction si une version précédente du schéma l'avait créée.
+drop function if exists public.link_appel(uuid, uuid, uuid);
 
 -- Renseignement automatique created_by / updated_by / technicien_id
 -- (défaut = utilisateur courant). Sans cela, un technicien ne verrait
