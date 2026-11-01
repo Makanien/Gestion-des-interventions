@@ -564,6 +564,8 @@ function goReplace(hash) { window.location.replace(hash); }
 async function route() {
   const hash = window.location.hash || "#/";
   const parts = hash.replace("#/", "").split("/").filter(Boolean);
+  // PRES-01 : on ne signale « je modifie cette fiche » que tant que le wizard est ouvert.
+  if (!["new", "entretien", "edit"].includes(parts[0])) stopPresence();
 
   if (parts[0] === "new") {
     if (!state.draft) { state.draft = emptyDraft("intervention"); state.draftType = "intervention"; }
@@ -1608,6 +1610,7 @@ async function renderWizard() {
       ${stepsBarHTML(state.step, steps.length)}
     </div>
     <div class="step-title">
+      <div id="presence-banner"></div>
       ${state.draft?.motif_retour && (!state.draft.statut_dossier || state.draft.statut_dossier === "brouillon") ? `<div class="banner-motif" style="background:var(--ce-pending-bg);color:var(--ce-pending);border-radius:var(--ce-radius-sm);padding:10px 12px;font-size:13px;margin-top:8px;">Renvoyé : ${esc(state.draft.motif_retour)}</div>` : ""}
       <div class="step-eyebrow">Étape ${state.step} / ${steps.length}</div>
       <h2>${step.title}</h2>
@@ -1622,6 +1625,9 @@ async function renderWizard() {
     </div>
     <div class="toast" id="toast"></div>
   `);
+  // PRES-01 : avertissement non bloquant si quelqu'un d'autre modifie la même fiche.
+  if (state.draft?.id) startPresence(state.draft.id); else stopPresence();
+  renderPresenceBanner();
   step.wire();
 }
 
@@ -2404,9 +2410,75 @@ function requiredFieldsMissing() {
   return manquants;
 }
 
+// ---------------------------------------------------------
+// PRES-01 — présence d'édition (avertissement non bloquant)
+// ---------------------------------------------------------
+const Presence = { id: null, timer: null, others: [] };
+
+function presenceAvailable() {
+  return !!(state.auth && navigator.onLine && Supabase.configured());
+}
+async function presenceTick() {
+  const id = Presence.id;
+  if (!id || !presenceAvailable()) return;
+  try {
+    const rows = await Supabase.rpc("touch_fiche_presence", { p_intervention_id: id });
+    if (Presence.id !== id) return; // wizard quitté pendant l'appel
+    Presence.others = Array.isArray(rows) ? rows : [];
+    renderPresenceBanner();
+  } catch (e) {
+    console.warn("Présence d'édition indisponible", e); // jamais bloquant
+  }
+}
+function startPresence(id) {
+  if (!id || Presence.id === id) return;
+  stopPresence();
+  if (!presenceAvailable()) return;
+  Presence.id = id;
+  presenceTick();
+  Presence.timer = setInterval(presenceTick, 60000);
+}
+function stopPresence() {
+  const id = Presence.id;
+  if (Presence.timer) clearInterval(Presence.timer);
+  Presence.timer = null;
+  Presence.id = null;
+  Presence.others = [];
+  renderPresenceBanner();
+  if (id && presenceAvailable()) {
+    Supabase.rpc("release_fiche_presence", { p_intervention_id: id }).catch(() => {});
+  }
+}
+function renderPresenceBanner() {
+  const el = $("#presence-banner");
+  if (!el) return;
+  if (!Presence.others.length) { el.innerHTML = ""; return; }
+  const names = [...new Set(Presence.others.map((o) => o.o_user_name || "Un autre utilisateur"))];
+  const secs = Math.min(...Presence.others.map((o) => o.o_seconds_ago || 0));
+  const since = secs < 60 ? "à l'instant" : `il y a ${Math.round(secs / 60)} min`;
+  el.innerHTML = `<div class="banner-motif" style="background:var(--ce-pending-bg);color:var(--ce-pending);border-radius:var(--ce-radius-sm);padding:10px 12px;font-size:13px;margin-top:8px;">⚠ ${esc(names.join(", "))} ${names.length > 1 ? "modifient" : "modifie"} aussi cette fiche (actif ${since}). Si vous enregistrez tous les deux, l'un des deux devra résoudre un conflit : mieux vaut vous coordonner.</div>`;
+}
+window.addEventListener("pagehide", () => { if (Presence.id) stopPresence(); });
+
+// Workflow 4 statuts : seul un brouillon est modifiable. Entre l'ouverture du
+// formulaire et l'enregistrement, la fiche a pu changer de statut (soumise ou
+// validée depuis un autre appareil, copie locale mise à jour par la synchro) :
+// on refuse alors d'enregistrer plutôt que de ramener la fiche en brouillon.
+async function ensureStillDraft(d) {
+  if (!d?.id) return true;
+  const cur = await DB.getRaw("interventions", d.id).catch(() => null);
+  const st = cur ? DB.normalizeStatut(cur.statut_dossier) : null;
+  if (cur && st && st !== "brouillon") {
+    toast(`Cette fiche n'est plus un brouillon (« ${statutDossierLabel(st)} ») : vos modifications ne peuvent pas être enregistrées`, true);
+    return false;
+  }
+  return true;
+}
+
 async function finishWizard() {
   if (!readStepIntoDraft(state.step)) return;
   const d = state.draft;
+  if (!(await ensureStillDraft(d))) return;
   const appelId = d.appel_id || null;
   const rdvId = d.rdv_id || null;
   const isEdit = !!d.id;
@@ -2500,6 +2572,7 @@ async function saveBrouillon() {
     else if (s.read) s.read();
   } catch (e) { /* brouillon tolérant */ }
   const d = state.draft;
+  if (!(await ensureStillDraft(d))) return;
   const appelId = d.appel_id || null;
   const rdvId = d.rdv_id || null;
   // Brouillon tolérant (arbitrage 6.9) : jamais bloqué — un client sans nom
@@ -3231,6 +3304,7 @@ async function renderAccount() {
              <div class="sync-status ${pending === 0 ? "ok" : "warn"}"><span class="dot"></span>${pending === 0 ? "Aucun changement en attente" : `${pending} changement(s) en attente d'envoi`}</div>
              ${conflictRows.length ? `
              <div class="sync-status warn"><span class="dot"></span>⚠ ${conflictRows.length} conflit(s) : versions locale et serveur divergentes — aucune donnée n'a été écrasée</div>
+             <div class="block-text" style="margin:4px 0 8px;font-size:13px;">Ni l'un ni l'autre choix ne fusionne les deux versions : l'autre sera perdue. <strong>Avant de choisir, notez ce que vous voulez conserver</strong> de la version qui ne sera pas retenue, puis ressaisissez-le après la résolution.</div>
              ${conflictRows.map((c) => `
                <div class="kv"><div class="k">${esc(c.store)}</div><div class="v">${esc(c.label)}</div></div>
                <div style="display:flex;gap:8px;flex-wrap:wrap;margin:6px 0 10px;">

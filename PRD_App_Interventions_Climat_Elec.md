@@ -1,10 +1,12 @@
 # PRD — Application de gestion des fiches d'intervention
 ## Climat Elec (Chazé-sur-Argos)
 
-**Version du document :** 1.28
-**Date :** 13/10/2026
+**Version du document :** 1.29
+**Date :** 01/11/2026
 **Auteur :** Rédigé avec Claude, sur la base des échanges avec le porteur de projet
 
+> **Changelog 1.29 (01/11/2026) :** **édition concurrente d'une fiche — détection, signalement, avertissement** (§3.3.4, §3.4 « Édition concurrente », §6.2, §8, §11). Une modification enregistrée hors ligne ou en même temps qu'une autre n'écrase plus silencieusement la version distante (version de base = version vue à l'**ouverture du formulaire**, SYNC-01) ; un **conflit** est signalé par un **bandeau d'alerte** cliquable et se résout dans « Compte & synchro » ; un **avertissement de présence non bloquant** (PRES-01) prévient qu'un autre utilisateur modifie la même fiche ; un enregistrement est **refusé** si la fiche n'est plus un brouillon. La mention « dernière écriture gagne » (§6.2) est **abandonnée**.
+>
 > **Changelog 1.28 (13/10/2026) :** **simplification du workflow de dossier** — les 9 statuts (Brouillon → … → Clôturée) sont ramenés à **4** : **Brouillon → À valider → À facturer → Terminé** (§3.3.3-§3.3.4). Validation par **Régis ou Delphine** ; renvoi en brouillon avec **motif libre** ; **Terminé** réouvrable par **Régis seul** ; plus d'import de facture ni de fusion fiche + facture (seule la **génération du PDF de la fiche** est conservée) ; US-10 et US-11 abandonnées. Impacts : §1, §2, §3.2.15, §3.3, §3.4, §5.2, §9, §10, §11, §12.
 >
 > **Changelog 1.27 (09/10/2026) :** intégration des **arbitrages du classeur « Application 20261009.xlsx »** (analyse : `documentation/Application 20261009 analyse retours.md`) — « Type d'intervention » à 5 valeurs, page 3/6 Équipement + Descriptif obligatoire (champs équipements obligatoires), fiches Chaudière bois et Air/Air alignées sur les feuilles 09/10 (types, pages 4-5), GWP du fluide rétabli (confirmation client conservée), « Page ok » précisée (complétude à la validation), Tableau de bord (drill-down + tris Nom/CP/Ville, valables pour le technicien dans son périmètre), bouton « + » (« Entretien installation solaire » préparé, l'entrée « Contrat d'entretien annuel » retirée du menu), unités affichées avant le champ de saisie (tous formulaires). Développement : points 15 → 20 de `TACHES_A_FAIRE.md`.
@@ -442,7 +444,14 @@ Tension d'alimentation (Absente / Vérifiée / Non vérifiée / Non vérifiable)
 - Le **motif** de renvoi/réouverture est un **texte libre** (facultatif), conservé dans `motif_retour` et affiché sur la fiche repassée en brouillon.
 - Le **devis** est un document attaché en parallèle (indicateur « devis nécessaire » tant qu'il n'est pas importé), sans jamais bloquer le workflow.
 - **Anciens statuts supprimés** : Validée, Facture importée, Facture à vérifier, Facture vérifiée, À envoyer, Clôturée. **Correspondance pour la migration** : `validee`, `a_facturer`, `facture_importee`, `facture_a_verifier` → **À facturer** ; `facture_verifiee`, `a_envoyer`, `cloturee` → **Terminé** ; `brouillon` et `a_valider` inchangés. Les PDF de facture déjà importés restent consultables mais ne sont plus alimentés.
-- **Droits (RLS)** : la transition « Rouvrir » est réservée au rôle `responsable` ; les autres transitions de validation/facturation sont ouvertes aux managers (`is_manager()` : responsable et secrétaire). Le technicien ne peut modifier qu'une fiche en brouillon.
+- **Droits** : la transition « Rouvrir » est réservée au rôle `responsable` ; les autres transitions de validation/facturation sont ouvertes aux managers (`is_manager()` : responsable et secrétaire). Ces **transitions** sont contrôlées par le serveur (trigger `enforce_statut_dossier_workflow`). Le caractère **non modifiable** d'une fiche hors brouillon est, lui, appliqué **côté application** : bouton « Modifier » masqué, route `#/edit` protégée, enregistrement refusé si la copie locale n'est plus un brouillon. Le serveur ne contrôle pas le contenu d'une fiche hors brouillon (cf. §11).
+
+**Édition concurrente d'un brouillon (01/11/2026).** Seul le brouillon est modifiable, mais il l'est par plusieurs profils (technicien de la fiche, responsable, secrétaire) : deux personnes peuvent donc ouvrir la même fiche. Règles :
+1. **Pas de verrou.** Un verrou serait contourné hors ligne (cas le plus risqué), laisserait des fiches bloquées si une application est tuée, et empêcherait le responsable de corriger une fiche ouverte dans un véhicule.
+2. **Avertissement de présence (PRES-01).** Tant que le formulaire de modification d'une fiche existante est ouvert et que l'appareil est en ligne, l'application signale sa présence toutes les 60 s ; si quelqu'un d'autre est actif sur la même fiche (battement de moins de 3 min), un bandeau l'indique (« Régis modifie aussi cette fiche… »). L'avertissement ne bloque ni la saisie ni l'enregistrement. Hors ligne, il n'est pas disponible.
+3. **Détection de conflit (SYNC-01).** Chaque modification locale mémorise la version serveur que **le formulaire avait à l'ouverture** ; l'envoi est refusé par le serveur si la fiche a changé depuis. Il n'y a alors **aucun écrasement** : la version serveur est conservée, la version locale reste sur l'appareil, et un conflit est enregistré.
+4. **Signalement et résolution.** Un conflit non résolu fait passer le bandeau de synchronisation en **alerte orange**, cliquable, sur tous les écrans ; il se résout dans « Compte & synchro » par « Garder ma version » (renvoi de la version locale, qui remplace celle du serveur) ou « Garder la version serveur ». **Aucun des deux choix ne fusionne** : l'écran invite à noter ce qu'on veut conserver avant de choisir.
+5. **Changement de statut en cours de saisie.** Si la fiche n'est plus un brouillon au moment d'enregistrer (soumise ou validée depuis un autre appareil), l'enregistrement est refusé avec un message ; la fiche n'est pas ramenée en brouillon.
 
 ### 3.3.5 Statistiques
 - **Tableau de bord simple** : nombre d'interventions/mois, répartition par type, par technicien, par client.
@@ -509,6 +518,17 @@ Tension d'alimentation (Absente / Vérifiée / Non vérifiée / Non vérifiable)
 - **Enrichissement des listes** : `listInterventions` complète automatiquement `client.nom`/`client.ville` (jointure locale avec la table `clients`).
 - **Anti-réinitialisation Realtime** : une seule initialisation par session (`initRealtime`).
 - **Upload différé des signatures hors ligne** : les signatures capturées sans réseau (dataURL local) sont automatiquement ré-uploadées vers le bucket `signatures` au retour de la connexion, puis re-synchronisées (`uploadPendingSignatures`, cf. §3.1). **Idem photos/documents** : objet Storage créé au prochain cycle par l'appareil détenant la copie (`uploadPendingBinaries`), réparation d'affichage sur les autres appareils (repli lecture data_url — cf. §3.1, complément 30/10/2026).
+
+### Édition concurrente d'une fiche — détection, signalement, avertissement (01/11/2026)
+
+Constat de test (deux comptes, même fiche, hors ligne ou non) : la modification du second à enregistrer **écrasait silencieusement** celle du premier, sans aucun signalement visible.
+
+- **Cause — SYNC-01** : la version de base de l'envoi était lue dans la copie locale **au moment de l'enregistrement**. Or cette copie avance seule (temps réel, synchronisation) pendant que le formulaire reste ouvert avec les anciennes valeurs : la base devenait la version de l'autre utilisateur et le contrôle ne voyait aucun écart. **Correctif** : à l'ouverture d'une fiche en modification, le brouillon retient la version serveur vue (`_base_updated_at`, `loadDraftFromIntervention`) ; `saveIntervention` l'utilise en priorité. La file de synchronisation (`enqueueSync`) **conserve la base d'origine** quand une fiche est ré-enregistrée avant envoi, ou quand un conflit est en cours ; la résolution « Garder ma version » fournit explicitement sa base (`authoritative`). Limité aux **fiches d'intervention** ; clients, appels et rendez-vous restent à traiter (§11).
+- **Bandeau de conflit** : le bandeau de synchronisation (`updateOfflinePill`) affiche « N conflit(s) à résoudre » en alerte, prioritaire sur « changements à synchroniser », cliquable vers « Compte & synchro » (auparavant, un conflit n'apparaissait que sur cet écran).
+- **Consigne de résolution** : sur « Compte & synchro », rappel que le choix ne fusionne rien et qu'il faut noter ce qu'on souhaite conserver.
+- **Présence d'édition — PRES-01** (`supabase/schema.sql`) : table `fiche_presence` (sans accès direct, RLS sans policy) et fonctions `touch_fiche_presence` / `release_fiche_presence` (`security definer`, visibilité identique à `interventions_select`, ménage des présences de plus d'un jour). Côté application : `startPresence` / `stopPresence` / `renderPresenceBanner` (`app.js`), battement toutes les 60 s, libération à la sortie du formulaire et à `pagehide`.
+- **Garde « plus un brouillon »** (`ensureStillDraft`) : « Enregistrer le brouillon » et « Soumettre pour validation » vérifient que la copie locale est encore un brouillon.
+- **Vérifié** : `schema.sql` rejoué deux fois sans erreur sur une base vierge ; fonctions de présence testées en SQL (autre utilisateur visible, utilisateur sans accès non servi, lecture directe de la table refusée, libération, présence périmée ignorée) ; logique de la file, du bandeau, de la présence et de la garde testée par scripts ; scénario deux comptes rejoué à la main (conflit signalé, rien d'écrasé). **Reste à confirmer sur appareils** : avertissement de présence entre deux comptes réels.
 
 ### Correction — Visibilité des rendez-vous par technicien (22/08/2026)
 
@@ -755,7 +775,7 @@ ContratEntretien {
 - **Stratégie offline-first** :
   - Toutes les écritures se font d'abord en local (IndexedDB).
   - Une file de synchronisation envoie les changements à Supabase dès que le réseau est disponible.
-  - Gestion simple des conflits (dernière écriture gagne, avec horodatage `updated_at`) — suffisant vu le volume attendu (2 techniciens, peu de risque de modification simultanée de la même fiche).
+  - **Gestion des conflits (mise à jour 01/11/2026)** : la règle « dernière écriture gagne » est **abandonnée** — elle écrasait silencieusement une modification concurrente. Un envoi est conditionné à la **version serveur vue à l'ouverture du formulaire** ; en cas d'écart, rien n'est écrasé, un conflit est signalé (bandeau) et résolu à la main (cf. §3.3.4). Un avertissement de présence non bloquant réduit les cas en ligne. Seules les fiches d'intervention bénéficient de la version de base « ouverture du formulaire » (cf. §11).
 - **Migration V1 → V2** : script d'import des données `localStorage`/IndexedDB existantes vers Supabase, pour ne rien perdre de l'historique déjà saisi.
 
 ---
@@ -780,6 +800,7 @@ ContratEntretien {
 | Performance | Chargement quasi instantané (assets mis en cache), pas de dépendance réseau pour l'usage courant |
 | Sécurité / RGPD | Données clients (nom, adresse, mail, tél) stockées localement en V1 ; en V2, hébergement Supabase avec accès restreint aux comptes techniciens (RLS par rôle, inscription publique désactivée) ; le bucket `signatures` reste public par choix (URL directe dans le PDF) mais avec noms d'objets non devinables (UUID) ; prévoir une mention de confidentialité simple |
 | Sauvegarde | En V1, les données ne vivent que sur l'appareil : à prévoir un export/sauvegarde manuel (ex. bouton "exporter toutes les données" en JSON) pour éviter une perte totale en cas de changement de téléphone, en attendant la V2 |
+| Intégrité des données | Aucune modification n'est perdue silencieusement : une modification concurrente est détectée à l'envoi, signalée et résolue explicitement (§3.3.4) ; un conflit non résolu reste visible sur tous les écrans |
 | Accessibilité | Boutons larges, formulaires en plusieurs étapes plutôt qu'un long formulaire unique, pour limiter les erreurs de saisie sur petit écran |
 
 ---
@@ -899,6 +920,7 @@ Points restant ouverts (hors V3) :
 - **Tableau de bord = écran d'accueil (18/09 → 09/10, cf. §3.2.15)** — **implémenté le 10/10/2026** (précisions arbitrées 6.12 : drill-down par statut, tris Nom / Code postal / Ville, valables aussi pour le technicien dans son périmètre) ; reste ouvert : le bloc « Devis en cours » de la maquette (livré à titre conservatoire — fiches portant « devis souhaité » en cours — sans état dédié dans le workflow §3.3.4, retrait à arbitrer avec le client).
 - **Entretien installation solaire (09/10, cf. §3.2.4)** — contenu attendu du client : bloc « Vérification installation solaire », liste des types d'installation, articulation CERFA (a priori **sans objet**, pas de fluide frigorigène) ; l'application **prépare la structure** (type `solaire`, trame commune des entretiens) en attendant les données (6.10).
 - **Contrat d'entretien annuel (09/10, cf. §3.2.4)** — l'entrée du bouton « + » est **retirée pour le moment** (arbitré 6.11) ; le flux, ses écrans et ses données restent accessibles/conservés (US-24) — réévaluer l'affichage avec le client.
+- **Édition concurrente — suites possibles (01/11/2026)** : (1) étendre la version de base « ouverture du formulaire » aux **clients, appels et rendez-vous** (formulaires parfois conservés ouverts après enregistrement : risque de faux conflits à traiter) ; (2) ajouter un **garde serveur** sur le contenu d'une fiche hors brouillon — à construire avec une liste blanche des colonnes qui évoluent légitimement après soumission (URL de signature, document de devis, etc.), sous peine de bloquer des envois légitimes ; (3) **fusion champ par champ** des versions en conflit (aujourd'hui : choix global de l'une ou l'autre) ; (4) **verrou** ou reprise de main par le responsable, écartés pour l'instant (§3.3.4).
 - **Format exact de la numérotation** — à valider (proposition : préfixe type + année + séquence, ex. `FIC-2026-001`).
 - **Faut-il interfacer ou remplacer les outils existants (Google Agenda, OneDrive) ?** — OneDrive remplacé par le classement par statut dans l'appli (§3.3) ; Google Agenda en suspens (ci-dessus).
 
