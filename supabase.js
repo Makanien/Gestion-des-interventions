@@ -140,6 +140,14 @@ const Supabase = {
     return data || [];
   },
 
+  // Appel d'une fonction Postgres (RPC). Utilisé par la présence d'édition (PRES-01).
+  async rpc(name, params = {}) {
+    const c = initSupabase();
+    const { data, error } = await c.rpc(name, params);
+    if (error) throw error;
+    return data;
+  },
+
   // Workflow 4 statuts (P2.6) : lecture d'une ligne unique, pour ré-aligner
   // localement une fiche dont une transition a été refusée par le serveur.
   async get(store, id) {

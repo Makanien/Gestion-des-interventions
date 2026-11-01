@@ -13,7 +13,8 @@
 // v34 : étape 2 fiabilité — BP-01 (brouillon wizard persistant, bandeau MAJ, storage.persist), COH-05, SEC-03.
 // v35 : SEC-03 — abandon de la RPC link_appel (lien appel → intervention via la synchronisation normale).
 // v36 : signatures — upload sans upsert (la RLS du bucket interdit INSERT … ON CONFLICT DO UPDATE).
-const CACHE_VERSION = "climatelec-v36";
+// v37 : fusion étape 2 + SYNC-01 (base du push = version vue à l'ouverture du formulaire), bandeau de conflit, présence d'édition (PRES-01), garde « plus un brouillon ».
+const CACHE_VERSION = "climatelec-v37";
 const ASSETS = [
   "./",
   "./index.html",
