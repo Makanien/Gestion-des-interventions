@@ -638,7 +638,7 @@ function topbar({ title, subtitle, back, onHome, actions }) {
       ${onHome === false ? "" : `<button class="icon-btn" data-nav="export" title="Exporter mes données">${ICONS.down}</button>`}
     </div>
     <div class="offline-pill" id="offline-pill"><span class="offline-dot"></span>Mode hors ligne — vos données restent sur cet appareil</div>
-    ${state.auth && Sync ? `<div class="offline-pill" id="sync-pill" style="background:#0d2b1a;color:#bfe8cf;"><span class="offline-dot" style="background:var(--ce-success);"></span><span id="sync-pill-text">Synchronisé</span></div>` : ""}
+    ${state.auth && Sync ? `<div class="offline-pill" id="sync-pill" data-nav="account" role="button" style="background:#0d2b1a;color:#bfe8cf;cursor:pointer;"><span class="offline-dot" style="background:var(--ce-success);"></span><span id="sync-pill-text">Synchronisé</span></div>` : ""}
   </div>`;
 }
 
@@ -661,9 +661,18 @@ function updateOfflinePill() {
   const syncPill = $("#sync-pill");
   if (syncPill && state.auth) {
     const txt = $("#sync-pill-text");
+    // Couleurs par défaut (synchronisé / en cours) ; l'état « conflit » passe en alerte.
+    syncPill.style.background = "#0d2b1a";
+    syncPill.style.color = "#bfe8cf";
     if (!navigator.onLine) {
       syncPill.classList.add("show");
       if (txt) txt.textContent = "Hors ligne — synchronisation en attente";
+    } else if (state.sync.conflicts > 0) {
+      // SYNC-01 : un conflit non résolu doit se voir partout, pas seulement sur « Compte & synchro ».
+      syncPill.classList.add("show");
+      syncPill.style.background = "#4a2c05";
+      syncPill.style.color = "#ffd9a0";
+      if (txt) txt.textContent = `${state.sync.conflicts} conflit(s) à résoudre — touchez ici (Compte & synchro)`;
     } else if (state.sync.pending > 0) {
       syncPill.classList.add("show");
       if (txt) txt.textContent = `${state.sync.pending} changement(s) à synchroniser`;
