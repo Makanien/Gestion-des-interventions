@@ -1359,3 +1359,82 @@ from (
 where r.intervenant is not null and r.intervenant <> ''
   and (r.intervenant = sub.full_name or r.intervenant = split_part(sub.full_name, ' ', 1))
   and r.technicien_id is distinct from sub.id;
+
+-- =========================================================
+-- PRES-01 — Présence d'édition sur une fiche (avertissement NON bloquant)
+-- Qui modifie une fiche en ce moment ? Le client envoie un battement toutes les
+-- 60 s tant que le formulaire de modification est ouvert ; est « actif » quiconque
+-- a battu dans les 3 dernières minutes. Aucun verrou : on avertit, on ne bloque pas
+-- (le hors-ligne contournerait de toute façon un verrou ; les conflits restent
+-- gérés par la version de base, cf. SYNC-01).
+-- Accès uniquement par les deux fonctions ci-dessous (security definer, RLS sans
+-- policy) : un utilisateur ne voit la présence que sur les fiches qu'il peut lire.
+-- =========================================================
+create table if not exists public.fiche_presence (
+  intervention_id uuid not null references public.interventions(id) on delete cascade,
+  user_id         uuid not null references auth.users(id) on delete cascade,
+  user_name       text not null default '',
+  updated_at      timestamptz not null default now(),
+  primary key (intervention_id, user_id)
+);
+alter table public.fiche_presence enable row level security;
+revoke all on public.fiche_presence from anon, authenticated;
+
+create or replace function public.touch_fiche_presence(p_intervention_id uuid)
+returns table (o_user_id uuid, o_user_name text, o_seconds_ago integer)
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_uid uuid := auth.uid();
+begin
+  if v_uid is null then
+    return;
+  end if;
+
+  -- Même visibilité que la policy `interventions_select`.
+  if not exists (
+    select 1 from public.interventions i
+    where i.id = p_intervention_id
+      and (public.is_manager() or i.created_by = v_uid or i.technicien_id = v_uid)
+  ) then
+    return;
+  end if;
+
+  -- Ménage : une présence de plus d'un jour est forcément orpheline.
+  delete from public.fiche_presence where updated_at < now() - interval '1 day';
+
+  insert into public.fiche_presence (intervention_id, user_id, user_name, updated_at)
+  values (
+    p_intervention_id, v_uid,
+    coalesce((select pr.full_name from public.profiles pr where pr.id = v_uid), ''),
+    now()
+  )
+  on conflict (intervention_id, user_id)
+  do update set updated_at = now(), user_name = excluded.user_name;
+
+  return query
+    select p.user_id, p.user_name, extract(epoch from (now() - p.updated_at))::integer
+    from public.fiche_presence p
+    where p.intervention_id = p_intervention_id
+      and p.user_id <> v_uid
+      and p.updated_at > now() - interval '3 minutes'
+    order by p.updated_at desc;
+end;
+$$;
+
+create or replace function public.release_fiche_presence(p_intervention_id uuid)
+returns void
+language sql
+security definer
+set search_path = public
+as $$
+  delete from public.fiche_presence
+  where intervention_id = p_intervention_id and user_id = auth.uid();
+$$;
+
+revoke all on function public.touch_fiche_presence(uuid) from public, anon;
+revoke all on function public.release_fiche_presence(uuid) from public, anon;
+grant execute on function public.touch_fiche_presence(uuid) to authenticated;
+grant execute on function public.release_fiche_presence(uuid) to authenticated;

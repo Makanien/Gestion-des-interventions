@@ -9,7 +9,10 @@
 // le recoupement).
 // v32 : fix/etape-1 — suppression de l'objet Storage à la suppression
 // photo/document (SEC-02/SEC-11), retrait du bandeau « maquettes » (SEC-06).
-const CACHE_VERSION = "climatelec-v33";
+// v34 : SYNC-01 — base du push = version vue à l'ouverture du formulaire.
+// v35 : SYNC-01 — bandeau de synchro : conflits visibles et cliquables.
+// v36 : PRES-01 (présence d'édition), garde « plus un brouillon », consigne de conflit.
+const CACHE_VERSION = "climatelec-v36";
 const ASSETS = [
   "./",
   "./index.html",
