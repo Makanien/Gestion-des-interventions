@@ -383,7 +383,87 @@ let state = {
   auth: null,
   team: [],
   sync: { pending: 0, conflicts: 0, errors: 0 },
+  updateAvailable: false,   // BP-01 : nouvelle version du SW prête, reload à la demande
+  wizardDraftPending: false, // BP-01 : un brouillon de wizard attend d'être repris
 };
+
+// ---------------------------------------------------------
+// Brouillon de wizard — persistance IndexedDB (BP-01)
+// Le brouillon est sauvegardé dans _meta (clé "ce_wizard_draft") à chaque
+// changement d'étape et à la fermeture de l'onglet, puis restauré au démarrage.
+let draftPersistTimer = null;
+let pendingUpdateWorker = null;
+let updateBannerEl = null;
+
+function persistDraft(immediate = false) {
+  if (!state.draft) return;
+  if (draftPersistTimer) clearTimeout(draftPersistTimer);
+  const payload = {
+    draft: state.draft,
+    draftType: state.draftType,
+    step: state.step,
+    updatedAt: new Date().toISOString(),
+  };
+  const save = () => DB.setMeta("ce_wizard_draft", JSON.stringify(payload)).catch(() => {});
+  if (immediate) save();
+  else draftPersistTimer = setTimeout(save, 800);
+}
+
+function clearPersistedDraft() {
+  if (draftPersistTimer) { clearTimeout(draftPersistTimer); draftPersistTimer = null; }
+  DB.setMeta("ce_wizard_draft", null).catch(() => {});
+}
+
+let draftResumeEl = null;
+function showDraftResumeBanner() {
+  if (draftResumeEl) return;
+  const stepLabel = state.draftType === "intervention"
+    ? "intervention"
+    : (ENTRETIEN_META[state.draftType]?.label || "entretien");
+  draftResumeEl = document.createElement("div");
+  draftResumeEl.className = "banner resume";
+  draftResumeEl.style = "background:var(--ce-pending-bg);color:var(--ce-pending);border:1px solid var(--ce-pending);border-radius:8px;padding:10px 14px;margin:10px;text-align:center;font-size:14px;";
+  draftResumeEl.innerHTML = `
+    Brouillon de ${esc(stepLabel)} en cours (saisie non terminée).
+    <button id="btn-resume-draft" style="margin-left:8px;padding:6px 12px;background:var(--ce-pending);color:#fff;border:none;border-radius:6px;cursor:pointer;">Reprendre</button>
+    <button id="btn-dismiss-draft" style="margin-left:6px;padding:6px 12px;background:#fff;border:1px solid var(--ce-pending);border-radius:6px;cursor:pointer;">Ignorer</button>
+  `;
+  document.body.insertBefore(draftResumeEl, document.body.firstChild);
+  $("#btn-resume-draft")?.addEventListener("click", () => {
+    hideDraftResumeBanner();
+    state.wizardDraftPending = false;
+    if (state.draftType === "intervention") go(`#/new/${state.step || 1}`);
+    else go(`#/entretien/${state.draftType}/${state.step || 1}`);
+  });
+  $("#btn-dismiss-draft")?.addEventListener("click", () => {
+    hideDraftResumeBanner();
+    state.wizardDraftPending = false;
+    clearPersistedDraft();
+    state.draft = null;
+  });
+}
+function hideDraftResumeBanner() {
+  if (draftResumeEl) { draftResumeEl.remove(); draftResumeEl = null; }
+}
+function showUpdateBanner() {
+  if (updateBannerEl) return;
+  updateBannerEl = document.createElement("div");
+  updateBannerEl.className = "banner update";
+  updateBannerEl.style = "background:var(--ce-success-bg);color:var(--ce-success);border:1px solid var(--ce-success);border-radius:8px;padding:10px 14px;margin:10px;text-align:center;font-size:14px;";
+  updateBannerEl.innerHTML = `
+    Une mise à jour de l'application est disponible.
+    <button id="btn-apply-update" style="margin-left:8px;padding:6px 12px;background:var(--ce-blue);color:#fff;border:none;border-radius:6px;cursor:pointer;">Actualiser</button>
+  `;
+  document.body.insertBefore(updateBannerEl, document.body.firstChild);
+  $("#btn-apply-update")?.addEventListener("click", () => {
+    hideUpdateBanner();
+    state.updateAvailable = false;
+    window.location.reload();
+  });
+}
+function hideUpdateBanner() {
+  if (updateBannerEl) { updateBannerEl.remove(); updateBannerEl = null; }
+}
 
 // ---------------------------------------------------------
 // Utils
@@ -564,6 +644,8 @@ function goReplace(hash) { window.location.replace(hash); }
 async function route() {
   const hash = window.location.hash || "#/";
   const parts = hash.replace("#/", "").split("/").filter(Boolean);
+  const isHome = parts.length === 0;
+  if (!isHome) hideDraftResumeBanner();
   // PRES-01 : on ne signale « je modifie cette fiche » que tant que le wizard est ouvert.
   if (!["new", "entretien", "edit"].includes(parts[0])) stopPresence();
 
@@ -614,8 +696,11 @@ async function route() {
   } else if (parts[0] === "login") {
     renderAuth();
   } else {
-    state.draft = null;
+    if (!state.wizardDraftPending) state.draft = null;
     await renderHome();
+    if (state.wizardDraftPending) showDraftResumeBanner();
+    // BP-01 : écran sûr — appliquer la mise à jour si aucun bandeau n'est déjà présenté.
+    else if (state.updateAvailable && !updateBannerEl) window.location.reload();
   }
   window.scrollTo(0, 0);
 }
@@ -1187,7 +1272,6 @@ function openCreateSheet() {
     closeSheet();
     if (k === "appel") { clearAppelDraft(); go("#/appel"); }
     else if (k === "intervention") { state.draft = emptyDraft("intervention"); state.draftType = "intervention"; go("#/new/1"); }
-    else if (k === "contrat") go("#/contrat");
     else { const t = k.replace("entretien_", ""); state.draft = emptyDraft(t); state.draftType = t; go(`#/entretien/${t}/1`); }
   }));
   function closeSheet() { overlay.remove(); }
@@ -1481,6 +1565,11 @@ async function linkAppelToIntervention(appelId, interventionId) {
   if (!appelId || !interventionId) return;
   const appel = await DB.getRaw("appels", appelId);
   if (!appel || appel._deleted) return;
+  // SEC-03 : le lien s'écrit en local puis part avec la synchronisation normale
+  // (l'intervention n'existe pas encore côté serveur à cet instant : un appel
+  // direct au serveur échouerait sur la clé étrangère). Les droits sont portés
+  // par la RLS (`appels_select`/`appels_update`) et le trigger
+  // `appels_restrict_update` côté base.
   appel.intervention_id = interventionId;
   appel.action_sortie = "intervention";
   await DB.saveAppel(appel);
@@ -2378,8 +2467,10 @@ function cleanText(v) {
 function readStepIntoDraft(step) {
   const steps = wizardSteps();
   const s = steps[step - 1];
-  if (s && s.read) return s.read();
-  return true;
+  let ok = true;
+  if (s && s.read) ok = s.read();
+  persistDraft(); // BP-01 : brouillon persiste à chaque changement d'étape
+  return ok;
 }
 
 // Contrôle de complétude des champs obligatoires — arbitrage 6.9 (§3.2.14) :
@@ -2559,6 +2650,7 @@ async function finishWizard() {
   if (appelId) await linkAppelToIntervention(appelId, saved.id);
   if (rdvId) await linkRdvToIntervention(rdvId, saved.id);
   toast(isEdit ? "Fiche mise à jour" : "Fiche enregistrée");
+  clearPersistedDraft(); // BP-01 : brouillon consommé
   state.draft = null;
   goReplace(`#/detail/${saved.id}`);
 }
@@ -2588,6 +2680,7 @@ async function saveBrouillon() {
   if (appelId) await linkAppelToIntervention(appelId, saved.id);
   if (rdvId) await linkRdvToIntervention(rdvId, saved.id);
   toast("Brouillon enregistré");
+  clearPersistedDraft(); // BP-01 : brouillon consommé
   state.draft = null;
   goReplace(`#/detail/${saved.id}`);
 }
@@ -3088,7 +3181,7 @@ document.addEventListener("click", async (e) => {
     if (confirm("Supprimer ce document ?")) { await DB.deleteDocument(nav.dataset.id); await renderDetail(state.draft?.id || location.hash.split("/")[2]); }
   }
   else if (action === "back") { if (window.history.length > 1) window.history.back(); else go("#/"); }
-  else if (action === "cancel") { state.draft = null; goReplace("#/"); }
+  else if (action === "cancel") { clearPersistedDraft(); state.draft = null; goReplace("#/"); }
   else if (action === "prev") { if (state.step > 1) { readStepIntoDraft(state.step); if (state.draftType === "intervention") goReplace(`#/new/${state.step - 1}`); else goReplace(`#/entretien/${state.draftType}/${state.step - 1}`); } }
   else if (action === "next") { if (readStepIntoDraft(state.step)) { if (state.draftType === "intervention") goReplace(`#/new/${state.step + 1}`); else goReplace(`#/entretien/${state.draftType}/${state.step + 1}`); } }
   else if (action === "finish") finishWizard();
@@ -3475,6 +3568,29 @@ window.addEventListener("focus", syncWhenIdle);
 document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "visible") syncWhenIdle();
 });
+
+// BP-01 : sauvegarde du brouillon du wizard à la saisie (debounce), au passage
+// en arrière-plan et à la fermeture — sans cela, la saisie de l'étape courante
+// est perdue si l'OS tue l'application.
+function isWizardRoute() {
+  const h = window.location.hash || "";
+  return !!state.draft && (h.startsWith("#/new") || h.startsWith("#/entretien"));
+}
+function snapshotWizardDraft(immediate) {
+  if (!isWizardRoute()) return;
+  try { readStepIntoDraftSilently(); } catch (e) { /* champs absents : on garde le brouillon tel quel */ }
+  persistDraft(immediate);
+}
+function readStepIntoDraftSilently() {
+  const s = wizardSteps()[state.step - 1];
+  if (s && s.read) s.read();
+}
+document.addEventListener("input", () => snapshotWizardDraft(false));
+document.addEventListener("change", () => snapshotWizardDraft(false));
+window.addEventListener("pagehide", () => snapshotWizardDraft(true));
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "hidden") snapshotWizardDraft(true);
+});
 setInterval(() => { if (document.visibilityState === "visible") syncWhenIdle(); }, 30000);
 
 // ---------------------------------------------------------
@@ -3486,6 +3602,24 @@ window.addEventListener("offline", updateOfflinePill);
 async function init() {
   await DB.init();
   await Sync.initPersisted(); // SYNC-01/02 : restaure file, curseur, conflits
+
+  // BP-01 : restauration du brouillon de wizard s'il persiste en local
+  try {
+    const saved = await DB.getMeta("ce_wizard_draft");
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      state.draft = parsed.draft || null;
+      state.draftType = parsed.draftType || "intervention";
+      state.step = parsed.step || 1;
+      if (state.draft) state.wizardDraftPending = true;
+    }
+  } catch (e) { /* brouillon illisible : on repart à zéro */ }
+
+  // BP-01 : demander la persistance du stockage IndexedDB (évite l'éviction iOS/Android)
+  if (navigator.storage && navigator.storage.persist) {
+    try { await navigator.storage.persist(); } catch (e) { console.warn("storage.persist() refusé", e); }
+  }
+
   initSupabase();
   if (Supabase.configured()) {
     Supabase.onAuthChange(async (event, session) => {
@@ -3521,7 +3655,15 @@ async function init() {
         const newWorker = reg.installing;
         if (!newWorker) return;
         newWorker.addEventListener("statechange", () => {
-          if (newWorker.state === "installed" && navigator.serviceWorker.controller) window.location.reload();
+          if (newWorker.state !== "installed" || !navigator.serviceWorker.controller) return;
+          pendingUpdateWorker = newWorker;
+          state.updateAvailable = true;
+          const hash = window.location.hash || "#/";
+          const inForm = !!state.draft || hash.startsWith("#/new") || hash.startsWith("#/entretien") || hash.startsWith("#/appel") || hash.startsWith("#/contrat");
+          // BP-01 : ne jamais recharger pendant une saisie (wizard / formulaire) —
+          // on propose un bandeau "Actualiser" à la place.
+          if (inForm) showUpdateBanner();
+          else window.location.reload();
         });
       });
       const checkForUpdates = () => reg.update().catch(() => {});

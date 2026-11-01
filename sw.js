@@ -9,10 +9,12 @@
 // le recoupement).
 // v32 : fix/etape-1 — suppression de l'objet Storage à la suppression
 // photo/document (SEC-02/SEC-11), retrait du bandeau « maquettes » (SEC-06).
-// v34 : SYNC-01 — base du push = version vue à l'ouverture du formulaire.
-// v35 : SYNC-01 — bandeau de synchro : conflits visibles et cliquables.
-// v36 : PRES-01 (présence d'édition), garde « plus un brouillon », consigne de conflit.
-const CACHE_VERSION = "climatelec-v36";
+// v33 : rattrapage Storage photos/documents (uploadPendingBinaries, repli data_url).
+// v34 : étape 2 fiabilité — BP-01 (brouillon wizard persistant, bandeau MAJ, storage.persist), COH-05, SEC-03.
+// v35 : SEC-03 — abandon de la RPC link_appel (lien appel → intervention via la synchronisation normale).
+// v36 : signatures — upload sans upsert (la RLS du bucket interdit INSERT … ON CONFLICT DO UPDATE).
+// v37 : fusion étape 2 + SYNC-01 (base du push = version vue à l'ouverture du formulaire), bandeau de conflit, présence d'édition (PRES-01), garde « plus un brouillon ».
+const CACHE_VERSION = "climatelec-v37";
 const ASSETS = [
   "./",
   "./index.html",

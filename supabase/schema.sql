@@ -793,6 +793,12 @@ $$;
 revoke all on function public.set_user_role(uuid, text) from public;
 grant execute on function public.set_user_role(uuid, text) to authenticated;
 
+-- SEC-03 : la RPC `link_appel` envisagée initialement est abandonnée (le lien
+-- appel -> intervention part avec la synchronisation normale, l'intervention
+-- n'existant pas encore côté serveur au moment de la liaison). On supprime la
+-- fonction si une version précédente du schéma l'avait créée.
+drop function if exists public.link_appel(uuid, uuid, uuid);
+
 -- Renseignement automatique created_by / updated_by / technicien_id
 -- (défaut = utilisateur courant). Sans cela, un technicien ne verrait
 -- AUCUNE fiche : le frontend actuel ne renseigne jamais ces colonnes.
@@ -1191,6 +1197,30 @@ create policy appels_insert on public.appels for insert to authenticated with ch
 drop policy if exists appels_update on public.appels;
 create policy appels_update on public.appels for update to authenticated
   using (true);
+-- SEC-03 : `NEW`/`OLD` n'existent pas dans une policy RLS (uniquement dans un
+-- trigger). La restriction des colonnes modifiables est donc portée par le
+-- trigger `appels_restrict_update` ci-dessous ; l'immutabilité de created_by
+-- l'est par `prevent_created_by_change`.
+create or replace function public.appels_restrict_update()
+returns trigger language plpgsql as $$
+begin
+  -- Responsable, créateur de l'appel, ou contexte service (auth.uid() null) :
+  -- aucune restriction. Sinon (technicien qui relie une fiche / un RDV) :
+  -- seules les colonnes de lien et de traçabilité peuvent changer.
+  if auth.uid() is null or public.is_manager() or old.created_by = auth.uid() then
+    return new;
+  end if;
+  if (to_jsonb(new) - array['intervention_id','rendezvous_id','action_sortie','updated_at','updated_by'])
+     is distinct from
+     (to_jsonb(old) - array['intervention_id','rendezvous_id','action_sortie','updated_at','updated_by']) then
+    raise exception 'Modification non autorisée : seules les colonnes de lien d''un appel sont modifiables';
+  end if;
+  return new;
+end;
+$$;
+drop trigger if exists appels_restrict_update on public.appels;
+create trigger appels_restrict_update before update on public.appels
+  for each row execute function public.appels_restrict_update();
 drop policy if exists appels_delete on public.appels;
 create policy appels_delete on public.appels for delete to authenticated
   using (public.is_manager() or created_by = auth.uid());
