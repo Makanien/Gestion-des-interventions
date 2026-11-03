@@ -11,3 +11,6 @@ dist/
 # Sauvegardes Supabase locales (docs/PROCEDURE_SAUVEGARDE.md) — JAMAIS dans le dépôt
 supabase-backup-*/
 *-sauvegarde-*/
+
+# Listes d'objets Storage produites par supabase/purge_retention.mjs (SEC-13)
+purge-storage-*.json

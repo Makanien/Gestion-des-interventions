@@ -350,12 +350,12 @@ Mais la lecture du code révèle **des écarts importants entre ce que le PRD et
 - [x] **SEC-03** : trigger `appels_restrict_update` (non-responsable/non-créateur : seules `intervention_id`, `rendezvous_id`, `action_sortie`, `updated_*` modifiables) ; l'immutabilité de `created_by` reste portée par `prevent_created_by_change`. Un `with check (new…/old…)` n'est pas utilisable dans une policy (erreur « missing FROM-clause entry for table new », constatée au replay). Une RPC `link_appel` a été essayée puis abandonnée : appelée juste après l'enregistrement local, l'intervention n'existe pas encore côté serveur (erreur FK 23503) ; le lien part avec la synchronisation normale. `appels_select` restreint déjà l'`update` direct d'un technicien aux appels dont il est créateur. *Non traité : un technicien ne peut pas relier un appel créé par le responsable (il ne le reçoit pas).*
 
 **Étape 3 — Gouvernance & sécurité durable**
-- [ ] **COH-06 / IMP-01** : RPC `transition_dossier` (rôles + transitions) + journal d'audit.
-- [ ] **SEC-07 / SEC-05** : `set_user_role` restreinte, rôle `developpeur` retiré en prod, rôle `en_attente` par défaut.
-- [ ] **SEC-04 / SEC-09** : purge locale au logout, partition par utilisateur, repli de rôle = moindre privilège.
-- [ ] **SEC-10 / SEC-12** : MFA managers, Redirect URLs, SMTP, CSP.
+- [x] **COH-06 / IMP-01** : rôles + transitions imposés par le trigger serveur `enforce_statut_dossier_workflow` (déjà présent, testé) ; journal d'audit `dossier_events` (trigger, ajout seul) + historique dans la fiche. **Écart volontaire** : pas de RPC `transition_dossier` — l'app est offline-first (§7.1.5), une transition hors ligne est rejouée par la synchro en UPSERT ; le trigger couvre tous les chemins d'écriture. Contrôle miroir côté client (`canTransition`).
+- [ ] **SEC-07 / SEC-05** : fait en code — `set_user_role` réservée au responsable, `developpeur` non attribuable, dernier responsable protégé, trou d'auto-élévation de rôle fermé (trigger), journal `role_events`, rôle `en_attente` par défaut + `is_member()` sur les tables partagées, écran « Équipe & rôles ». **Reste** : retirer `developpeur` en production (SQL dans `supabase/DEPLOYMENT.md`) et rejouer le schéma en prod — à cocher une fois fait.
+- [x] **SEC-04 / SEC-09** : propriétaire des données locales (purge ou refus au changement de compte), purge à la déconnexion (défaut managers, bascule dans Compte), brouillon d'appel purgé, rôle en cache 30 jours puis « inconnu » = aucun accès. **Non fait** : verrouillage applicatif PIN/biométrie (seul le rappel de verrouiller l'écran est affiché). Modifications vérifiées en syntaxe seulement — **test navigateur à faire** (changement de compte, déconnexion avec file non vide, hors ligne).
+- [ ] **SEC-10 / SEC-12** : CSP resserrée aux projets Supabase + `dist/_headers` générés (fait). **Reste** : MFA managers (non implémenté), Redirect URLs, SMTP — checklist Dashboard dans `supabase/DEPLOYMENT.md`.
 - [ ] **SEC-08 / IMP-04** : hash + horodatage + verrouillage des fiches signées (après avis juridique).
-- [ ] **SEC-13 / SEC-14** : page de confidentialité, purge/rétention, sauvegardes planifiées + test de restauration.
+- [ ] **SEC-13 / SEC-14** : page de confidentialité, `purge_soft_deleted` / `export_client_data` / `anonymize_client`, `purge_retention.mjs` (fait ; durées à valider : `documentation/RGPD_CONSERVATION.md`). **Reste** : sauvegardes planifiées + test de restauration (SEC-14).
 
 **Étape 4 — Qualité durable**
 - [ ] **BP-02** : lint + tests unitaires + E2E + tests RLS + GitHub Actions.

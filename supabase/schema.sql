@@ -329,14 +329,29 @@ create table if not exists public.profiles (
 );
 
 -- Rôle (V3) : enum responsable / technicien / secretaire / developpeur
-alter table public.profiles add column if not exists role text not null default 'technicien';
+-- SEC-05 : + `en_attente` = compte créé mais pas encore validé par le
+-- responsable (AUCUN accès aux données métier, cf. is_member()). C'est le
+-- rôle de tout nouveau compte : défense en profondeur si l'inscription
+-- publique était réactivée par erreur dans le Dashboard.
+alter table public.profiles add column if not exists role text not null default 'en_attente';
+-- `set default` est idempotent et s'applique aussi aux bases déjà migrées
+-- (les profils EXISTANTS ne sont pas modifiés).
+alter table public.profiles alter column role set default 'en_attente';
 
--- Contrainte recréée pour accepter le nouveau rôle `developpeur`
--- (drop + create : idempotent sur une base déjà migrée).
+-- Contrainte recréée (drop + create : idempotent sur une base déjà migrée).
 alter table public.profiles drop constraint if exists profiles_role_check;
 alter table public.profiles
   add constraint profiles_role_check
-  check (role in ('responsable', 'technicien', 'secretaire', 'developpeur'));
+  check (role in ('responsable', 'technicien', 'secretaire', 'developpeur', 'en_attente'));
+
+-- SEC-05 — Reprise des comptes existants SANS profil : avant ce changement,
+-- l'absence de profil valait implicitement `technicien` (current_role()).
+-- On matérialise ce droit pour ne verrouiller personne au déploiement ;
+-- tout compte créé ensuite passe par handle_new_user() → `en_attente`.
+insert into public.profiles (id, full_name, role)
+select u.id, coalesce(u.raw_user_meta_data->>'full_name', ''), 'technicien'
+from auth.users u
+where not exists (select 1 from public.profiles p where p.id = u.id);
 
 -- ---------------------------------------------------------
 -- 6. TABLE appels (V3, US-01)
@@ -751,19 +766,32 @@ $$ language plpgsql;
 create or replace function public.handle_new_user()
 returns trigger as $$
 begin
-  insert into public.profiles (id, full_name)
-  values (new.id, coalesce(new.raw_user_meta_data->>'full_name', ''))
+  -- SEC-05 : rôle explicite `en_attente` (ne dépend pas du défaut de colonne).
+  insert into public.profiles (id, full_name, role)
+  values (new.id, coalesce(new.raw_user_meta_data->>'full_name', ''), 'en_attente')
   on conflict (id) do nothing;
   return new;
 end;
 $$ language plpgsql security definer set search_path = public;
 
--- Rôle courant / manager (rôle par défaut : technicien)
+-- Rôle courant / manager. SEC-05 : sans profil = `en_attente` (moindre
+-- privilège ; l'ancien défaut implicite `technicien` est supprimé).
 create or replace function public.current_role()
 returns text
 language sql stable security definer set search_path = public as $$
-  select coalesce((select role from public.profiles where id = auth.uid()), 'technicien');
+  select coalesce((select role from public.profiles where id = auth.uid()), 'en_attente');
 $$;
+
+-- SEC-05 : membre ACTIF de l'équipe (rôle validé par le responsable).
+-- Condition d'accès aux tables « partagées » (clients, équipements, pièces…)
+-- dont les policies étaient `using (true)` : un compte `en_attente` n'y voit rien.
+create or replace function public.is_member()
+returns boolean
+language sql stable security definer set search_path = public as $$
+  select public.current_role() in ('responsable', 'technicien', 'secretaire', 'developpeur');
+$$;
+revoke all on function public.is_member() from public, anon;
+grant execute on function public.is_member() to authenticated;
 
 create or replace function public.is_manager()
 returns boolean
@@ -771,22 +799,66 @@ language sql stable security definer set search_path = public as $$
   select public.current_role() in ('responsable', 'secretaire', 'developpeur');
 $$;
 
--- Changement de rôle (SEC-07) : réservé au RESPONSABLE. Un secrétaire ou un
--- développeur ne peut ni promouvoir un compte en responsable, ni créer un
--- développeur. Accepte un utilisateur sans profil existant (création au besoin).
+-- Journal des changements de rôle (SEC-07) — append-only (cf. trigger plus bas).
+create table if not exists public.role_events (
+  id          uuid primary key default gen_random_uuid(),
+  target_id   uuid not null,                 -- compte modifié (pas de FK : le journal survit à la suppression du compte)
+  old_role    text,
+  new_role    text not null,
+  actor_id    uuid,                          -- null = SQL Editor / service_role
+  created_at  timestamptz not null default now()
+);
+alter table public.role_events enable row level security;
+revoke all on public.role_events from anon, authenticated;
+grant select on public.role_events to authenticated;
+drop policy if exists role_events_select on public.role_events;
+create policy role_events_select on public.role_events
+  for select to authenticated using (public.current_role() = 'responsable');
+
+-- Changement de rôle (SEC-07) : réservé au RESPONSABLE.
+--  - le rôle `developpeur` n'est PAS attribuable depuis l'application : il se
+--    crée à la demande depuis le SQL Editor (auth.uid() null) et se retire de
+--    la même façon (cf. supabase/DEPLOYMENT.md §Comptes sensibles) ;
+--  - on ne peut pas retirer le rôle `responsable` au dernier responsable
+--    (verrouillage de l'administration) ;
+--  - chaque changement est journalisé dans `role_events`.
+-- La fonction pose un indicateur local à la transaction que le trigger
+-- `prevent_role_escalation` exige : c'est le SEUL chemin de modification du
+-- rôle depuis une session utilisateur.
 create or replace function public.set_user_role(target uuid, new_role text)
 returns void
 language plpgsql security definer set search_path = public as $$
+declare
+  v_old text;
 begin
   if public.current_role() <> 'responsable' then
-    raise exception 'Réservé au responsable';
+    raise exception 'Réservé au responsable' using errcode = '42501';
   end if;
-  if new_role not in ('responsable', 'technicien', 'secretaire', 'developpeur') then
-    raise exception 'Rôle invalide';
+  if new_role not in ('responsable', 'technicien', 'secretaire', 'en_attente') then
+    raise exception 'Rôle invalide ou non attribuable depuis l''application : %', new_role
+      using errcode = '22023';
   end if;
+  if not exists (select 1 from auth.users where id = target) then
+    raise exception 'Utilisateur inconnu' using errcode = '22023';
+  end if;
+
+  select role into v_old from public.profiles where id = target;
+
+  if v_old = 'responsable' and new_role <> 'responsable'
+     and not exists (select 1 from public.profiles where role = 'responsable' and id <> target) then
+    raise exception 'Impossible de retirer le dernier responsable' using errcode = '22023';
+  end if;
+
+  perform set_config('app.role_change_authorized', 'on', true);
   insert into public.profiles (id, role)
   values (target, new_role)
   on conflict (id) do update set role = excluded.role;
+  perform set_config('app.role_change_authorized', 'off', true);
+
+  if v_old is distinct from new_role then
+    insert into public.role_events (target_id, old_role, new_role, actor_id)
+    values (target, v_old, new_role, auth.uid());
+  end if;
 end;
 $$;
 
@@ -851,20 +923,38 @@ begin
 end;
 $$;
 
--- Anti-élévation de rôle : un utilisateur peut modifier son full_name,
--- mais pas son rôle. La garde `auth.uid() is not null` laisse passer les
--- contextes d'administration sans session (migration, SQL editor, service role).
+-- Anti-élévation de rôle (SEC-07) : un utilisateur peut modifier son full_name,
+-- JAMAIS son rôle — y compris un manager (avant ce correctif, un secrétaire
+-- ou un développeur pouvait s'attribuer `responsable` par un simple UPDATE de
+-- son propre profil, la policy `profiles_update` ne contrôlant que l'id).
+-- Le rôle ne change que via set_user_role() (indicateur transactionnel) ou
+-- depuis un contexte sans session (SQL Editor, migrations, service_role :
+-- auth.uid() null). Toute autre tentative est REFUSÉE, pas ignorée en silence.
 create or replace function public.prevent_role_escalation()
 returns trigger language plpgsql as $$
 begin
   if new.role is distinct from old.role
      and auth.uid() is not null
-     and not public.is_manager() then
-    new.role = old.role;
+     and coalesce(current_setting('app.role_change_authorized', true), 'off') <> 'on' then
+    raise exception 'Le rôle ne peut être modifié que par le responsable (set_user_role)'
+      using errcode = '42501';
   end if;
   return new;
 end;
 $$;
+
+-- Journal en ajout seul (role_events, dossier_events) : ni UPDATE ni DELETE,
+-- quel que soit l'appelant (y compris service_role).
+create or replace function public.forbid_log_mutation()
+returns trigger language plpgsql as $$
+begin
+  raise exception 'Journal en ajout seul : % interdit sur %', tg_op, tg_table_name
+    using errcode = '42501';
+end;
+$$;
+drop trigger if exists role_events_append_only on public.role_events;
+create trigger role_events_append_only before update or delete on public.role_events
+  for each row execute function public.forbid_log_mutation();
 
 -- ---------------------------------------------------------
 -- TRIGGERS
@@ -986,7 +1076,7 @@ drop policy if exists signatures_read on storage.objects;
 
 drop policy if exists signatures_insert on storage.objects;
 create policy signatures_insert on storage.objects
-  for insert to authenticated with check (bucket_id = 'signatures');
+  for insert to authenticated with check (bucket_id = 'signatures' and public.is_member());
 
 -- Une signature est figée : pas de remplacement ni de suppression par un
 -- non-manager (SEC-08 : le remplacement silencieux d'une preuve est exclu).
@@ -1058,9 +1148,11 @@ create policy documents_delete on storage.objects
 -- ---------------------------------------------------------
 -- ROW LEVEL SECURITY
 -- Stratégie : données partagées au sein de l'équipe, jamais publiques.
--- clients / equipements / pieces (base pièces) : base partagée (lecture
--- conservée à tout `authenticated`) — la vraie barrière = inscription
--- publique désactivée. interventions / pieces_utilisees / rendezvous /
+-- clients / equipements / pieces (base pièces) : base partagée entre les
+-- MEMBRES ACTIFS de l'équipe (is_member() : rôle validé par le responsable).
+-- SEC-05 : un compte `en_attente` (nouvel inscrit, ou inscription publique
+-- réactivée par erreur) n'y accède plus — la désactivation de l'inscription
+-- publique n'est plus la seule barrière. interventions / pieces_utilisees / rendezvous /
 -- mesures / photos / documents / contrats : périmètre par rôle.
 -- ---------------------------------------------------------
 alter table public.clients          enable row level security;
@@ -1078,13 +1170,13 @@ alter table public.contrats_entretien enable row level security;
 
 -- clients : base partagée de l'équipe
 drop policy if exists clients_select on public.clients;
-create policy clients_select on public.clients for select to authenticated using (true);
+create policy clients_select on public.clients for select to authenticated using (public.is_member());
 drop policy if exists clients_insert on public.clients;
-create policy clients_insert on public.clients for insert to authenticated with check (true);
+create policy clients_insert on public.clients for insert to authenticated with check (public.is_member());
 drop policy if exists clients_update on public.clients;
-create policy clients_update on public.clients for update to authenticated using (true);
+create policy clients_update on public.clients for update to authenticated using (public.is_member()) with check (public.is_member());
 drop policy if exists clients_delete on public.clients;
-create policy clients_delete on public.clients for delete to authenticated using (true);
+create policy clients_delete on public.clients for delete to authenticated using (public.is_member());
 
 -- interventions : manager = tout ; technicien = ses fiches.
 drop policy if exists interventions_select on public.interventions;
@@ -1100,8 +1192,8 @@ drop policy if exists interventions_insert on public.interventions;
 create policy interventions_insert on public.interventions
   for insert to authenticated
   with check (
-    public.is_manager()
-    or (technicien_id is null or technicien_id = auth.uid())
+    public.is_member()
+    and (public.is_manager() or technicien_id is null or technicien_id = auth.uid())
   );
 
 drop policy if exists interventions_update on public.interventions;
@@ -1125,13 +1217,13 @@ create policy interventions_delete on public.interventions
 
 -- equipements : base partagée de l'équipe
 drop policy if exists equipements_select on public.equipements;
-create policy equipements_select on public.equipements for select to authenticated using (true);
+create policy equipements_select on public.equipements for select to authenticated using (public.is_member());
 drop policy if exists equipements_insert on public.equipements;
-create policy equipements_insert on public.equipements for insert to authenticated with check (true);
+create policy equipements_insert on public.equipements for insert to authenticated with check (public.is_member());
 drop policy if exists equipements_update on public.equipements;
-create policy equipements_update on public.equipements for update to authenticated using (true);
+create policy equipements_update on public.equipements for update to authenticated using (public.is_member()) with check (public.is_member());
 drop policy if exists equipements_delete on public.equipements;
-create policy equipements_delete on public.equipements for delete to authenticated using (true);
+create policy equipements_delete on public.equipements for delete to authenticated using (public.is_member());
 
 -- pieces_utilisees : héritent du périmètre de leur intervention.
 drop policy if exists pieces_select on public.pieces_utilisees;
@@ -1178,7 +1270,7 @@ create policy profiles_select on public.profiles
 drop policy if exists profiles_insert on public.profiles;
 create policy profiles_insert on public.profiles
   for insert to authenticated
-  with check (auth.uid() = id and role = 'technicien');
+  with check (auth.uid() = id and role = 'en_attente');
 
 drop policy if exists profiles_update on public.profiles;
 create policy profiles_update on public.profiles
@@ -1193,10 +1285,10 @@ drop policy if exists appels_select on public.appels;
 create policy appels_select on public.appels for select to authenticated
   using (public.is_manager() or created_by = auth.uid());
 drop policy if exists appels_insert on public.appels;
-create policy appels_insert on public.appels for insert to authenticated with check (true);
+create policy appels_insert on public.appels for insert to authenticated with check (public.is_member());
 drop policy if exists appels_update on public.appels;
 create policy appels_update on public.appels for update to authenticated
-  using (true);
+  using (public.is_member());
 -- SEC-03 : `NEW`/`OLD` n'existent pas dans une policy RLS (uniquement dans un
 -- trigger). La restriction des colonnes modifiables est donc portée par le
 -- trigger `appels_restrict_update` ci-dessous ; l'immutabilité de created_by
@@ -1240,13 +1332,13 @@ create policy rendezvous_select on public.rendezvous for select to authenticated
     public.is_manager()
     or created_by = auth.uid()
     or technicien_id = auth.uid()
-    or (intervenant is null or intervenant = '')
+    or (public.is_member() and (intervenant is null or intervenant = ''))
   );
 -- RDV affectés : `technicien_id = auth.uid()` ci-dessus suffit — pas de
 -- clause de repli sur `full_name` (voir SYNC-04).
 drop policy if exists rendezvous_insert on public.rendezvous;
 create policy rendezvous_insert on public.rendezvous for insert to authenticated
-  with check (public.is_manager() or (technicien_id is null or technicien_id = auth.uid()));
+  with check (public.is_member() and (public.is_manager() or technicien_id is null or technicien_id = auth.uid()));
 drop policy if exists rendezvous_update on public.rendezvous;
 create policy rendezvous_update on public.rendezvous for update to authenticated
   using (public.is_manager() or created_by = auth.uid() or technicien_id = auth.uid())
@@ -1286,13 +1378,13 @@ end $$;
 -- du catalogue (upsert = ON CONFLICT DO UPDATE) quel que soit le créateur, sinon
 -- un technicien recevrait un 403 RLS et la file de synchronisation resterait bloquée.
 drop policy if exists pieces_select on public.pieces;
-create policy pieces_select on public.pieces for select to authenticated using (true);
+create policy pieces_select on public.pieces for select to authenticated using (public.is_member());
 drop policy if exists pieces_insert on public.pieces;
-create policy pieces_insert on public.pieces for insert to authenticated with check (true);
+create policy pieces_insert on public.pieces for insert to authenticated with check (public.is_member());
 drop policy if exists pieces_update on public.pieces;
-create policy pieces_update on public.pieces for update to authenticated using (true);
+create policy pieces_update on public.pieces for update to authenticated using (public.is_member()) with check (public.is_member());
 drop policy if exists pieces_delete on public.pieces;
-create policy pieces_delete on public.pieces for delete to authenticated using (true);
+create policy pieces_delete on public.pieces for delete to authenticated using (public.is_member());
 
 -- contrats_entretien : accès réservé aux managers ou au propriétaire.
 drop policy if exists contrats_select on public.contrats_entretien;
@@ -1389,6 +1481,276 @@ from (
 where r.intervenant is not null and r.intervenant <> ''
   and (r.intervenant = sub.full_name or r.intervenant = split_part(sub.full_name, ' ', 1))
   and r.technicien_id is distinct from sub.id;
+
+-- =========================================================
+-- COH-06 / IMP-01 — JOURNAL D'AUDIT DU WORKFLOW (dossier_events)
+-- Qui a fait passer quelle fiche de quel statut à quel statut, et quand.
+-- L'APPLICATION des rôles et des transitions autorisées reste portée par le
+-- trigger `interventions_20_enforce_statut` (section 2bis) : c'est volontaire
+-- plutôt qu'une RPC `transition_dossier`, car l'application est offline-first
+-- (§7.1.5) — une transition (ex. soumission sur site sans réseau) est écrite
+-- dans IndexedDB puis rejouée par la synchronisation sous forme d'UPSERT ; une
+-- RPC ne pourrait pas la porter hors ligne. Le trigger s'applique quel que soit
+-- le chemin d'écriture (UPSERT de synchro, API REST directe, autre client).
+-- Le journal est alimenté par un trigger AFTER : aucune écriture client possible,
+-- en ajout seul (ni UPDATE ni DELETE), pas de FK (le journal survit à une
+-- suppression définitive de la fiche).
+-- Bloc IDEMPOTENT : relançable sans erreur ni effet de bord.
+-- =========================================================
+create table if not exists public.dossier_events (
+  id              uuid primary key default gen_random_uuid(),
+  intervention_id uuid not null,
+  from_statut     text,                        -- null = création
+  to_statut       text not null,
+  motif           text,                        -- motif de renvoi / rouverture
+  actor_id        uuid,                        -- null = SQL Editor / service_role
+  actor_role      text not null default 'systeme',
+  created_at      timestamptz not null default now()
+);
+create index if not exists dossier_events_intervention_idx
+  on public.dossier_events(intervention_id, created_at);
+
+alter table public.dossier_events enable row level security;
+revoke all on public.dossier_events from anon, authenticated;
+grant select on public.dossier_events to authenticated;
+-- Lecture : exactement le périmètre de la fiche (la sous-requête sur
+-- `interventions` est elle-même filtrée par la RLS de l'appelant).
+drop policy if exists dossier_events_select on public.dossier_events;
+create policy dossier_events_select on public.dossier_events
+  for select to authenticated
+  using (exists (select 1 from public.interventions i where i.id = dossier_events.intervention_id));
+
+create or replace function public.log_dossier_event()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if tg_op = 'UPDATE' and new.statut_dossier is not distinct from old.statut_dossier then
+    return null;   -- pas une transition (upsert de synchro, édition de contenu)
+  end if;
+  insert into public.dossier_events
+    (intervention_id, from_statut, to_statut, motif, actor_id, actor_role)
+  values (
+    new.id,
+    case when tg_op = 'UPDATE' then old.statut_dossier end,
+    new.statut_dossier,
+    case when new.statut_dossier = 'brouillon' and tg_op = 'UPDATE'
+         then nullif(new.motif_retour, '') end,
+    auth.uid(),
+    case when auth.uid() is null then 'systeme' else public.current_role() end
+  );
+  return null;
+end;
+$$;
+
+drop trigger if exists interventions_30_log_event on public.interventions;
+create trigger interventions_30_log_event
+  after insert or update on public.interventions
+  for each row execute function public.log_dossier_event();
+
+drop trigger if exists dossier_events_append_only on public.dossier_events;
+create trigger dossier_events_append_only before update or delete on public.dossier_events
+  for each row execute function public.forbid_log_mutation();
+
+-- =========================================================
+-- SEC-13 — RGPD : conservation, purge, export et anonymisation
+-- À FAIRE VALIDER (durées de conservation légales, base légale, finalités) :
+-- ce bloc fournit les OUTILS techniques, pas les durées. Aucune purge n'est
+-- planifiée automatiquement : elle se lance à la main (ou via pg_cron, cf.
+-- documentation/RGPD_CONSERVATION.md) avec une durée choisie par l'exploitant.
+-- Les trois fonctions sont réservées au RESPONSABLE (ou au SQL Editor /
+-- service_role : auth.uid() null) et ne sont pas exécutables par `anon`.
+-- Bloc IDEMPOTENT : relançable sans erreur ni effet de bord.
+-- =========================================================
+
+-- Chemin d'objet Storage extrait d'une valeur `fichier_url` / `*_signature_url`
+-- (chemin simple, ou URL complète `…/object/[public/|sign/]<bucket>/<chemin>[?…]`).
+create or replace function public.storage_path_of(p_bucket text, p_value text)
+returns text
+language sql immutable as $$
+  select nullif(
+    case
+      when p_value is null or p_value = '' then null
+      when position('://' in p_value) = 0 then regexp_replace(p_value, '^/+', '')
+      when p_value ~ ('/object/(public/|sign/|authenticated/)?' || p_bucket || '/')
+        then regexp_replace(
+               regexp_replace(p_value, '^.*/object/(public/|sign/|authenticated/)?' || p_bucket || '/', ''),
+               '\?.*$', '')
+      else null
+    end, '');
+$$;
+
+-- Purge des lignes supprimées (« soft-delete ») depuis plus de `p_retention`.
+-- p_dry_run = true (DÉFAUT) : ne supprime rien, renvoie ce qui le serait.
+-- Renvoie { dry_run, retention, counts: {table: n}, storage: [{bucket, path}] } :
+-- les objets Storage liés (photos, documents, signatures) NE PEUVENT PAS être
+-- supprimés en SQL — à retirer ensuite avec supabase/purge_retention.mjs.
+-- Un client n'est purgé que s'il n'est plus référencé par aucune fiche, RDV,
+-- appel ou contrat (sinon ces lignes perdraient leur rattachement).
+create or replace function public.purge_soft_deleted(p_retention interval, p_dry_run boolean default true)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_cut     timestamptz := now() - p_retention;
+  v_counts  jsonb := '{}'::jsonb;
+  v_storage jsonb := '[]'::jsonb;
+  v_n       bigint;
+  t         text;
+  v_where   text;
+begin
+  if auth.uid() is not null and public.current_role() <> 'responsable' then
+    raise exception 'Réservé au responsable' using errcode = '42501';
+  end if;
+  if p_retention is null or p_retention < interval '30 days' then
+    raise exception 'Durée de rétention minimale : 30 jours' using errcode = '22023';
+  end if;
+
+  -- Interventions à purger + tout ce qui en dépend par cascade (objets Storage).
+  drop table if exists pg_temp._purge_interv;
+  create temp table _purge_interv on commit drop as
+    select id, client_signature_url, technicien_signature_url
+    from public.interventions where deleted_at is not null and deleted_at < v_cut;
+
+  select coalesce(jsonb_agg(distinct jsonb_build_object('bucket', b, 'path', pth)), '[]'::jsonb) into v_storage
+  from (
+    select 'photos' b, public.storage_path_of('photos', fichier_url) pth from public.photos
+      where (deleted_at is not null and deleted_at < v_cut)
+         or intervention_id in (select id from _purge_interv)
+    union all
+    select 'documents', public.storage_path_of('documents', fichier_url) from public.documents
+      where (deleted_at is not null and deleted_at < v_cut)
+         or intervention_id in (select id from _purge_interv)
+    union all
+    select 'signatures', public.storage_path_of('signatures', client_signature_url) from _purge_interv
+    union all
+    select 'signatures', public.storage_path_of('signatures', technicien_signature_url) from _purge_interv
+    union all
+    select 'signatures', public.storage_path_of('signatures', client_signature_url) from public.contrats_entretien
+      where deleted_at is not null and deleted_at < v_cut
+    union all
+    select 'signatures', public.storage_path_of('signatures', technicien_signature_url) from public.contrats_entretien
+      where deleted_at is not null and deleted_at < v_cut
+  ) x where pth is not null;
+
+  -- Ordre : enfants, puis fiches, puis référentiels.
+  foreach t in array array['mesures','photos','documents','pieces_utilisees','rendezvous',
+                           'appels','contrats_entretien','interventions','equipements','pieces'] loop
+    -- Les enfants d'une fiche purgée partent avec elle (ON DELETE CASCADE) :
+    -- ils sont comptés (et supprimés) ici même s'ils ne sont pas marqués supprimés.
+    v_where := 'deleted_at is not null and deleted_at < $1';
+    if t in ('mesures','photos','documents','pieces_utilisees') then
+      v_where := '(' || v_where || ') or intervention_id in (select id from pg_temp._purge_interv)';
+    end if;
+    if p_dry_run then
+      execute format('select count(*) from public.%I where %s', t, v_where) into v_n using v_cut;
+    else
+      execute format('delete from public.%I where %s', t, v_where) using v_cut;
+      get diagnostics v_n = row_count;
+    end if;
+    v_counts := v_counts || jsonb_build_object(t, v_n);
+  end loop;
+
+  -- Clients : uniquement ceux qui ne sont plus référencés nulle part.
+  -- (En simulation les lignes enfants existent encore : le décompte est un majorant.)
+  if p_dry_run then
+    select count(*) into v_n from public.clients c
+    where c.deleted_at is not null and c.deleted_at < v_cut
+      and not exists (select 1 from public.interventions   x where x.client_id = c.id and x.deleted_at is null)
+      and not exists (select 1 from public.rendezvous      x where x.client_id = c.id and x.deleted_at is null)
+      and not exists (select 1 from public.appels          x where x.client_id = c.id and x.deleted_at is null)
+      and not exists (select 1 from public.contrats_entretien x where x.client_id = c.id and x.deleted_at is null);
+  else
+    delete from public.clients c
+    where c.deleted_at is not null and c.deleted_at < v_cut
+      and not exists (select 1 from public.interventions   x where x.client_id = c.id)
+      and not exists (select 1 from public.rendezvous      x where x.client_id = c.id)
+      and not exists (select 1 from public.appels          x where x.client_id = c.id)
+      and not exists (select 1 from public.contrats_entretien x where x.client_id = c.id);
+    get diagnostics v_n = row_count;
+  end if;
+  v_counts := v_counts || jsonb_build_object('clients', v_n);
+
+  return jsonb_build_object('dry_run', p_dry_run, 'retention', p_retention::text,
+                            'counts', v_counts, 'storage', v_storage);
+end;
+$$;
+
+-- Export des données d'UN client (droit d'accès / portabilité) — JSON sans
+-- pièces binaires (les objets Storage restent référencés par leur chemin).
+create or replace function public.export_client_data(p_client uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if auth.uid() is not null and public.current_role() <> 'responsable' then
+    raise exception 'Réservé au responsable' using errcode = '42501';
+  end if;
+  return jsonb_build_object(
+    'exported_at', now(),
+    'client',        (select to_jsonb(c) from public.clients c where c.id = p_client),
+    'equipements',   coalesce((select jsonb_agg(to_jsonb(e)) from public.equipements e where e.client_id = p_client), '[]'),
+    'interventions', coalesce((select jsonb_agg(to_jsonb(i)) from public.interventions i where i.client_id = p_client), '[]'),
+    'rendezvous',    coalesce((select jsonb_agg(to_jsonb(r)) from public.rendezvous r where r.client_id = p_client), '[]'),
+    'appels',        coalesce((select jsonb_agg(to_jsonb(a)) from public.appels a where a.client_id = p_client), '[]'),
+    'contrats',      coalesce((select jsonb_agg(to_jsonb(k)) from public.contrats_entretien k where k.client_id = p_client), '[]')
+  );
+end;
+$$;
+
+-- Effacement d'UN client (droit à l'effacement) par ANONYMISATION : l'identité
+-- et les coordonnées sont effacées (client, appels, nom du signataire des
+-- fiches), les fiches techniques restent rattachées (obligations de
+-- conservation des fiches d'intervention / fluides frigorigènes à faire
+-- valider : documentation/RGPD_CONSERVATION.md). Les images de signature
+-- (Storage) ne sont pas touchées : à traiter avec le conseil juridique.
+-- La modification met à jour `updated_at` : les appareils reçoivent la
+-- version anonymisée à leur prochaine synchronisation.
+create or replace function public.anonymize_client(p_client uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  n_cl bigint; n_ap bigint; n_in bigint;
+begin
+  if auth.uid() is not null and public.current_role() <> 'responsable' then
+    raise exception 'Réservé au responsable' using errcode = '42501';
+  end if;
+  update public.clients
+     set nom = 'Client anonymisé', adresse = '', code_postal = '', ville = '',
+         mail = '', tel = ''
+   where id = p_client;
+  get diagnostics n_cl = row_count;
+  update public.appels
+     set nom = 'Client anonymisé', adresse = '', code_postal = '', ville = '',
+         tel = '', mail = ''
+   where client_id = p_client;
+  get diagnostics n_ap = row_count;
+  update public.interventions set client_signature_nom = ''
+   where client_id = p_client and client_signature_nom <> '';
+  get diagnostics n_in = row_count;
+  return jsonb_build_object('clients', n_cl, 'appels', n_ap, 'interventions', n_in);
+end;
+$$;
+
+revoke all on function public.purge_soft_deleted(interval, boolean) from public, anon;
+revoke all on function public.export_client_data(uuid)             from public, anon;
+revoke all on function public.anonymize_client(uuid)               from public, anon;
+grant execute on function public.purge_soft_deleted(interval, boolean) to authenticated, service_role;
+grant execute on function public.export_client_data(uuid)             to authenticated, service_role;
+grant execute on function public.anonymize_client(uuid)               to authenticated, service_role;
+
+-- Les tables de journal créées dans ce fichier APRÈS la section PRIVILÈGES :
+-- lecture explicite pour service_role (scripts d'exploitation, sauvegarde).
+grant select on public.dossier_events, public.role_events to service_role;
 
 -- =========================================================
 -- PRES-01 — Présence d'édition sur une fiche (avertissement NON bloquant)

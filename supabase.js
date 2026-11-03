@@ -118,7 +118,25 @@ const Supabase = {
   },
   async listProfiles() {
     const c = initSupabase();
-    const { data, error } = await c.from("profiles").select("id, full_name");
+    const { data, error } = await c.from("profiles").select("id, full_name, role");
+    if (error) throw error;
+    return data || [];
+  },
+  // SEC-07 : changement de rôle — réservé au responsable (RPC set_user_role,
+  // contrôles et journal côté serveur).
+  async setUserRole(target, role) {
+    const c = initSupabase();
+    const { error } = await c.rpc("set_user_role", { target, new_role: role });
+    if (error) throw error;
+  },
+  // IMP-01 : historique des transitions de statut d'une fiche (lecture seule,
+  // journal alimenté côté serveur).
+  async listDossierEvents(interventionId) {
+    const c = initSupabase();
+    const { data, error } = await c.from("dossier_events")
+      .select("from_statut, to_statut, motif, actor_id, actor_role, created_at")
+      .eq("intervention_id", interventionId)
+      .order("created_at", { ascending: true });
     if (error) throw error;
     return data || [];
   },
