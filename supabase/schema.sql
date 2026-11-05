@@ -230,6 +230,24 @@ begin
     return new;
   end if;
 
+  -- Dévalidation (a_facturer → a_valider) : manager, MOTIF OBLIGATOIRE ;
+  -- la trace de validation est effacée (le dossier devra être re-validé).
+  if old.statut_dossier = 'a_facturer' and new.statut_dossier = 'a_valider' then
+    if not public.is_manager() then
+      raise exception 'Transition de statut non autorisée : % → % (rôle %)',
+        old.statut_dossier, new.statut_dossier, public.current_role()
+        using errcode = '42501';
+    end if;
+    if coalesce(btrim(new.motif_retour), '') = '' then
+      raise exception 'Motif obligatoire pour repasser un dossier de % à %',
+        old.statut_dossier, new.statut_dossier
+        using errcode = '23514';
+    end if;
+    new.valide_par = null;
+    new.valide_le  = null;
+    return new;
+  end if;
+
   -- Retour au brouillon : renvoi (depuis a_valider, manager) ou rouverture
   -- (depuis termine, responsable uniquement — developpeur toléré pour tests).
   if new.statut_dossier = 'brouillon' then
@@ -1536,7 +1554,9 @@ begin
     new.id,
     case when tg_op = 'UPDATE' then old.statut_dossier end,
     new.statut_dossier,
-    case when new.statut_dossier = 'brouillon' and tg_op = 'UPDATE'
+    case when tg_op = 'UPDATE'
+          and (new.statut_dossier = 'brouillon'
+               or (old.statut_dossier = 'a_facturer' and new.statut_dossier = 'a_valider'))
          then nullif(new.motif_retour, '') end,
     auth.uid(),
     case when auth.uid() is null then 'systeme' else public.current_role() end

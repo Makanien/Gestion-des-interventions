@@ -441,6 +441,7 @@ Tension d'alimentation (Absente / Vérifiée / Non vérifiée / Non vérifiable)
 | À valider | Brouillon | « Renvoyer en brouillon » + motif libre | Régis ou Delphine |
 | À valider | À facturer | « Valider la fiche » | Régis ou Delphine |
 | À facturer | Terminé | « Marquer comme facturé » | Delphine ou Régis |
+| À facturer | À valider | « Repasser à valider » (**motif obligatoire** ; la trace de validation est effacée, le dossier doit être re-validé) | Delphine ou Régis |
 | Terminé | Brouillon | « Rouvrir » + motif libre | **Régis uniquement** |
 
 - Le **motif** de renvoi/réouverture est un **texte libre** (facultatif), conservé dans `motif_retour` et affiché sur la fiche repassée en brouillon.

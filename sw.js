@@ -17,7 +17,8 @@
 // v38 : étape 3 — rôle `en_attente` + repli moindre privilège (SEC-05/SEC-09), propriétaire des
 // données locales + purge à la déconnexion (SEC-04), Équipe & rôles (SEC-07), historique du
 // dossier (IMP-01), page Confidentialité (SEC-13), CSP resserrée (SEC-12).
-const CACHE_VERSION = "climatelec-v38";
+// v39 : retour À facturer → À valider (motif obligatoire).
+const CACHE_VERSION = "climatelec-v39";
 const ASSETS = [
   "./",
   "./index.html",

@@ -76,6 +76,7 @@ function statutDossierDot(s) {
 //   a_valider  → a_facturer  Valider la fiche            (manager)
 //   a_valider  → brouillon   Renvoyer en brouillon       (manager, motif libre)
 //   a_facturer → termine     Marquer comme facturé       (manager)
+//   a_facturer → a_valider   Repasser à valider          (manager, motif OBLIGATOIRE)
 //   termine    → brouillon   Rouvrir                     (responsable seul, motif libre)
 function workflowActions(itv) {
   const statut = DB.normalizeStatut(itv?.statut_dossier);
@@ -90,7 +91,10 @@ function workflowActions(itv) {
       ];
     case "a_facturer":
       if (!canValidate()) return [];
-      return [{ to: "termine", label: "Marquer comme facturé", kind: "accent" }];
+      return [
+        { to: "termine", label: "Marquer comme facturé", kind: "accent" },
+        { to: "a_valider", label: "Repasser à valider", needsMotif: true },
+      ];
     case "termine":
       if (!canReopen()) return [];
       return [{ to: "brouillon", label: "Rouvrir", needsMotif: true }];
@@ -536,6 +540,7 @@ function canReopen() { return !!state.auth && ["responsable", "developpeur"].inc
 function canTransition(from, to) {
   if (from === "brouillon" && to === "a_valider") return isMember();
   if (from === "a_valider" && (to === "a_facturer" || to === "brouillon")) return canValidate();
+  if (from === "a_facturer" && to === "a_valider") return canValidate();
   if (from === "a_facturer" && to === "termine") return canValidate();
   if (from === "termine" && to === "brouillon") return canReopen();
   return false;
@@ -2783,7 +2788,7 @@ async function renderDetail(id) {
           ${itv.prochaine_intervention_prevue ? `<span class="tag">Prochaine intervention prévue</span>` : ""}
           ${itv.page_ok ? `<span class="tag">Page ok</span>` : ""}
         </div>
-        ${itv.motif_retour ? `<div class="banner-motif" style="margin-top:10px;background:var(--ce-pending-bg);color:var(--ce-pending);border-radius:var(--ce-radius-sm);padding:10px 12px;font-size:13px;">Renvoyé : ${esc(itv.motif_retour)}</div>` : ""}
+        ${itv.motif_retour && ["brouillon", "a_valider"].includes(DB.normalizeStatut(itv.statut_dossier)) ? `<div class="banner-motif" style="margin-top:10px;background:var(--ce-pending-bg);color:var(--ce-pending);border-radius:var(--ce-radius-sm);padding:10px 12px;font-size:13px;">${DB.normalizeStatut(itv.statut_dossier) === "a_valider" ? "Repassé à valider" : "Renvoyé"} : ${esc(itv.motif_retour)}</div>` : ""}
       </div>
 
       <div class="section-label">Client</div>
@@ -2928,14 +2933,14 @@ function workflowButtonsHTML(itv) {
 // libre et facultative, style réutilisé de la modale de signature
 // (.sig-overlay / .sig-modal). Résout null (Annuler) ou le texte nettoyé
 // (trim, lignes vides) via le nettoyage existant `cleanText`.
-function askMotif(title = "Motif (facultatif)") {
+function askMotif(title = "Motif (facultatif)", required = false) {
   return new Promise((resolve) => {
     const ov = document.createElement("div");
     ov.className = "sig-overlay";
     ov.innerHTML = `
       <div class="sig-modal">
         <div class="sig-head"><h3>${esc(title)}</h3><button class="icon-btn motif-close">${ICONS.close}</button></div>
-        <textarea id="motif-textarea" rows="4" placeholder="Précisez le motif si besoin (facultatif)" style="width:100%;box-sizing:border-box;padding:10px;border:1px solid var(--ce-border);border-radius:var(--ce-radius-sm);font:inherit;resize:vertical;"></textarea>
+        <textarea id="motif-textarea" rows="4" placeholder="${required ? "Motif obligatoire" : "Précisez le motif si besoin (facultatif)"}" style="width:100%;box-sizing:border-box;padding:10px;border:1px solid var(--ce-border);border-radius:var(--ce-radius-sm);font:inherit;resize:vertical;"></textarea>
         <div class="sig-actions" style="margin-top:12px;">
           <button class="btn btn-ghost motif-cancel">Annuler</button>
           <button class="btn btn-primary motif-confirm">Confirmer</button>
@@ -2947,7 +2952,11 @@ function askMotif(title = "Motif (facultatif)") {
     const close = (val) => { ov.remove(); resolve(val); };
     ov.querySelector(".motif-close").addEventListener("click", () => close(null));
     ov.querySelector(".motif-cancel").addEventListener("click", () => close(null));
-    ov.querySelector(".motif-confirm").addEventListener("click", () => close(cleanText(ta.value || "")));
+    ov.querySelector(".motif-confirm").addEventListener("click", () => {
+      const v = cleanText(ta.value || "");
+      if (required && !v) { ta.style.borderColor = "var(--ce-danger, #c0392b)"; ta.focus(); return; }
+      close(v);
+    });
     ov.addEventListener("click", (e) => { if (e.target === ov) close(null); });
   });
 }
@@ -3232,9 +3241,11 @@ document.addEventListener("click", async (e) => {
       toast("Action non autorisée pour votre rôle ou pour l'état actuel du dossier", true);
       return;
     }
+    const from = DB.normalizeStatut(cur?.statut_dossier);
     // « Soumettre pour validation » (§3.2.14) : impossible tant que la fiche
-    // n'est pas signée (technicien + client si présent).
-    if (to === "a_valider") {
+    // n'est pas signée (technicien + client si présent). Ne s'applique pas à la
+    // dévalidation (a_facturer → a_valider) : la fiche est déjà signée.
+    if (to === "a_valider" && from === "brouillon") {
       const fiche = await DB.getIntervention(id);
       if (!fiche || !fiche.technicien_signature_url || (fiche.client_present !== false && !fiche.client_signature_url)) {
         toast("La fiche doit être signée (technicien + client si présent) avant d'être soumise pour validation", true);
@@ -3245,7 +3256,13 @@ document.addEventListener("click", async (e) => {
     // (valide_par/valide_le, facture_par/facture_le, motif_retour).
     const now = new Date().toISOString();
     let extra = {};
-    if (to === "a_valider") {
+    if (to === "a_valider" && from === "a_facturer") {
+      // Dévalidation : motif OBLIGATOIRE (exigé aussi par le serveur) ; la trace
+      // de validation est effacée, le dossier devra être re-validé.
+      const motif = await askMotif("Motif du retour à valider (obligatoire)", true);
+      if (!motif) return; // Annulé — aucun changement
+      extra = { motif_retour: motif, valide_par: null, valide_le: null };
+    } else if (to === "a_valider") {
       extra = { motif_retour: null };
     } else if (to === "a_facturer") {
       extra = { valide_par: state.auth?.user?.id ?? null, valide_le: now };
