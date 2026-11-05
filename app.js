@@ -839,6 +839,9 @@ function updateOfflinePill() {
 // HOME (Tableau de bord / Planning / Tâches / Clients)
 // ---------------------------------------------------------
 async function renderHome() {
+  // SEC-05 : garde de dernier recours — renderHome est appelé directement depuis
+  // plusieurs endroits (onglets, après connexion…) sans passer par route().
+  if (!isMember()) { renderPending(); return; }
   const [interventions, rendezvous] = await Promise.all([DB.listInterventions(), DB.listRendezvous()]);
   // Sous-titre Tableau de bord (maquette : « Accueil · N dossiers en cours ») —
   // hors dossiers clôturés, dans le périmètre du rôle connecté.
@@ -3992,8 +3995,13 @@ async function init() {
         Sync.stopRealtime();
         state.auth = null;
       }
-      if (window.location.hash === "#/login") await renderHome();
-      else await route();
+      if (window.location.hash === "#/login" && isMember()) await renderHome();
+      else {
+        // Compte sans rôle actif connecté depuis la page de connexion : on quitte
+        // #/login pour que le routeur (et sa garde SEC-05) affiche l'écran dédié.
+        if (window.location.hash === "#/login") history.replaceState(null, "", "#/");
+        await route();
+      }
     });
   }
 
