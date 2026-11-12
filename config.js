@@ -25,7 +25,8 @@ window.SUPABASE_ENVS = {
 /* Sélection de l'environnement :
    1. Paramètre d'URL ?env=development / ?env=production (test ponctuel) ;
    2. Choix persistant via localStorage : localStorage.setItem("supabaseEnv", "development") ;
-   3. Sinon : localhost / 127.0.0.1 / fichier ouvert (file://) → development,
+   3. Sinon : localhost / 127.0.0.1 / fichier ouvert (file://) /
+      gestioninterventionce.netlify.app → development,
       tout le reste (site déployé) → production. */
 (function selectSupabaseEnv() {
   var env = null;
@@ -40,7 +41,7 @@ window.SUPABASE_ENVS = {
 
   if (!env) {
     var host = location.hostname;
-    var isLocal = host === "localhost" || host === "127.0.0.1" || host === "";
+    var isLocal = host === "localhost" || host === "127.0.0.1" || host === "" || host === "gestioninterventionce.netlify.app";
     env = isLocal ? "development" : "production";
   }
 
