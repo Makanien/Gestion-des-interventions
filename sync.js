@@ -99,7 +99,7 @@ async function initPersisted() {
     if (SyncState.conflicts.length === 0 && conflicts.length) SyncState.conflicts = conflicts;
     if (SyncState.failures.length === 0 && failures.length) SyncState.failures = failures;
   } catch (e) {
-    console.warn("Restauration de l'état de synchronisation échouée", e);
+    ErrorLog.warn("Restauration de l'état de synchronisation échouée", e);
   }
   updatePendingUI();
 }
@@ -109,7 +109,7 @@ function scheduleSync() {
   if (_syncTimer) return;
   _syncTimer = setTimeout(() => {
     _syncTimer = null;
-    runSync().catch((e) => console.warn("Sync échec", e));
+    runSync().catch((e) => ErrorLog.warn("Sync échec", e));
   }, 400);
 }
 
@@ -143,7 +143,7 @@ async function pullChanges() {
       }
     } catch (e) {
       failed.push(`${store} (${e && e.message ? e.message : e})`);
-      console.warn(`Pull partiel — ${store} ignoré pour ce cycle`, e);
+      ErrorLog.warn(`Pull partiel — ${store} ignoré pour ce cycle`, e);
     }
   }
 
@@ -220,7 +220,7 @@ async function reconcileHiddenRows() {
       }
       if (removed) notifyRemoteDataChanged();
     } catch (e) {
-      console.warn(`Réconciliation du périmètre ignorée (${store})`, e); // réseau : retentée au prochain pull
+      ErrorLog.warn(`Réconciliation du périmètre ignorée (${store})`, e); // réseau : retentée au prochain pull
     }
   }
 }
@@ -236,7 +236,7 @@ function notifyRemoteDataChanged() {
   clearTimeout(_remoteUiTimer);
   _remoteUiTimer = setTimeout(() => {
     try { window.onRemoteDataChanged(); } catch (e) {
-      console.warn("Rafraîchissement automatique de l'écran échoué", e);
+      ErrorLog.warn("Rafraîchissement automatique de l'écran échoué", e);
     }
   }, 800);
 }
@@ -282,7 +282,7 @@ async function fillBinaryUrl(store, id) {
     const dataUrl = full && !full.deleted_at ? full.data_url : null;
     if (dataUrl) await DB.putRaw(store, { ...row, data_url: dataUrl });
   } catch (e) {
-    console.warn(`Binaire ${store}/${id} non récupéré (retenté plus tard)`, e);
+    ErrorLog.warn(`Binaire ${store}/${id} non récupéré (retenté plus tard)`, e);
   }
 }
 
@@ -380,7 +380,7 @@ async function uploadPendingSignatures() {
           row.client_signature_url = await Supabase.uploadSignature(`sig-client-${row.id}`, blob);
           delete row._client_sig_blob;
           changed = true;
-        } catch (e) { console.warn("Upload différé signature client échoué", e); }
+        } catch (e) { ErrorLog.warn("Upload différé signature client échoué", e); }
       }
       if (row.technicien_signature_url && row.technicien_signature_url.startsWith("data:")) {
         try {
@@ -388,7 +388,7 @@ async function uploadPendingSignatures() {
           row.technicien_signature_url = await Supabase.uploadSignature(`sig-tech-${row.id}`, blob);
           delete row._technicien_sig_blob;
           changed = true;
-        } catch (e) { console.warn("Upload différé signature technicien échoué", e); }
+        } catch (e) { ErrorLog.warn("Upload différé signature technicien échoué", e); }
       }
       if (changed) {
         await DB.putRaw(store, row);
@@ -424,9 +424,9 @@ async function uploadPendingBinaries() {
         const m = String(e?.message || e);
         if (e?.status === 403 || m.includes("403") || m.includes("42501") || m.includes("row level security")) {
           BINARY_UPLOAD_BAIL.add(`${store}/${row.id}`); // refus permanent
-          console.warn(`Upload ${store}/${row.id} refusé (RLS) — abandon pour cette session`, e);
+          ErrorLog.warn(`Upload ${store}/${row.id} refusé (RLS) — abandon pour cette session`, e);
         } else {
-          console.warn(`Upload différé ${store}/${row.id} vers Storage échoué (retenté au prochain cycle)`, e);
+          ErrorLog.warn(`Upload différé ${store}/${row.id} vers Storage échoué (retenté au prochain cycle)`, e);
         }
       }
     }
@@ -465,7 +465,7 @@ async function realignAfterRefus(store, id) {
     // Rafraîchit l'écran courant (la fiche ré-alignée peut y être affichée).
     if (typeof route === "function") await route();
   } catch (e) {
-    console.warn("Réalignement après refus échoué", e);
+    ErrorLog.warn("Réalignement après refus échoué", e);
   }
 }
 
@@ -541,7 +541,7 @@ async function pushChanges() {
       // remise dans `pending`), on prévient l'utilisateur et on ré-aligne la
       // ligne locale sur la version serveur (qui fait foi).
       if (isTransitionRefusee(item.store, err)) {
-        console.warn(`Changement de statut refusé — ${item.store}/${item.id} : ${err?.message || err}`);
+        ErrorLog.warn(`Changement de statut refusé — ${item.store}/${item.id} : ${err?.message || err}`);
         toast("Changement de statut refusé — fiche resynchronisée", true);
         realignAfterRefus(item.store, item.id);
         continue;
@@ -557,7 +557,7 @@ async function pushChanges() {
       // toutes les 5-30 s avec un message générique.
       item.attempts = (item.attempts || 0) + 1;
       const permanent = permanentSyncError(err);
-      console.error(`Push échoué — ${item.store}/${item.id} : ${reason}${permanent ? " (permanent)" : ""}`);
+      ErrorLog.error(`Push échoué — ${item.store}/${item.id} : ${reason}${permanent ? " (permanent)" : ""}`);
       if (permanent || item.attempts >= MAX_SYNC_ATTEMPTS) {
         await registerFailure(item, reason, permanent);
         SyncStore?.removePersisted(item.id);
@@ -619,7 +619,7 @@ async function registerFailure(item, reason, permanent) {
   SyncState.failures.push(entry);
   if (SyncState.failures.length > 100) SyncState.failures = SyncState.failures.slice(-100);
   SyncStore?.saveFailures(SyncState.failures);
-  console.warn(`Sync : élément passé en erreur — ${item.store}/${item.id} (${entry.status}) : ${entry.reason}`);
+  ErrorLog.warn(`Sync : élément passé en erreur — ${item.store}/${item.id} (${entry.status}) : ${entry.reason}`);
   updatePendingUI();
 }
 
@@ -661,7 +661,7 @@ async function registerConflict(item, remote) {
   SyncState.conflicts.push(entry);
   if (SyncState.conflicts.length > 100) SyncState.conflicts = SyncState.conflicts.slice(-100);
   SyncStore?.saveConflicts(SyncState.conflicts);
-  console.warn(`Conflit de synchronisation — ${item.store}/${item.id} (serveur plus récent : ${entry.remote_updated_at || "version inconnue"})`);
+  ErrorLog.warn(`Conflit de synchronisation — ${item.store}/${item.id} (serveur plus récent : ${entry.remote_updated_at || "version inconnue"})`);
   updatePendingUI();
 }
 
@@ -694,7 +694,7 @@ async function resolveConflict(store, id, keepLocal) {
     SyncStore?.saveConflicts(SyncState.conflicts);
     updatePendingUI();
   } catch (e) {
-    console.error("Résolution de conflit échouée", e);
+    ErrorLog.error("Résolution de conflit échouée", e);
     throw e;
   }
 }
@@ -765,11 +765,9 @@ async function runSync() {
       await pullChanges();
       await pushChanges();
     }
-  } catch (e) {
-    // Ne bloque pas la synchronisation : un échec réseau transitoire
-    // sera retenté automatiquement (événement "online" ou prochain enqueue).
-    throw e;
   } finally {
+    // Un échec réseau transitoire est propagé à l'appelant et sera retenté
+    // automatiquement (événement "online" ou prochain enqueue).
     SyncState.running = false;
     updatePendingUI();
   }
@@ -819,7 +817,7 @@ async function initialPushIfNeeded() {
 
 // Écouteurs réseau : synchronisation automatique quand la connexion revient.
 window.addEventListener("online", () => {
-  runSync().catch((e) => console.warn("Sync échec", e));
+  runSync().catch((e) => ErrorLog.warn("Sync échec", e));
 });
 
 // Realtime (optionnel) : l'événement reçu est APPLIQUÉ localement, au lieu de
@@ -843,7 +841,7 @@ function initRealtime() {
             if (payload.eventType === "DELETE" && payload.old && payload.old.id) {
               DB.deleteRaw(store, payload.old.id)
                 .then(() => notifyRemoteDataChanged())
-                .catch((e) => console.warn("Realtime delete échoué", e));
+                .catch((e) => ErrorLog.warn("Realtime delete échoué", e));
             } else if (payload.eventType === "UPDATE" && payload.old && payload.old.id
                        && (!payload.new || !payload.new.id)) {
               // UPDATE sans version visible : la ligne a QUITTÉ le périmètre
@@ -856,15 +854,15 @@ function initRealtime() {
               if (!pending) {
                 DB.deleteRaw(store, id)
                   .then(() => notifyRemoteDataChanged())
-                  .catch((e) => console.warn("Realtime retrait de périmètre échoué", e));
+                  .catch((e) => ErrorLog.warn("Realtime retrait de périmètre échoué", e));
               }
             } else if (payload.new && payload.new.id) {
               applyRemote(store, payload.new)
                 .then((applied) => { if (applied) notifyRemoteDataChanged(); })
-                .catch((e) => console.warn("Realtime apply échoué", e));
+                .catch((e) => ErrorLog.warn("Realtime apply échoué", e));
             }
           } catch (e) {
-            console.warn("Realtime : événement non traité", e);
+            ErrorLog.warn("Realtime : événement non traité", e);
           }
         }
       ).subscribe();
@@ -872,7 +870,7 @@ function initRealtime() {
     });
   } catch (e) {
     SyncState.realtimeStarted = false;
-    console.warn("Realtime indisponible", e);
+    ErrorLog.warn("Realtime indisponible", e);
   }
 }
 
@@ -890,7 +888,7 @@ async function stopRealtime() {
   if (!c) return;
   await Promise.all(
     channels.map((ch) =>
-      c.removeChannel(ch).catch((e) => console.warn("Retrait du canal Realtime échoué", e))
+      c.removeChannel(ch).catch((e) => ErrorLog.warn("Retrait du canal Realtime échoué", e))
     )
   );
 }

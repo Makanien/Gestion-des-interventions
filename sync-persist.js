@@ -15,7 +15,7 @@ const SyncStore = {
       const rows = await DB.listRaw("sync_queue");
       return rows.filter((r) => r && r.store && r.id);
     } catch (e) {
-      console.warn("Chargement file de sync échoué", e);
+      ErrorLog.warn("Chargement file de sync échoué", e);
       return [];
     }
   },
@@ -28,21 +28,21 @@ const SyncStore = {
       }
       for (const item of queue) await DB.putRaw("sync_queue", { ...item });
     } catch (e) {
-      console.warn("Sauvegarde file de sync échouée", e);
+      ErrorLog.warn("Sauvegarde file de sync échouée", e);
     }
   },
   async enqueuePersisted(item) {
     try {
       await DB.putRaw("sync_queue", { ...item });
     } catch (e) {
-      console.warn("enqueuePersisted échoué", e);
+      ErrorLog.warn("enqueuePersisted échoué", e);
     }
   },
   async removePersisted(id) {
     try {
       await DB.deleteRaw("sync_queue", id);
     } catch (e) {
-      console.warn("removePersisted échoué", e);
+      ErrorLog.warn("removePersisted échoué", e);
     }
   },
 
@@ -52,7 +52,7 @@ const SyncStore = {
       const r = await DB.getRaw("sync_cursor", "lastPulledAt");
       return r ? r.value : null;
     } catch (e) {
-      console.warn("Chargement curseur échoué", e);
+      ErrorLog.warn("Chargement curseur échoué", e);
       return null;
     }
   },
@@ -60,7 +60,7 @@ const SyncStore = {
     try {
       await DB.putRaw("sync_cursor", { key: "lastPulledAt", value: iso });
     } catch (e) {
-      console.warn("Sauvegarde curseur échouée", e);
+      ErrorLog.warn("Sauvegarde curseur échouée", e);
     }
   },
   async loadConflicts() {
@@ -68,7 +68,7 @@ const SyncStore = {
       const r = await DB.getRaw("sync_cursor", "conflicts");
       return r && Array.isArray(r.value) ? r.value : [];
     } catch (e) {
-      console.warn("Chargement des conflits échoué", e);
+      ErrorLog.warn("Chargement des conflits échoué", e);
       return [];
     }
   },
@@ -76,7 +76,7 @@ const SyncStore = {
     try {
       await DB.putRaw("sync_cursor", { key: "conflicts", value: list });
     } catch (e) {
-      console.warn("Sauvegarde des conflits échouée", e);
+      ErrorLog.warn("Sauvegarde des conflits échouée", e);
     }
   },
 
@@ -87,7 +87,7 @@ const SyncStore = {
       const r = await DB.getRaw("sync_cursor", "failures");
       return r && Array.isArray(r.value) ? r.value : [];
     } catch (e) {
-      console.warn("Chargement des échecs de sync échoué", e);
+      ErrorLog.warn("Chargement des échecs de sync échoué", e);
       return [];
     }
   },
@@ -95,7 +95,7 @@ const SyncStore = {
     try {
       await DB.putRaw("sync_cursor", { key: "failures", value: list });
     } catch (e) {
-      console.warn("Sauvegarde des échecs de sync échouée", e);
+      ErrorLog.warn("Sauvegarde des échecs de sync échouée", e);
     }
   },
 };

@@ -21,8 +21,8 @@ rm -rf "$DIST"
 mkdir -p "$DIST/assets" "$DIST/icons" "$DIST/vendor"
 
 for f in \
-  index.html style.css manifest.json logo-data.js config.js \
-  app.js supabase.js sync.js sync-persist.js idb.js pdf.js signature.js
+  index.html sw.js style.css manifest.json logo-data.js config.js \
+  app.js utils.js errorlog.js supabase.js sync.js sync-persist.js idb.js pdf.js signature.js
 do
   cp "$ROOT/$f" "$DIST/$f"
 done

@@ -9,11 +9,11 @@ let SB = null; // instance du client Supabase
 function initSupabase() {
   const cfg = window.SUPABASE_CONFIG;
   if (!cfg || !cfg.url || cfg.url.includes("VOTRE-PROJET")) {
-    console.warn("Supabase non configuré (config.js non renseigné).");
+    ErrorLog.warn("Supabase non configuré (config.js non renseigné).");
     return null;
   }
   if (!window.supabase) {
-    console.warn("SDK Supabase introuvable (supabase.js non chargé).");
+    ErrorLog.warn("SDK Supabase introuvable (supabase.js non chargé).");
     return null;
   }
   if (!SB) {
@@ -233,13 +233,6 @@ const Supabase = {
     return { row: null, conflict: true, remote };
   },
 
-  async get(store, id) {
-    const c = initSupabase();
-    const { data, error } = await c.from(store).select("*").eq("id", id).maybeSingle();
-    if (error) throw error;
-    return data || null;
-  },
-
   // SYNC-02 : récupère le binaire stocké dans Storage (bucket privé) et le
   // renvoie en dataURL, pour compléter localement une ligne tirée sans
   // data_url (self-healing hors ligne du pull).
@@ -309,9 +302,9 @@ const Supabase = {
       while (path.startsWith("/")) path = path.slice(1);
       if (!path) return;
       const { error } = await c.storage.from(bucket).remove([path]);
-      if (error) console.warn(`[SEC-11] Objet Storage non supprimé (${bucket})`, path, error);
+      if (error) ErrorLog.warn(`[SEC-11] Objet Storage non supprimé (${bucket})`, path, error);
     } catch (e) {
-      console.warn(`[SEC-11] Objet Storage non supprimé (${bucket})`, pathOrUrl, e);
+      ErrorLog.warn(`[SEC-11] Objet Storage non supprimé (${bucket})`, pathOrUrl, e);
     }
   },
 
@@ -345,7 +338,7 @@ const Supabase = {
     if (!path) return;
     if (!path.endsWith(".png")) path = `${path}.png`;
     const { error } = await c.storage.from("signatures").remove([path]);
-    if (error) console.warn("Suppression ancienne signature échouée", error);
+    if (error) ErrorLog.warn("Suppression ancienne signature échouée", error);
   },
 
   // ---------------- Storage (photos & documents — buckets privés V3) ----------------

@@ -18,12 +18,15 @@
 // données locales + purge à la déconnexion (SEC-04), Équipe & rôles (SEC-07), historique du
 // dossier (IMP-01), page Confidentialité (SEC-13), CSP resserrée (SEC-12).
 // v39 : retour À facturer → À valider (motif obligatoire).
-const CACHE_VERSION = "climatelec-v39";
+// v40 : étape 4 — utils.js (esc/html), errorlog.js (BP-06), intervenants issus de profiles, zoom autorisé (BP-05).
+const CACHE_VERSION = "climatelec-v40";
 const ASSETS = [
   "./",
   "./index.html",
   "./style.css",
   "./config.js",
+  "./utils.js",
+  "./errorlog.js",
   "./idb.js",
   "./supabase.js",
   "./sync.js",
