@@ -32,6 +32,7 @@ BROUILLON ──Soumettre──► À VALIDER ──Valider──► À FACTURER
 | `a_valider` → `brouillon` | Renvoyer en brouillon (+ motif libre) | `responsable`, `secretaire` (`developpeur`) |
 | `a_valider` → `a_facturer` | Valider la fiche | `responsable`, `secretaire` (`developpeur`) |
 | `a_facturer` → `termine` | Marquer comme facturé | `responsable`, `secretaire` (`developpeur`) |
+| `a_facturer` → `a_valider` | Repasser à valider (**motif obligatoire**, `valide_*` remis à `null`) — ajouté après le plan initial | `responsable`, `secretaire` (`developpeur`) |
 | `termine` → `brouillon` | Rouvrir (+ motif libre) | **`responsable` uniquement** (`developpeur` toléré pour les tests) |
 
 **Migration des anciennes valeurs** (à appliquer partout : SQL, IndexedDB, push/pull) :

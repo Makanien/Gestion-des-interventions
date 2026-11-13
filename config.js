@@ -22,6 +22,17 @@ window.SUPABASE_ENVS = {
   },
 };
 
+/* Page « Confidentialité » (SEC-13) : informations propres à l'exploitant, affichées
+   dans l'application (Compte → Confidentialité). Non secrètes. Tant qu'un champ est
+   vide, la page affiche « à renseigner par l'exploitant » — ne rien inventer ici :
+   identité du responsable de traitement, contact pour exercer les droits, durée de
+   conservation à faire valider (documentation/RGPD_CONSERVATION.md). */
+window.PRIVACY_INFO = {
+  exploitant: "",    // ex. raison sociale du responsable de traitement
+  contact: "",       // ex. adresse e-mail dédiée aux demandes de droits
+  conservation: "",  // ex. durée de conservation validée, en toutes lettres
+};
+
 /* Sélection de l'environnement :
    1. Paramètre d'URL ?env=development / ?env=production (test ponctuel) ;
    2. Choix persistant via localStorage : localStorage.setItem("supabaseEnv", "development") ;

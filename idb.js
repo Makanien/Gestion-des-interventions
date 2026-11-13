@@ -757,6 +757,22 @@ const DB = {
     return true;
   },
 
+  // SEC-04 : efface TOUTES les données locales (métier, file de sync, curseur,
+  // brouillon de wizard, marqueurs `_meta`) en une seule transaction. Vide les
+  // stores au lieu de supprimer la base : deleteDatabase serait bloqué tant
+  // qu'une connexion est ouverte.
+  async purgeLocal() {
+    const db = this._db;
+    const names = [...db.objectStoreNames];
+    await new Promise((resolve, reject) => {
+      const t = db.transaction(names, "readwrite");
+      names.forEach((n) => t.objectStore(n).clear());
+      t.oncomplete = () => resolve();
+      t.onerror = () => reject(t.error);
+      t.onabort = () => reject(t.error);
+    });
+  },
+
   // ---------- Auth local (mode hors ligne) ----------
   async setMeta(key, value) {
     await this.putRaw("_meta", { key, value }, key);

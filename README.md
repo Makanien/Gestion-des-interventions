@@ -8,8 +8,10 @@ technicien).
 La **V3** ajoute : prise de contact & planification (appel client, rendez-vous,
 planning par technicien), fiches d'entretien dédiées (Air/Eau-Sol/Eau, Air/Air,
 Chaudière bois + CERFA n°15497 + contrat d'entretien), workflow de dossier
-(validation → facturation avec import PDF du devis/facture), photos, mode
-brouillon, numérotation des documents, base pièces et statistiques.
+(Brouillon → À valider → À facturer → Terminé), photos, mode brouillon,
+numérotation des documents, base pièces et statistiques. Elle est complétée par
+une couche **gouvernance et sécurité** : validation des comptes par le
+responsable, journal d'audit, données locales protégées, outils RGPD.
 
 ## Contenu du dossier
 
@@ -22,13 +24,16 @@ supabase.js         client Supabase (Auth, CRUD, Storage)
 sync.js             synchronisation bidirectionnelle (pull/push)
 signature.js        signature électronique tactile
 pdf.js              génération du PDF de fiche d'intervention
-config.js           URL + clé anon du projet Supabase (à renseigner)
+config.js           URL + clé anon du projet Supabase (à renseigner) + infos de la page Confidentialité
 sw.js               service worker (mise en cache offline)
 manifest.json       configuration PWA (icône, nom, couleurs)
 icons/              icônes de l'application
 vendor/jspdf.umd.min.js   librairie PDF embarquée (offline)
 vendor/supabase-js.min.js SDK Supabase embarqué (offline)
 supabase/           schémas SQL + migrations + guide de déploiement backend
+                    (+ sauvegarde, purge de conservation RGPD)
+scripts/            build-dist.sh : copie de déploiement + en-têtes HTTP (_headers)
+documentation/      sauvegarde, RGPD, procédures de test
 ```
 
 ## ⚠️ Important : une PWA a besoin d'être servie en HTTPS (ou en local)
@@ -69,7 +74,33 @@ plein écran comme une application native, **même sans connexion** après la pr
 1. Renseigner `config.js` avec l'URL du projet et la clé anon/publishable.
 2. Exécuter dans le SQL Editor : `supabase/schema.sql` — fichier maître unique
    (tables V2 + V3, RLS par rôle, Storage, Realtime), idempotent.
-3. Voir `supabase/DEPLOYMENT.md` pour le détail complet (Auth, migration, signatures).
+3. Voir `supabase/DEPLOYMENT.md` pour le détail complet (Auth, migration, signatures,
+   **checklist des réglages du Dashboard** : inscription publique, Redirect URLs, SMTP, MFA).
+4. Renseigner la page « Confidentialité » dans `config.js` (`PRIVACY_INFO` : exploitant,
+   contact, durée de conservation) — les durées sont à valider (`documentation/RGPD_CONSERVATION.md`).
+
+### Comptes et rôles
+
+- Tout **nouveau compte** arrive avec le rôle **`en_attente`** : il n'accède à aucune
+  donnée (écran « Compte en attente »). Le **responsable** lui attribue un rôle dans
+  *Compte & synchro → Équipe & rôles* ; la personne appuie ensuite sur « Réessayer ».
+- Rôles : `responsable` et `secretaire` (vue équipe, validation, facturation),
+  `technicien` (son périmètre). Seul le responsable peut rouvrir un dossier terminé et
+  changer les rôles. Le rôle `developpeur` n'est **pas** attribuable depuis l'application
+  (création et retrait en SQL, voir `supabase/DEPLOYMENT.md`).
+- Depuis le SQL Editor, modifier directement `public.profiles.role` ; la fonction
+  `set_user_role` n'y est pas utilisable (aucune session).
+
+### Déploiement (build)
+
+```bash
+bash scripts/build-dist.sh   # produit dist/ et dist/_headers (CSP, nosniff, HSTS…)
+```
+
+Le script lit l'hôte Supabase de production dans `config.js` et échoue s'il est
+absent de la CSP de `index.html`. Les en-têtes `_headers` sont pris en charge par
+Netlify ; sur un autre hébergeur, les reporter dans sa configuration (sans en-têtes,
+seule la CSP `<meta>` s'applique).
 
 ### Tester en local sur ordinateur (avant déploiement)
 
@@ -84,8 +115,8 @@ aussi en `localhost`, c'est une exception acceptée par les navigateurs).
 
 ## Fonctionnement
 
-- **Accueil = Planning** (V3) : onglets Planning / Tâches / Dossiers. Jérémy ne
-  voit que son planning ; Régis et Delphine voient toute l'équipe.
+- **Accueil** : onglets Tableau de bord / Planning / Tâches / Clients. Jérémy ne
+  voit que son périmètre ; Régis et Delphine voient toute l'équipe.
 - **Bouton `+`** (V3) : point d'entrée unique — nouvel appel, nouvelle
   intervention, entretien Air/Eau-Sol/Eau, Air/Air, Chaudière bois, contrat
   d'entretien annuel.
@@ -101,8 +132,11 @@ aussi en `localhost`, c'est une exception acceptée par les navigateurs).
   désignation est auto-complétée depuis la base pièces.
 - **Signature électronique** (V2) : signature tactile au doigt (client + technicien).
 - **Workflow de dossier** (4 statuts — 13/10/2026) : Brouillon → À valider →
-  À facturer → Terminé ; le devis est importé en PDF, la facture reste dans le
-  logiciel externe.
+  À facturer → Terminé ; le devis peut être joint en PDF, la facture reste dans le
+  logiciel externe. Renvoi en brouillon (motif libre), réouverture d'un dossier terminé
+  (responsable seul) et retour « À facturer → À valider » (motif obligatoire). Les
+  transitions sont imposées par le serveur et **journalisées** : la fiche affiche son
+  « Historique du dossier » (en ligne).
 - **Numérotation** (V3) : référence unique `FIC-AAAA-NNN` / `ENT-AAAA-NNN`.
 - **Mode brouillon** (V3) : enregistre une fiche non terminée pour la reprendre.
 - **Duplication** (V3) : bouton « Dupliquer » sur le détail (utile pour les
@@ -115,10 +149,29 @@ aussi en `localhost`, c'est une exception acceptée par les navigateurs).
 - **Sauvegarde manuelle** : icône ⬇ (ou écran « Compte & synchro »), exporte
   toutes les données en un fichier `.json`.
 
+## Données sur l'appareil et confidentialité
+
+- Les données sont copiées **en clair** dans IndexedDB pour le hors-ligne :
+  **activez le verrouillage de l'écran** du téléphone.
+- Les données locales appartiennent à **un seul compte** : un autre compte qui se
+  connecte sur l'appareil n'en hérite pas (purge si rien n'est en attente, sinon
+  connexion refusée jusqu'à la synchronisation).
+- **Déconnexion** : option « Effacer les données de cet appareil » (*Compte & synchro*),
+  activée par défaut pour les managers. L'application tente d'abord de synchroniser et
+  prévient si des éléments ne sont pas encore envoyés (ils seraient perdus).
+- **Rôle inconnu = aucun accès** : si le profil ne peut pas être chargé, l'application
+  n'affiche pas les données ; hors ligne, elle utilise le dernier rôle connu (30 jours).
+- **RGPD** : page « Confidentialité » (Compte) ; outils du responsable pour purger les
+  données supprimées depuis longtemps, exporter ou anonymiser un client
+  (`documentation/RGPD_CONSERVATION.md`). Aucune durée de conservation n'est fixée par
+  défaut : décision de l'exploitant.
+
 ## Mise à jour de l'application
 
 Après toute modification des fichiers, incrémenter `CACHE_VERSION` dans `sw.js`
 (ex. `climatelec-v6`) pour que les téléphones déjà installés récupèrent la nouvelle
 version au prochain lancement avec réseau disponible. Un mécanisme `updatefound`
-dans `app.js` recharge automatiquement la page dès qu'une nouvelle version du
-service worker est détectée et installée.
+dans `app.js` recharge la page dès qu'une nouvelle version du service worker est
+installée, **sauf pendant la saisie d'un formulaire** : un bandeau « Actualiser » est
+alors proposé. Si une ancienne version persiste, recharger deux fois ou vider les
+données du site.

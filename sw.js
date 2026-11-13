@@ -14,7 +14,11 @@
 // v35 : SEC-03 — abandon de la RPC link_appel (lien appel → intervention via la synchronisation normale).
 // v36 : signatures — upload sans upsert (la RLS du bucket interdit INSERT … ON CONFLICT DO UPDATE).
 // v37 : fusion étape 2 + SYNC-01 (base du push = version vue à l'ouverture du formulaire), bandeau de conflit, présence d'édition (PRES-01), garde « plus un brouillon ».
-const CACHE_VERSION = "climatelec-v37";
+// v38 : étape 3 — rôle `en_attente` + repli moindre privilège (SEC-05/SEC-09), propriétaire des
+// données locales + purge à la déconnexion (SEC-04), Équipe & rôles (SEC-07), historique du
+// dossier (IMP-01), page Confidentialité (SEC-13), CSP resserrée (SEC-12).
+// v39 : retour À facturer → À valider (motif obligatoire).
+const CACHE_VERSION = "climatelec-v39";
 const ASSETS = [
   "./",
   "./index.html",

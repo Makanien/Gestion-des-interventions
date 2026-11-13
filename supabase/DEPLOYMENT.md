@@ -135,13 +135,52 @@ Créez les 4 comptes via **Authentication → Users → Add user** :
 > backfill doit répartir l'historique entre Régis et Jérémy plutôt que « tout
 > au responsable », ajustez la requête dans `seed.local.sql` avant exécution.
 
-### Alternative : attribuer un rôle à un compte déjà créé
+### Rôles et validation des comptes (SEC-05 / SEC-07)
+
+Tout nouveau compte arrive avec le rôle **`en_attente`** : il n'accède à aucune
+donnée métier (voir `is_member()` dans `schema.sql`). Le **responsable** le valide
+depuis l'application : *Compte & synchro → Équipe & rôles*, choisir le rôle.
+Cet écran appelle la RPC `set_user_role`, qui est réservée au responsable, refuse
+le rôle `developpeur`, protège le dernier responsable et journalise dans `role_events`.
+
+Depuis le **SQL Editor** (aucune session : `auth.uid()` est nul), `set_user_role`
+échoue — c'est normal ; on modifie directement la table, ce que le trigger
+`prevent_role_escalation` autorise dans ce contexte :
 
 ```sql
--- En SQL editor (sans session) ou via l'API en tant que manager :
-select public.set_user_role('<uuid-du-compte>', 'secretaire');
--- Ex. pour Alexandre : select public.set_user_role('<uuid>', 'developpeur');
+update public.profiles set role = 'responsable' where id = '<uuid-du-compte>';
 ```
+
+### Comptes sensibles : le rôle `developpeur`
+
+Il n'est pas attribuable depuis l'application. À créer **à la demande** depuis le
+SQL Editor, puis à retirer. À exécuter après le déploiement en **production** :
+
+```sql
+select id, full_name from public.profiles where role = 'developpeur';  -- repérer
+update public.profiles set role = 'technicien' where role = 'developpeur'; -- retirer
+```
+
+### Checklist Dashboard Supabase (SEC-10) — à faire à la main
+
+Ces réglages ne sont pas dans le code ; à cocher pour **chaque** projet (dev, prod) :
+
+- [ ] *Authentication → Sign In / Providers* : **inscription publique désactivée** (le rôle `en_attente` n'est qu'une seconde barrière).
+- [ ] *Authentication → URL Configuration* : **Site URL** = URL de production ; **Redirect URLs** = liste exacte des origines autorisées (pas de joker `*`, pas de `localhost` en production).
+- [ ] *Authentication → SMTP* : SMTP **personnalisé** (l'expéditeur par défaut est limité et non fiable pour des liens de connexion).
+- [ ] *Authentication → Providers → Email* : longueur de mot de passe minimale, protection contre les mots de passe compromis (selon l'offre).
+- [ ] *Authentication → MFA* : activer TOTP et **le faire enrôler aux comptes managers** (responsable, secrétaire, développeur). **Non implémenté dans l'application** : l'écran d'enrôlement/vérification TOTP et l'exigence `aal2` côté RLS restent à faire.
+- [ ] *Authentication → Sessions* : durée de session et inactivité maximale pour les managers (selon l'offre).
+- [ ] Après le déploiement du schéma : vérifier qu'aucun compte inattendu n'a un rôle actif (`select id, role from public.profiles;`).
+
+### En-têtes HTTP (SEC-12)
+
+`scripts/build-dist.sh` génère `dist/_headers` (Netlify) : CSP limitée au projet
+Supabase de production lu dans `config.js`, `frame-ancestors 'none'`,
+`X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`, HSTS. Le script
+échoue si l'hôte de `config.js` n'apparaît pas dans la CSP de `index.html`.
+Autre hébergeur : reporter ces en-têtes dans sa configuration. Sans en-têtes
+(ex. GitHub Pages), seule la CSP `<meta>` s'applique (pas de `frame-ancestors`).
 
 ## 5. Vérifications
 

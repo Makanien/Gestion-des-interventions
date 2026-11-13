@@ -76,6 +76,7 @@ function statutDossierDot(s) {
 //   a_valider  → a_facturer  Valider la fiche            (manager)
 //   a_valider  → brouillon   Renvoyer en brouillon       (manager, motif libre)
 //   a_facturer → termine     Marquer comme facturé       (manager)
+//   a_facturer → a_valider   Repasser à valider          (manager, motif OBLIGATOIRE)
 //   termine    → brouillon   Rouvrir                     (responsable seul, motif libre)
 function workflowActions(itv) {
   const statut = DB.normalizeStatut(itv?.statut_dossier);
@@ -90,7 +91,10 @@ function workflowActions(itv) {
       ];
     case "a_facturer":
       if (!canValidate()) return [];
-      return [{ to: "termine", label: "Marquer comme facturé", kind: "accent" }];
+      return [
+        { to: "termine", label: "Marquer comme facturé", kind: "accent" },
+        { to: "a_valider", label: "Repasser à valider", needsMotif: true },
+      ];
     case "termine":
       if (!canReopen()) return [];
       return [{ to: "brouillon", label: "Rouvrir", needsMotif: true }];
@@ -482,17 +486,65 @@ function toast(msg, isError) {
   toast._t = setTimeout(() => el.classList.remove("show"), 2600);
 }
 
-// SEC-09 : moindre privilège. Un profil non chargé (échec réseau, profil absent)
-// ne doit JAMAIS donner l'interface manager. Rôle inconnu = technicien.
-// Hors connexion : pas de manager (les données restent protégées par la RLS).
-function currentRole() { return state.auth?.profile?.role || "technicien"; }
+// SEC-09 : moindre privilège. Ordre de résolution du rôle (connecté) :
+//   1. profil chargé depuis le serveur ;
+//   2. dernier rôle CONNU de ce compte sur cet appareil (cache `_meta`, validité
+//      30 jours) — c'est ce qui laisse un manager travailler hors ligne ;
+//   3. sinon « inconnu » : AUCUN accès (écran « Profil non chargé »), jamais un
+//      rôle par défaut. Le serveur reste l'autorité (RLS) : le cache ne donne
+//      que l'affichage, pas les droits.
+// Non connecté (mode local V1) : usage local inchangé, jamais manager.
+const ROLES_ACTIFS = ["responsable", "technicien", "secretaire", "developpeur"];
+const ROLE_CACHE_MAX_AGE_MS = 30 * 24 * 3600 * 1000;
+function currentRole() {
+  if (!state.auth) return "technicien";
+  return state.auth.profile?.role || state.auth.cachedRole || "inconnu";
+}
 function isManager() { return !!state.auth && ["responsable", "secretaire", "developpeur"].includes(currentRole()); }
+// SEC-05 : membre actif (rôle validé par le responsable). Hors connexion
+// (mode local) l'usage local reste possible ; connecté, `en_attente` et
+// `inconnu` n'ont accès à rien.
+function isMember() { return !state.auth || ROLES_ACTIFS.includes(currentRole()); }
+
+async function cacheRole(userId, role) {
+  try { await DB.setMeta("ce_role_cache", { uid: userId, role, at: Date.now() }); } catch (e) { /* cache indisponible : pas bloquant */ }
+}
+async function loadCachedRole(userId) {
+  try {
+    const c = await DB.getMeta("ce_role_cache");
+    if (c && c.uid === userId && ROLES_ACTIFS.concat("en_attente").includes(c.role) && Date.now() - c.at < ROLE_CACHE_MAX_AGE_MS) return c.role;
+  } catch (e) { /* ignoré */ }
+  return null;
+}
+// Charge le profil du compte connecté. Distingue « profil absent côté serveur »
+// (= en_attente : le serveur applique le même repli) d'un ÉCHEC de lecture
+// (réseau) pour lequel on retombe sur le dernier rôle connu.
+async function loadAuthProfile(user) {
+  let profile = null, failed = false;
+  try { profile = await Supabase.getProfile(user.id); } catch (e) { failed = true; }
+  if (!failed && !profile) profile = { id: user.id, full_name: "", role: "en_attente" };
+  if (profile?.role) await cacheRole(user.id, profile.role);
+  const cachedRole = profile?.role ? null : await loadCachedRole(user.id);
+  return { profile, cachedRole };
+}
 // Workflow 4 statuts : validation et facturation = managers
 // (responsable / secrétaire / developpeur).
 function canValidate() { return isManager(); }
 // Rouverture d'un dossier Terminé : responsable uniquement
 // (developpeur toléré pour les tests). SEC-09 : hors session, aucun droit.
 function canReopen() { return !!state.auth && ["responsable", "developpeur"].includes(currentRole()); }
+
+// COH-06 : miroir CLIENT des transitions autorisées (confort d'affichage et
+// message clair). L'AUTORITÉ est le trigger serveur `enforce_statut_dossier_workflow`
+// (refus 42501 en synchronisation) — ce contrôle ne protège rien à lui seul.
+function canTransition(from, to) {
+  if (from === "brouillon" && to === "a_valider") return isMember();
+  if (from === "a_valider" && (to === "a_facturer" || to === "brouillon")) return canValidate();
+  if (from === "a_facturer" && to === "a_valider") return canValidate();
+  if (from === "a_facturer" && to === "termine") return canValidate();
+  if (from === "termine" && to === "brouillon") return canReopen();
+  return false;
+}
 
 // Résout le nom d'intervenant (texte) vers l'uuid du profil, pour que la
 // RLS serveur (technicien_id = auth.uid()) laisse le bon technicien
@@ -649,6 +701,15 @@ async function route() {
   // PRES-01 : on ne signale « je modifie cette fiche » que tant que le wizard est ouvert.
   if (!["new", "entretien", "edit"].includes(parts[0])) stopPresence();
 
+  // SEC-05 / SEC-09 : compte connecté sans rôle actif (en attente de validation,
+  // ou profil non chargé) — seuls Compte, Connexion et Confidentialité restent
+  // accessibles ; aucune donnée métier n'est affichée.
+  if (!isMember() && !["account", "login", "privacy"].includes(parts[0])) {
+    renderPending();
+    window.scrollTo(0, 0);
+    return;
+  }
+
   if (parts[0] === "new") {
     if (!state.draft) { state.draft = emptyDraft("intervention"); state.draftType = "intervention"; }
     state.step = parts[1] ? parseInt(parts[1], 10) : 1;
@@ -693,6 +754,8 @@ async function route() {
     await renderStats();
   } else if (parts[0] === "account") {
     renderAccount();
+  } else if (parts[0] === "privacy") {
+    renderPrivacy();
   } else if (parts[0] === "login") {
     renderAuth();
   } else {
@@ -776,6 +839,9 @@ function updateOfflinePill() {
 // HOME (Tableau de bord / Planning / Tâches / Clients)
 // ---------------------------------------------------------
 async function renderHome() {
+  // SEC-05 : garde de dernier recours — renderHome est appelé directement depuis
+  // plusieurs endroits (onglets, après connexion…) sans passer par route().
+  if (!isMember()) { renderPending(); return; }
   const [interventions, rendezvous] = await Promise.all([DB.listInterventions(), DB.listRendezvous()]);
   // Sous-titre Tableau de bord (maquette : « Accueil · N dossiers en cours ») —
   // hors dossiers clôturés, dans le périmètre du rôle connecté.
@@ -2725,7 +2791,7 @@ async function renderDetail(id) {
           ${itv.prochaine_intervention_prevue ? `<span class="tag">Prochaine intervention prévue</span>` : ""}
           ${itv.page_ok ? `<span class="tag">Page ok</span>` : ""}
         </div>
-        ${itv.motif_retour ? `<div class="banner-motif" style="margin-top:10px;background:var(--ce-pending-bg);color:var(--ce-pending);border-radius:var(--ce-radius-sm);padding:10px 12px;font-size:13px;">Renvoyé : ${esc(itv.motif_retour)}</div>` : ""}
+        ${itv.motif_retour && ["brouillon", "a_valider"].includes(DB.normalizeStatut(itv.statut_dossier)) ? `<div class="banner-motif" style="margin-top:10px;background:var(--ce-pending-bg);color:var(--ce-pending);border-radius:var(--ce-radius-sm);padding:10px 12px;font-size:13px;">${DB.normalizeStatut(itv.statut_dossier) === "a_valider" ? "Repassé à valider" : "Renvoyé"} : ${esc(itv.motif_retour)}</div>` : ""}
       </div>
 
       <div class="section-label">Client</div>
@@ -2747,6 +2813,7 @@ async function renderDetail(id) {
           itv.facture_le ? `Facturée le ${fmtStampFull(itv.facture_le)}${itv.facture_par && resolveTechFullName(itv.facture_par) ? ` par ${esc(resolveTechFullName(itv.facture_par))}` : ""}` : "",
         ].filter(Boolean).join(" · ")}</div></div>` : ""}
       </div>
+      <div id="dossier-history"></div>
 
       ${itv.equipements?.length ? `
       <div class="section-label">Équipement</div>
@@ -2817,6 +2884,29 @@ async function renderDetail(id) {
   });
 
   $("#doc-devis-input").addEventListener("change", () => importDocument(itv.id, "devis", $("#doc-devis-input")));
+  loadDossierHistory(itv.id);
+}
+
+// IMP-01 : historique des changements de statut (journal serveur, lecture
+// seule). Consultatif et en ligne seulement : jamais bloquant pour l'écran.
+const STATUT_LABELS = { brouillon: "Brouillon", a_valider: "À valider", a_facturer: "À facturer", termine: "Terminé" };
+async function loadDossierHistory(id) {
+  const box = $("#dossier-history");
+  if (!box || !navigator.onLine || !state.auth || !isMember() || !Supabase.configured()) return;
+  let events;
+  try { events = await Supabase.listDossierEvents(id); } catch (e) { return; }
+  const box2 = $("#dossier-history"); // l'écran a pu changer pendant l'attente
+  if (!box2 || !events.length) return;
+  const when = (iso) => new Date(iso).toLocaleString("fr-FR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+  box2.innerHTML = `
+    <div class="section-label">Historique du dossier</div>
+    <div class="card">
+      ${events.map((ev) => {
+        const who = resolveTechFullName(ev.actor_id) || ROLE_LABELS[ev.actor_role] || "Système";
+        const step = ev.from_statut ? `${STATUT_LABELS[ev.from_statut] || ev.from_statut} → ${STATUT_LABELS[ev.to_statut] || ev.to_statut}` : `Créé (${STATUT_LABELS[ev.to_statut] || ev.to_statut})`;
+        return `<div class="kv"><div class="k">${esc(when(ev.created_at))}</div><div class="v">${esc(step)} · ${esc(who)}${ev.motif ? `<br><span style="font-size:12px;opacity:.8;">${esc(ev.motif)}</span>` : ""}</div></div>`;
+      }).join("")}
+    </div>`;
 }
 
 function documentsHTML(itv) {
@@ -2846,14 +2936,14 @@ function workflowButtonsHTML(itv) {
 // libre et facultative, style réutilisé de la modale de signature
 // (.sig-overlay / .sig-modal). Résout null (Annuler) ou le texte nettoyé
 // (trim, lignes vides) via le nettoyage existant `cleanText`.
-function askMotif(title = "Motif (facultatif)") {
+function askMotif(title = "Motif (facultatif)", required = false) {
   return new Promise((resolve) => {
     const ov = document.createElement("div");
     ov.className = "sig-overlay";
     ov.innerHTML = `
       <div class="sig-modal">
         <div class="sig-head"><h3>${esc(title)}</h3><button class="icon-btn motif-close">${ICONS.close}</button></div>
-        <textarea id="motif-textarea" rows="4" placeholder="Précisez le motif si besoin (facultatif)" style="width:100%;box-sizing:border-box;padding:10px;border:1px solid var(--ce-border);border-radius:var(--ce-radius-sm);font:inherit;resize:vertical;"></textarea>
+        <textarea id="motif-textarea" rows="4" placeholder="${required ? "Motif obligatoire" : "Précisez le motif si besoin (facultatif)"}" style="width:100%;box-sizing:border-box;padding:10px;border:1px solid var(--ce-border);border-radius:var(--ce-radius-sm);font:inherit;resize:vertical;"></textarea>
         <div class="sig-actions" style="margin-top:12px;">
           <button class="btn btn-ghost motif-cancel">Annuler</button>
           <button class="btn btn-primary motif-confirm">Confirmer</button>
@@ -2865,7 +2955,11 @@ function askMotif(title = "Motif (facultatif)") {
     const close = (val) => { ov.remove(); resolve(val); };
     ov.querySelector(".motif-close").addEventListener("click", () => close(null));
     ov.querySelector(".motif-cancel").addEventListener("click", () => close(null));
-    ov.querySelector(".motif-confirm").addEventListener("click", () => close(cleanText(ta.value || "")));
+    ov.querySelector(".motif-confirm").addEventListener("click", () => {
+      const v = cleanText(ta.value || "");
+      if (required && !v) { ta.style.borderColor = "var(--ce-danger, #c0392b)"; ta.focus(); return; }
+      close(v);
+    });
     ov.addEventListener("click", (e) => { if (e.target === ov) close(null); });
   });
 }
@@ -3142,9 +3236,19 @@ document.addEventListener("click", async (e) => {
   else if (action === "wf") {
     const id = nav.dataset.id;
     const to = nav.dataset.to;
+    // COH-06 : contrôle de rôle et de transition avant toute écriture locale
+    // (le serveur refuserait de toute façon la synchronisation : mieux vaut
+    // le dire tout de suite que laisser un élément en erreur dans la file).
+    const cur = await DB.getIntervention(id);
+    if (!canTransition(DB.normalizeStatut(cur?.statut_dossier), to)) {
+      toast("Action non autorisée pour votre rôle ou pour l'état actuel du dossier", true);
+      return;
+    }
+    const from = DB.normalizeStatut(cur?.statut_dossier);
     // « Soumettre pour validation » (§3.2.14) : impossible tant que la fiche
-    // n'est pas signée (technicien + client si présent).
-    if (to === "a_valider") {
+    // n'est pas signée (technicien + client si présent). Ne s'applique pas à la
+    // dévalidation (a_facturer → a_valider) : la fiche est déjà signée.
+    if (to === "a_valider" && from === "brouillon") {
       const fiche = await DB.getIntervention(id);
       if (!fiche || !fiche.technicien_signature_url || (fiche.client_present !== false && !fiche.client_signature_url)) {
         toast("La fiche doit être signée (technicien + client si présent) avant d'être soumise pour validation", true);
@@ -3155,7 +3259,13 @@ document.addEventListener("click", async (e) => {
     // (valide_par/valide_le, facture_par/facture_le, motif_retour).
     const now = new Date().toISOString();
     let extra = {};
-    if (to === "a_valider") {
+    if (to === "a_valider" && from === "a_facturer") {
+      // Dévalidation : motif OBLIGATOIRE (exigé aussi par le serveur) ; la trace
+      // de validation est effacée, le dossier devra être re-validé.
+      const motif = await askMotif("Motif du retour à valider (obligatoire)", true);
+      if (!motif) return; // Annulé — aucun changement
+      extra = { motif_retour: motif, valide_par: null, valide_le: null };
+    } else if (to === "a_valider") {
       extra = { motif_retour: null };
     } else if (to === "a_facturer") {
       extra = { valide_par: state.auth?.user?.id ?? null, valide_le: now };
@@ -3191,6 +3301,8 @@ document.addEventListener("click", async (e) => {
   else if (action === "account") go("#/account");
   else if (action === "login") go("#/login");
   else if (action === "logout") signOutUser();
+  else if (action === "reload-profile") reloadProfile();
+  else if (action === "privacy") go("#/privacy");
   else if (action === "stats") go("#/stats");
   else if (action === "sync-now") runSyncNow();
   else if (action === "force-resend") forceResendAll();
@@ -3337,15 +3449,160 @@ function renderAuth() {
   });
 }
 
+// ---------------------------------------------------------
+// SEC-04 — Données locales : propriétaire, purge, déconnexion
+// Les données (clients, fiches, photos, factures en base64) sont stockées en
+// clair dans IndexedDB. Trois protections :
+//  1. un marqueur de PROPRIÉTAIRE (`ce_local_owner`) : un autre compte qui se
+//     connecte sur l'appareil n'hérite jamais des données du précédent ;
+//  2. une PURGE à la déconnexion (activée par défaut pour les managers) ;
+//  3. un rappel d'activer le verrouillage de l'appareil (Compte & synchro).
+// Non couvert : un verrouillage applicatif (PIN / biométrie) — un code propre
+// à l'application ne protégerait pas des données lisibles dans IndexedDB.
+// ---------------------------------------------------------
+const LOCAL_KEYS_TO_WIPE = ["ce_appel_draft", "ce_technicien_nom"];
+
+// Éléments locaux pas encore (ou pas correctement) synchronisés : file d'envoi,
+// conflits, éléments en erreur. Leur perte serait définitive.
+function localUnsyncedCount() {
+  const st = window.Sync?.state;
+  if (!st) return 0;
+  return (st.queue?.length || 0) + (st.conflicts?.length || 0) + (st.failures?.length || 0);
+}
+
+function purgeOnLogoutEnabled() {
+  let v = null;
+  try { v = localStorage.getItem("ce_purge_on_logout"); } catch (e) { /* ignoré */ }
+  if (v === "1") return true;
+  if (v === "0") return false;
+  return isManager(); // défaut : activé pour les managers, désactivé pour les techniciens
+}
+
+async function purgeLocalData() {
+  if (draftPersistTimer) { clearTimeout(draftPersistTimer); draftPersistTimer = null; }
+  state.draft = null;
+  state.wizardDraftPending = false;
+  state.appelDraft = null;
+  state.clientsCache = [];
+  await DB.purgeLocal();
+  LOCAL_KEYS_TO_WIPE.forEach((k) => { try { localStorage.removeItem(k); } catch (e) { /* ignoré */ } });
+}
+
+// Vérifie que la base locale appartient bien au compte qui se connecte.
+// Renvoie false si la connexion a été refusée ou si la page se recharge.
+async function enforceLocalOwner(user) {
+  const owner = await DB.getMeta("ce_local_owner");
+  if (!owner) {
+    // Première connexion (ou installation antérieure à SEC-04) : le compte
+    // connecté adopte les données présentes.
+    await DB.setMeta("ce_local_owner", user.id);
+    return true;
+  }
+  if (owner === user.id) return true;
+
+  if (localUnsyncedCount() > 0) {
+    // Des modifications d'un AUTRE compte attendent d'être envoyées : on ne les
+    // efface pas, on ne les montre pas non plus.
+    try { await Supabase.signOut(); } catch (e) { console.warn(e); }
+    Sync.stopRealtime();
+    state.auth = null;
+    alert("Connexion refusée : cet appareil contient des modifications non synchronisées d'un autre compte.\n\nReconnectez-vous d'abord avec ce compte pour les envoyer au serveur, puis déconnectez-vous.");
+    go("#/login");
+    return false;
+  }
+
+  // Rien à perdre : on repart d'une base vide pour ce compte (tout est sur le serveur).
+  try {
+    await purgeLocalData();
+    await DB.setMeta("ce_local_owner", user.id);
+  } catch (e) {
+    console.warn("Purge locale impossible", e);
+    try { await Supabase.signOut(); } catch (e2) { /* ignoré */ }
+    state.auth = null;
+    alert("Impossible de préparer cet appareil pour un autre compte (effacement des données locales échoué). Connexion refusée.");
+    go("#/login");
+    return false;
+  }
+  window.location.reload(); // repart d'un état mémoire propre (file de sync, curseur)
+  return false;
+}
+
 async function signOutUser() {
-  if (!confirm("Se déconnecter ? Vos données déjà enregistrées restent sur cet appareil.")) return;
+  const purge = purgeOnLogoutEnabled();
+  // Avant d'effacer : tenter d'envoyer ce qui attend (si le réseau le permet).
+  if (purge && navigator.onLine && Supabase.configured() && localUnsyncedCount() > 0) {
+    toast("Synchronisation avant déconnexion…");
+    try { await Sync.runSync(); } catch (e) { console.warn(e); }
+  }
+  const unsynced = localUnsyncedCount();
+  let msg = purge
+    ? "Se déconnecter ? Les données enregistrées sur cet appareil seront EFFACÉES (elles restent sur le serveur et reviendront à la prochaine connexion)."
+    : "Se déconnecter ? Vos données déjà enregistrées restent sur cet appareil.";
+  if (unsynced > 0) {
+    msg += purge
+      ? `\n\n⚠ ${unsynced} élément(s) ne sont PAS synchronisés avec le serveur et seront DÉFINITIVEMENT PERDUS. Annulez, puis ouvrez « Compte & synchro » pour les envoyer.`
+      : `\n\nNote : ${unsynced} élément(s) restent à synchroniser — reconnectez-vous avec ce compte pour les envoyer.`;
+  }
+  if (!confirm(msg)) return;
+
   try { if (Supabase.configured()) await Supabase.signOut(); } catch (e) { console.warn(e); }
   // SYNC-04 : ferme les canaux Realtime et permet un ré-abonnement propre
   // à la reconnexion (sinon les événements du compte précédent continuent
   // d'être reçus, et un second abonnement se superpose au premier).
   Sync.stopRealtime();
   state.auth = null;
+
+  if (purge) {
+    try {
+      await purgeLocalData();
+    } catch (e) {
+      console.warn("Purge locale impossible", e);
+      alert("L'effacement des données de cet appareil a échoué. Vos données y sont toujours : videz les données du site depuis les réglages du navigateur si l'appareil est perdu ou partagé.");
+      go("#/login");
+      return;
+    }
+    window.location.hash = "#/login";
+    window.location.reload(); // état mémoire propre (file de sync, curseur, caches)
+    return;
+  }
   go("#/login");
+}
+
+// SEC-05 / SEC-09 : écran des comptes sans rôle actif.
+function renderPending() {
+  const role = currentRole();
+  const unknown = role !== "en_attente";
+  setApp(`
+    ${topbar({ title: unknown ? "Profil non chargé" : "Compte en attente" })}
+    <main>
+      <div class="empty-state" style="padding-top:48px;">
+        <div class="glyph">${ICONS.user}</div>
+        <h3>${unknown ? "Votre profil n'a pas pu être chargé" : "Votre compte est en attente de validation"}</h3>
+        <p class="block-text">${unknown
+          ? "Impossible de vérifier votre rôle (pas de réseau, ou serveur indisponible). Par sécurité, aucune donnée n'est affichée tant que le profil n'est pas chargé."
+          : "Le responsable doit valider votre compte et vous attribuer un rôle avant que vous puissiez accéder aux fiches. Renseignez votre nom dans « Compte », puis prévenez le responsable."}</p>
+        <button class="btn btn-primary" data-nav="reload-profile" style="margin-top:14px;">${ICONS.sync} Réessayer</button>
+        <button class="btn btn-ghost" data-nav="account" style="margin-top:12px;">Compte</button>
+      </div>
+    </main>
+    <div class="toast" id="toast"></div>
+  `);
+}
+
+async function reloadProfile() {
+  if (!state.auth?.user) return;
+  const { profile, cachedRole } = await loadAuthProfile(state.auth.user);
+  state.auth.profile = profile;
+  state.auth.cachedRole = cachedRole;
+  if (!profile) toast("Profil inaccessible — vérifiez la connexion", true);
+  if (isMember()) {
+    const team = await Supabase.listProfiles().catch(() => null);
+    state.team = team || state.team;
+    Sync.initRealtime();
+    await Sync.initialPushIfNeeded().catch(() => {});
+    Sync.runSync().catch(() => scheduleSyncRetry());
+  }
+  await route();
 }
 
 // ---------------------------------------------------------
@@ -3378,14 +3635,18 @@ async function renderAccount() {
       <div class="section-label">Mon compte</div>
       <div class="card">
         <div class="kv"><div class="k">Nom</div><div class="v">${esc(profile?.full_name || "-")}</div></div>
-        <div class="kv"><div class="k">Rôle</div><div class="v">${esc(currentRole())}</div></div>
+        <div class="kv"><div class="k">Rôle</div><div class="v">${esc(ROLE_LABELS[currentRole()] || currentRole())}</div></div>
         <div class="kv"><div class="k">E-mail</div><div class="v">${esc(user.email || "-")}</div></div>
       </div>
       <div class="field" style="margin-top:14px;">
         <label>Nom affiché</label>
         <input id="acct-name" type="text" value="${esc(profile?.full_name || "")}" placeholder="Votre nom de technicien" />
         <button class="btn btn-primary" id="btn-save-name" style="margin-top:10px;">Enregistrer le nom</button>
-      </div>` : `
+      </div>
+      ${currentRole() === "responsable" ? `
+      <div class="section-label">Équipe &amp; rôles</div>
+      <div class="card" id="team-roles"><div class="block-text">Chargement…</div></div>
+      <div class="block-text" style="font-size:12px;margin-top:6px;">Un nouveau compte arrive « En attente de validation » et n'accède à aucune donnée : attribuez-lui un rôle. Le rôle Développeur ne s'attribue pas depuis l'application.</div>` : ""}` : `
       <div class="section-label">Compte</div>
       <div class="card"><div class="block-text">Non connecté. Connectez-vous pour synchroniser vos fiches entre appareils.</div></div>
       <button class="btn btn-accent" data-nav="login" style="margin-top:12px;">${ICONS.user} Se connecter</button>`}
@@ -3424,6 +3685,14 @@ async function renderAccount() {
       <button class="btn btn-ghost" data-nav="import" style="margin-top:12px;">${ICONS.upload} Importer une sauvegarde</button>
       <input type="file" id="import-file" accept="application/json" style="display:none;" />
 
+      ${state.auth ? `
+      <label style="display:flex;gap:10px;align-items:flex-start;margin-top:16px;font-size:14px;">
+        <input type="checkbox" id="purge-toggle" ${purgeOnLogoutEnabled() ? "checked" : ""} style="margin-top:3px;" />
+        <span>Effacer les données de cet appareil à la déconnexion<br><span style="font-size:12px;opacity:.75;">Recommandé sur un téléphone partagé ou susceptible d'être perdu. Par défaut : activé pour les managers.</span></span>
+      </label>` : ""}
+      <div class="block-text" style="font-size:12px;margin-top:12px;">🔒 Les données de l'application sont enregistrées sur cet appareil sans chiffrement propre à l'application : <strong>activez le verrouillage de l'écran</strong> (code, empreinte ou visage).</div>
+      <button class="btn btn-ghost" data-nav="privacy" style="margin-top:12px;">Confidentialité et données personnelles</button>
+
       ${state.auth ? `<button class="btn btn-ghost" data-nav="logout" style="margin-top:12px;color:var(--ce-danger);">Se déconnecter</button>` : ""}
     </main>
     <div class="toast" id="toast"></div>
@@ -3435,6 +3704,81 @@ async function renderAccount() {
     catch (err) { console.error(err); toast("Erreur d'enregistrement", true); }
   });
   $("#import-file")?.addEventListener("change", () => importData());
+  $("#purge-toggle")?.addEventListener("change", (e) => {
+    try { localStorage.setItem("ce_purge_on_logout", e.target.checked ? "1" : "0"); } catch (err) { /* ignoré */ }
+    toast(e.target.checked ? "Les données seront effacées à la déconnexion" : "Les données resteront sur l'appareil après déconnexion");
+  });
+  if (currentRole() === "responsable") renderTeamRoles();
+}
+
+// ---------------------------------------------------------
+// Équipe & rôles (SEC-05 / SEC-07 / IMP-12) — responsable uniquement.
+// L'autorité est la RPC serveur `set_user_role` (réservée au responsable,
+// refuse `developpeur`, protège le dernier responsable, journalise).
+// ---------------------------------------------------------
+const ROLE_LABELS = {
+  responsable: "Responsable", secretaire: "Secrétaire", technicien: "Technicien",
+  developpeur: "Développeur", en_attente: "En attente de validation", inconnu: "Non chargé",
+};
+async function renderTeamRoles() {
+  const box = $("#team-roles");
+  if (!box) return;
+  let team;
+  try { team = await Supabase.listProfiles(); }
+  catch (e) { box.innerHTML = `<div class="block-text">Liste indisponible (hors ligne ?).</div>`; return; }
+  state.team = team;
+  const me = state.auth?.user?.id;
+  const rows = team.filter((p) => p.id !== me).sort((a, b) =>
+    (b.role === "en_attente") - (a.role === "en_attente") || (a.full_name || "").localeCompare(b.full_name || ""));
+  const options = (cur) => ["en_attente", "technicien", "secretaire", "responsable", ...(cur === "developpeur" ? ["developpeur"] : [])]
+    .map((r) => `<option value="${r}" ${r === cur ? "selected" : ""} ${r === "developpeur" ? "disabled" : ""}>${esc(ROLE_LABELS[r])}</option>`).join("");
+  box.innerHTML = rows.length ? rows.map((p) => `
+    <div class="kv"><div class="k">${esc(p.full_name || `(sans nom) ${String(p.id).slice(0, 8)}`)}</div>
+      <div class="v"><select data-role-target="${esc(p.id)}" data-role-prev="${esc(p.role)}">${options(p.role)}</select></div></div>`).join("")
+    : `<div class="block-text">Aucun autre compte.</div>`;
+}
+document.addEventListener("change", async (e) => {
+  const sel = e.target.closest?.("select[data-role-target]");
+  if (!sel) return;
+  const { roleTarget: target, rolePrev: prev } = sel.dataset;
+  const next = sel.value;
+  const name = sel.closest(".kv")?.querySelector(".k")?.textContent || "ce compte";
+  if (!confirm(`Attribuer le rôle « ${ROLE_LABELS[next]} » à ${name} ?`)) { sel.value = prev; return; }
+  sel.disabled = true;
+  try { await Supabase.setUserRole(target, next); toast("Rôle mis à jour"); }
+  catch (err) { console.error(err); toast("Changement refusé : " + (err.message || "erreur"), true); }
+  await renderTeamRoles();
+});
+
+// ---------------------------------------------------------
+// Confidentialité (SEC-13) — page d'information. Les informations propres à
+// l'exploitant (identité, contact, durées) viennent de config.js
+// (`PRIVACY_INFO`) ; tant qu'elles ne sont pas renseignées, la page l'indique
+// au lieu d'inventer une valeur.
+// ---------------------------------------------------------
+function renderPrivacy() {
+  const info = window.PRIVACY_INFO || {};
+  const todo = `<em>à renseigner par l'exploitant</em>`;
+  setApp(`
+    ${topbar({ title: "Confidentialité", back: true })}
+    <main>
+      <div class="section-label">Qui traite vos données ?</div>
+      <div class="card"><div class="block-text">${info.exploitant ? esc(info.exploitant) : todo}${info.contact ? `<br>Contact : ${esc(info.contact)}` : `<br>Contact : ${todo}`}</div></div>
+
+      <div class="section-label">Données traitées</div>
+      <div class="card"><div class="block-text">Coordonnées des clients (nom, adresse, téléphone, e-mail), historique des interventions, équipements, photos, devis/factures importés, signatures, et comptes de l'équipe (nom, e-mail, rôle). Ces données servent à gérer les interventions, les rendez-vous et la facturation.</div></div>
+
+      <div class="section-label">Où sont-elles stockées ?</div>
+      <div class="card"><div class="block-text">Sur un serveur Supabase (base de données et fichiers) utilisé pour le compte de l'entreprise, avec accès limité aux comptes validés par le responsable, et en copie sur chaque appareil pour travailler hors ligne. Sur l'appareil, les données ne sont pas chiffrées par l'application : activez le verrouillage de l'écran. Un manager peut faire effacer les données de l'appareil à la déconnexion (réglage « Compte &amp; synchro »).</div></div>
+
+      <div class="section-label">Durée de conservation</div>
+      <div class="card"><div class="block-text">${info.conservation ? esc(info.conservation) : todo}<br>Les éléments supprimés dans l'application sont d'abord masqués puis purgés définitivement du serveur selon cette durée.</div></div>
+
+      <div class="section-label">Vos droits</div>
+      <div class="card"><div class="block-text">Un client peut demander l'accès à ses données, leur rectification ou leur effacement : adressez la demande au contact ci-dessus. Le responsable dispose d'outils pour exporter les données d'un client et les anonymiser.</div></div>
+    </main>
+    <div class="toast" id="toast"></div>
+  `);
 }
 
 async function runSyncNow() {
@@ -3624,28 +3968,40 @@ async function init() {
   if (Supabase.configured()) {
     Supabase.onAuthChange(async (event, session) => {
       if (session?.user) {
-        const pro = await Supabase.getProfile(session.user.id).catch(() => null);
-        state.auth = { user: session.user, profile: pro };
+        // SEC-04 : les données locales appartiennent à UN compte. Un autre
+        // compte ne les voit jamais (purge si rien à perdre, sinon refus).
+        if (!(await enforceLocalOwner(session.user))) return;
+        const { profile: pro, cachedRole } = await loadAuthProfile(session.user);
+        state.auth = { user: session.user, profile: pro, cachedRole };
         const team = await Supabase.listProfiles().catch(() => null);
         state.team = team || [];
-        Sync.initRealtime();
-        // SYNC-01 : la migration initiale (données locales créées avant la
-        // première connexion) n'est jouée qu'une fois (marqueur _meta) — plus
-        // de pushAllLocal à chaque lancement / INITIAL_SESSION.
-        if (event === "SIGNED_IN" || event === "INITIAL_SESSION") await Sync.initialPushIfNeeded();
-        await Sync.runSync().catch((e) => {
-          console.warn("Sync échec (nouvel essai automatique)", e);
-          toast("Synchronisation en attente de réseau", true);
-          scheduleSyncRetry();
-        });
+        // SEC-05 : un compte `en_attente` / au profil inconnu n'ouvre ni
+        // Realtime ni synchronisation (le serveur lui refuserait tout).
+        if (isMember()) {
+          Sync.initRealtime();
+          // SYNC-01 : la migration initiale (données locales créées avant la
+          // première connexion) n'est jouée qu'une fois (marqueur _meta) — plus
+          // de pushAllLocal à chaque lancement / INITIAL_SESSION.
+          if (event === "SIGNED_IN" || event === "INITIAL_SESSION") await Sync.initialPushIfNeeded();
+          await Sync.runSync().catch((e) => {
+            console.warn("Sync échec (nouvel essai automatique)", e);
+            toast("Synchronisation en attente de réseau", true);
+            scheduleSyncRetry();
+          });
+        }
       } else {
         // SYNC-04 : session terminée (déconnexion, token révoqué…) — arrêt
         // propre du Realtime, symétrique de initRealtime() à la connexion.
         Sync.stopRealtime();
         state.auth = null;
       }
-      if (window.location.hash === "#/login") await renderHome();
-      else await route();
+      if (window.location.hash === "#/login" && isMember()) await renderHome();
+      else {
+        // Compte sans rôle actif connecté depuis la page de connexion : on quitte
+        // #/login pour que le routeur (et sa garde SEC-05) affiche l'écran dédié.
+        if (window.location.hash === "#/login") history.replaceState(null, "", "#/");
+        await route();
+      }
     });
   }
 
