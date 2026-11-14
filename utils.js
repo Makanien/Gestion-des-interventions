@@ -52,6 +52,43 @@ function intervenantsFromProfiles(profiles) {
   return uniq.length ? uniq : INTERVENANTS_REPLI.slice();
 }
 
+// BP-05 — Accessibilité : les gabarits écrivent `<label>Nom</label><input id="…">` sans attribut `for`,
+// donc un lecteur d'écran n'annonce pas le nom du champ. `linkLabels` relie chaque <label> orphelin au
+// champ de son bloc (.field) et, à défaut, donne au champ un nom accessible (placeholder, title ou
+// première option d'une liste). Idempotent ; appelé automatiquement après chaque rendu (voir startLabelLinker).
+let labelSeq = 0;
+function linkLabels(root) {
+  const controls = root.querySelectorAll("input:not([type=hidden]), select, textarea");
+  for (const c of controls) {
+    if (c.getAttribute("aria-label") || c.getAttribute("aria-labelledby")) continue;
+    if (c.labels && c.labels.length) continue; // déjà étiqueté (for= ou label englobant)
+    const holder = c.closest(".field") || c.parentElement;
+    const label = holder && holder.querySelector("label:not([for])");
+    if (label && !label.querySelector("input, select, textarea")) {
+      if (!c.id) c.id = `auto-field-${++labelSeq}`;
+      label.htmlFor = c.id;
+      continue;
+    }
+    const name =
+      c.getAttribute("placeholder") || c.getAttribute("title") || (c.tagName === "SELECT" && c.options[0] ? c.options[0].text : "");
+    if (name && name.trim()) c.setAttribute("aria-label", name.trim());
+  }
+}
+function startLabelLinker(doc = document) {
+  let queued = false;
+  const run = () => {
+    queued = false;
+    linkLabels(doc.body);
+  };
+  new MutationObserver(() => {
+    if (!queued) {
+      queued = true;
+      queueMicrotask(run);
+    }
+  }).observe(doc.body, { childList: true, subtree: true });
+  run();
+}
+
 if (typeof module !== "undefined" && module.exports) {
-  module.exports = { esc, html, Html, SafeHtml, intervenantsFromProfiles, INTERVENANTS_REPLI };
+  module.exports = { esc, html, Html, SafeHtml, intervenantsFromProfiles, INTERVENANTS_REPLI, linkLabels, startLabelLinker };
 }

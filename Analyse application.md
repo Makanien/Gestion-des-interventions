@@ -29,7 +29,7 @@ Mais la lecture du code révèle **des écarts importants entre ce que le PRD et
 
 ### 0.3 Limites de l'analyse (honnêteté sur ce qui a été vérifié)
 
-- **Lu intégralement :** `README.md`, `PRD_App_Interventions_Climat_Elec.md`, `TACHES_A_FAIRE.md`, `CODE_REVIEW_synchro-supabase.md`, `supabase/schema.sql`, `supabase.js`, `sync.js`, `config.js`, `sw.js`, `index.html`, `manifest.json`.
+- **Lu intégralement :** `README.md`, `docs/PRD.md`, `TACHES_A_FAIRE.md`, `CODE_REVIEW_synchro-supabase.md`, `supabase/schema.sql`, `supabase.js`, `sync.js`, `config.js`, `sw.js`, `index.html`, `manifest.json`.
 - **Lu en partie (extraits ciblés + recherches `grep`) :** `app.js` (2558 lignes), `idb.js` (728 lignes). `pdf.js`, `signature.js`, `style.css`, `supabase/DEPLOYMENT.md` n'ont été que survolés ou interrogés par `grep`.
 - **Non exécuté :** aucun test en conditions réelles (pas de projet Supabase de test, pas de navigateur). Les points marqués **« à confirmer par test »** découlent d'une lecture du code et de la sémantique PostgreSQL/Supabase ; ils doivent être reproduits avant correction.
 - **Non audité :** la configuration réelle du projet Supabase (inscription publique désactivée ? Redirect URLs ? SMTP ? sauvegardes ?), l'hébergement de production, le contenu réel de la base.
@@ -318,8 +318,8 @@ Mais la lecture du code révèle **des écarts importants entre ce que le PRD et
 
 ### 7.1 Règles de travail à respecter pour toute modification
 1. **Ne jamais committer sur `main` directement** : une branche par lot, PR relue.
-2. **Toute modification d'un fichier servi** (`*.js`, `index.html`, `style.css`, `manifest.json`, `vendor/*`) ⇒ **incrémenter `CACHE_VERSION`** dans `sw.js` (tant que BP-04 n'est pas fait).
-3. **SQL :** modifier `supabase/schema.sql` en restant **idempotent** ; tester sur une **base vierge** et sur une copie de la production ; ne jamais y remettre d'emails réels.
+2. **Toute modification d'un fichier servi** (`*.js`, `index.html`, `style.css`, `manifest.json`, `vendor/*`) ⇒ rien à incrémenter (BP-04 : version estampillée à la build) ; **ajouter un fichier servi ⇒ l'ajouter à `ASSETS`**.
+3. **SQL :** ajouter une migration dans `supabase/migrations/` (puis `npm run schema:build`), en restant **idempotent** ; tester sur une **base vierge** et sur une copie de la production ; ne jamais y remettre d'emails réels.
 4. **Échappement :** toute donnée utilisateur interpolée dans un gabarit passe par `esc()` ; ne jamais ajouter de `eval`/handler inline.
 5. **Offline-first :** toute écriture passe d'abord par IndexedDB puis par la file de sync (ne pas appeler Supabase directement depuis l'UI pour les données métier).
 6. **Documentation :** mettre à jour PRD (§ concernés), README et ce fichier (cocher les cases) dans la même PR.
@@ -358,11 +358,16 @@ Mais la lecture du code révèle **des écarts importants entre ce que le PRD et
 - [ ] **SEC-13 / SEC-14** : page de confidentialité, `purge_soft_deleted` / `export_client_data` / `anonymize_client`, `purge_retention.mjs` (fait ; durées à valider : `documentation/RGPD_CONSERVATION.md`). **Reste** : sauvegardes planifiées + test de restauration (SEC-14).
 
 **Étape 4 — Qualité durable**
-- [ ] **BP-02** : lint + tests unitaires + E2E + tests RLS + GitHub Actions.
+- [x] **BP-02** : lint + tests unitaires (83) + tests RLS pgTAP (31) + E2E Playwright + GitHub Actions. *(Unitaires et RLS exécutés et vérifiés par mutation ; **E2E et workflows GitHub écrits mais non exécutés** — Chromium indisponible dans l'environnement de développement : à constater au premier passage de la CI.)*
 - [x] **DB-01** : contraintes `CHECK` (`not valid`, tolérance historique), FK `appels.rendezvous_id`, `gen_random_uuid()` natif (plus d'`uuid-ossp`), défaut `statut = 'a_prevoir'`, index `(updated_at)` sur les 11 tables tirées — détail et tests au §4 (replay 2× sur base jetable + inserts négatifs).
-- [ ] **DB-02** : migrations Supabase CLI horodatées + vérification CI (`supabase db reset` sur base jetable) — extraction du BACKFILL emails vers `supabase/seed.local.sql` (non versionné) déjà faite, le reste demeure.
-- [ ] **BP-03 / BP-04 / BP-05 / BP-06 / BP-07 / BP-08** : modularisation progressive, SW automatisé, accessibilité, journal d'erreurs, dépendances, hygiène du dépôt.
-- [ ] **COH-01…COH-11** : mise à jour du PRD (scission PRD / CHANGELOG / ARCHITECTURE), du README, archivage de `TACHES_A_FAIRE.md` et de la revue.
+- [x] **DB-02** : `supabase/migrations/` (baseline `20261101000000`) = source de vérité, `schema.sql` généré (`npm run schema:build`), `config.toml`, `seed.sql`, CI (rejeu x2 sur base vierge + `supabase db reset` en workflow séparé). *(Rejeu x2 vérifié sur Postgres 16 ; le workflow CLI/Docker n'a pas été exécuté. Sur dev/prod : `supabase migration repair --status applied 20261101000000`.)*
+- [~] **BP-03** *(partiel)* : `utils.js` (`esc`, tag `html`), intervenants issus de `profiles`, `catch` muets supprimés ; **découpage en modules restant**.
+- [x] **BP-04** : version du cache estampillée à la build, réseau d'abord pour navigation/`index.html`/`config.js`, liste blanche, cohérence `ASSETS` ⇄ `dist/` vérifiée.
+- [x] **BP-05** : zoom autorisé, focus visible, cibles 44 px, noms accessibles, labels reliés (`linkLabels`), contrastes AA des textes de statut. *(Pas testé au lecteur d'écran.)*
+- [~] **BP-06** *(partiel)* : journal d'erreurs local dans « Compte & synchro » ; envoi vers un outil de suivi non fait (à décider).
+- [x] **BP-07** : `vendor/VERSIONS.md` + `vendor:check` + versions épinglées + Dependabot ; `pdf-lib` déjà retiré.
+- [x] **BP-08** : `.gitignore`, `LICENSE` (mention à valider), `docs/`, `CONTRIBUTING.md`, `AGENTS.md`, `CHANGELOG.md`. *(Description GitHub « artisant » à corriger dans les réglages du dépôt.)*
+- [x] **COH-01…COH-11** : PRD scindé (`docs/PRD.md` / `CHANGELOG.md` / `docs/ARCHITECTURE.md`), modèle §5.2 et rôles alignés, README mis à jour. COH-02/05/06/09/10 déjà corrigés dans le code (revérifiés). *(Archivage de `TACHES_A_FAIRE.md` : déjà dans `Archives/`.)*
 
 **Étape 5 — Produit**
 - [ ] **IMP-11** : test terrain structuré (à faire **dès l'étape 1 terminée**, en parallèle de l'étape 2).

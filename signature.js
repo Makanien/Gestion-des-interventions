@@ -12,7 +12,7 @@ function signatureModal({ title, onSubmit }) {
       <div class="sig-modal">
         <div class="sig-head">
           <h3>${esc(title)}</h3>
-          <button class="icon-btn sig-close" type="button">${ICONS.close}</button>
+          <button class="icon-btn sig-close" type="button" aria-label="Fermer" title="Fermer">${ICONS.close}</button>
         </div>
         <div class="sig-canvas-wrap">
           <canvas id="sig-canvas" width="600" height="220"></canvas>

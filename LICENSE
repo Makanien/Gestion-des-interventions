@@ -1,0 +1,11 @@
+Copyright (c) 2026 Climat Elec (Chazé-sur-Argos). Tous droits réservés.
+
+Ce logiciel et sa documentation sont la propriété exclusive de Climat Elec.
+Aucune licence d'utilisation, de copie, de modification ou de distribution n'est accordée
+sans autorisation écrite préalable du propriétaire.
+
+Les composants tiers embarqués dans `vendor/` restent soumis à leurs licences d'origine
+(voir `vendor/VERSIONS.md`).
+
+NOTE (BP-08) : mention de propriété rédigée par défaut ; à faire valider ou remplacer par
+le propriétaire (identité légale exacte de l'exploitant, éventuelle licence choisie).

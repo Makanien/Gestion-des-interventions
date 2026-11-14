@@ -1,7 +1,7 @@
 # Plan d'action — Simplification du workflow de dossier (4 statuts)
 
 **Destinataire :** agent de développement
-**Spécification de référence :** `PRD_App_Interventions_Climat_Elec.md` v1.28, §3.3.3 et §3.3.4 (source de vérité en cas de doute)
+**Spécification de référence :** `docs/PRD.md` v1.28, §3.3.3 et §3.3.4 (source de vérité en cas de doute)
 **Branche suggérée :** `workflow-4-statuts` (à créer depuis la branche de travail courante)
 **Dépôt :** application PWA vanilla JS (`app.js`, `idb.js`, `sync.js`, `pdf.js`, `sw.js`) + Supabase (`supabase/schema.sql`)
 
@@ -193,7 +193,7 @@ Fichier maître **idempotent** : ajouter un bloc « Workflow 4 statuts (13/10/20
 - [ ] **P7.2 — `README.md`** : remplacer la puce « Workflow de dossier (V3) » par : « Brouillon → À valider → À facturer → Terminé ; le devis est importé en PDF, la facture reste dans le logiciel externe ».
 - [ ] **P7.3 — `supabase/DEPLOYMENT.md`** : ajouter une note « Workflow 4 statuts : rejouer `schema.sql` (idempotent) **avant** de déployer le front ».
 - [ ] **P7.4 — `TACHES_A_FAIRE.md`** : ajouter une section « 22. Simplification du workflow de dossier (13/10/2026) » reprenant P1-P6 sous forme de cases à cocher + fichiers touchés.
-- [ ] **P7.5 — `PRD_App_Interventions_Climat_Elec.md`** : au §3.4, passer l'entrée « Simplification du workflow de dossier (13/10/2026 — à développer) » en « livrée » avec la date ; ajouter une ligne au tableau §9 (roadmap).
+- [ ] **P7.5 — `docs/PRD.md`** : au §3.4, passer l'entrée « Simplification du workflow de dossier (13/10/2026 — à développer) » en « livrée » avec la date ; ajouter une ligne au tableau §9 (roadmap).
 - [ ] **P7.6 — `documentation/Maquettes.html`** (si les maquettes affichent les anciens statuts) : signaler à l'humain plutôt que modifier sans validation.
 
 **Ordre de déploiement :** 1) rejouer `schema.sql` sur Supabase ; 2) déployer le front. L'inverse est sans danger grâce à la normalisation côté client (P2), mais la contrainte CHECK doit être créée **après** le backfill.

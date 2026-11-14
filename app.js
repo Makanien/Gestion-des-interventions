@@ -782,19 +782,19 @@ async function route() {
 // ---------------------------------------------------------
 function topbar({ title, subtitle, back, onHome, actions }) {
   const accountBtn = state.auth
-    ? `<button class="icon-btn" data-nav="account" title="Compte & synchronisation">${ICONS.checkedUser}</button>`
-    : `<button class="icon-btn" data-nav="login" title="Se connecter">${ICONS.user}</button>`;
-  const extra = actions ? `<div class="topbar-actions">${actions}<button class="icon-btn" data-nav="account" title="Compte & synchronisation">${state.auth ? ICONS.checkedUser : ICONS.user}</button></div>` : accountBtn;
+    ? `<button class="icon-btn" data-nav="account" title="Compte & synchronisation" aria-label="Compte & synchronisation">${ICONS.checkedUser}</button>`
+    : `<button class="icon-btn" data-nav="login" title="Se connecter" aria-label="Se connecter">${ICONS.user}</button>`;
+  const extra = actions ? `<div class="topbar-actions">${actions}<button class="icon-btn" data-nav="account" title="Compte & synchronisation" aria-label="Compte & synchronisation">${state.auth ? ICONS.checkedUser : ICONS.user}</button></div>` : accountBtn;
   return `
   <div class="topbar">
     <div class="topbar-row">
-      ${back ? `<button class="back-btn" data-nav="back">${ICONS.back}</button>` : `<img class="brand-mark" src="icons/android-chrome-192x192.png" alt="Climat Elec" />`}
+      ${back ? `<button class="back-btn" data-nav="back" aria-label="Retour">${ICONS.back}</button>` : `<img class="brand-mark" src="icons/android-chrome-192x192.png" alt="Climat Elec" />`}
       <div>
         <h1>${esc(displayName())}</h1>
         ${subtitle ? `<div class="subtitle">${esc(subtitle)}</div>` : ""}
       </div>
       ${extra}
-      ${onHome === false ? "" : `<button class="icon-btn" data-nav="export" title="Exporter mes données">${ICONS.down}</button>`}
+      ${onHome === false ? "" : `<button class="icon-btn" data-nav="export" title="Exporter mes données" aria-label="Exporter mes données">${ICONS.down}</button>`}
     </div>
     <div class="offline-pill" id="offline-pill"><span class="offline-dot"></span>Mode hors ligne — vos données restent sur cet appareil</div>
     ${state.auth && Sync ? `<div class="offline-pill" id="sync-pill" data-nav="account" role="button" style="background:#0d2b1a;color:#bfe8cf;cursor:pointer;"><span class="offline-dot" style="background:var(--ce-success);"></span><span id="sync-pill-text">Synchronisé</span></div>` : ""}
@@ -863,7 +863,7 @@ async function renderHome() {
     { id: "clients", label: "Clients" },
   ];
   setApp(`
-    ${topbar({ title: "Climat Elec", subtitle, onHome: false, actions: `<button class="icon-btn" data-nav="stats" title="Statistiques">${ICONS.chart}</button>` })}
+    ${topbar({ title: "Climat Elec", subtitle, onHome: false, actions: `<button class="icon-btn" data-nav="stats" title="Statistiques" aria-label="Statistiques">${ICONS.chart}</button>` })}
     <div class="home-tabs">
       ${tabs.map((t) => `<button class="home-tab ${state.tab === t.id ? "active" : ""}" data-tab="${t.id}">${t.label}</button>`).join("")}
     </div>
@@ -1242,7 +1242,7 @@ async function renderClientDetail(id) {
   setApp(`
     <div class="topbar">
       <div class="topbar-row">
-        <button class="back-btn" data-nav="back">${ICONS.back}</button>
+        <button class="back-btn" data-nav="back" aria-label="Retour">${ICONS.back}</button>
         <div><h1>${esc(client.nom || "Client")}</h1><div class="subtitle">Fiche client</div></div>
       </div>
     </div>
@@ -1320,7 +1320,7 @@ function openCreateSheet() {
   overlay.className = "sheet-overlay";
   overlay.innerHTML = `
     <div class="sheet">
-      <div class="sheet-head"><h3>Créer</h3><button class="icon-btn" id="sheet-close">${ICONS.close}</button></div>
+      <div class="sheet-head"><h3>Créer</h3><button class="icon-btn" id="sheet-close" aria-label="Fermer" title="Fermer">${ICONS.close}</button></div>
       ${[
         { k: "appel", icon: "phone", label: "Nouvel appel", sub: "Enregistrer un contact client entrant" },
         { k: "intervention", icon: "wrench", label: "Nouvelle intervention", sub: "Sav, Garantie, Dépannage, Diagnostic, Sur devis" },
@@ -1395,7 +1395,7 @@ async function renderAppel(isEdit = false) {
       title: isEdit ? "Modifier l'appel" : "Nouvel appel",
       subtitle: isEdit ? "Mettre à jour ou supprimer" : "Contexte d'un appel client",
       back: true,
-      actions: isEdit ? `<button class="icon-btn" data-nav="appel-delete" data-id="${d.id}" title="Supprimer">${ICONS.trash}</button>` : "",
+      actions: isEdit ? `<button class="icon-btn" data-nav="appel-delete" data-id="${d.id}" title="Supprimer" aria-label="Supprimer">${ICONS.trash}</button>` : "",
     })}
     <main>
       <div class="card" style="padding:14px;">
@@ -1568,7 +1568,7 @@ async function renderRdv(id) {
     }
   }
   setApp(`
-    ${topbar({ title: isEdit ? "Modifier le rendez-vous" : "Nouveau rendez-vous", subtitle: "Planning", back: true, actions: isEdit ? `<button class="icon-btn" data-nav="rdv-delete" data-id="${d.id}" title="Supprimer">${ICONS.trash}</button>` : "" })}
+    ${topbar({ title: isEdit ? "Modifier le rendez-vous" : "Nouveau rendez-vous", subtitle: "Planning", back: true, actions: isEdit ? `<button class="icon-btn" data-nav="rdv-delete" data-id="${d.id}" title="Supprimer" aria-label="Supprimer">${ICONS.trash}</button>` : "" })}
     <main>
       <div class="card" style="padding:14px;">
         ${p.nom ? `<div class="note blue">Client : <strong>${esc(p.nom)}</strong></div>` : ""}
@@ -1768,7 +1768,7 @@ async function renderWizard() {
   setApp(`
     <div class="topbar">
       <div class="topbar-row">
-        <button class="back-btn" data-nav="cancel">${ICONS.close}</button>
+        <button class="back-btn" data-nav="cancel" aria-label="Annuler et fermer">${ICONS.close}</button>
         <div><h1>${esc(title)}</h1><div class="subtitle">${state.draft?.numero ? esc(state.draft.numero) : (Supabase.configured() ? "n° attribué à la synchronisation" : "")}</div></div>
       </div>
       ${stepsBarHTML(state.step, steps.length)}
@@ -2776,12 +2776,12 @@ async function renderDetail(id) {
   setApp(`
     <div class="topbar">
       <div class="topbar-row">
-        <button class="back-btn" data-nav="back">${ICONS.back}</button>
+        <button class="back-btn" data-nav="back" aria-label="Retour">${ICONS.back}</button>
         <div><h1>${esc(client?.nom || "Détail")}</h1><div class="subtitle">${esc(label)}</div></div>
         <div class="topbar-actions">
-          <button class="icon-btn" data-nav="duplicate" data-id="${itv.id}" title="Dupliquer">${ICONS.copy}</button>
-          ${canEditItv ? `<button class="icon-btn" data-nav="edit" data-id="${itv.id}" title="Modifier">${ICONS.pencil}</button>` : ""}
-          <button class="icon-btn" data-nav="delete" data-id="${itv.id}" title="Supprimer">${ICONS.trash}</button>
+          <button class="icon-btn" data-nav="duplicate" data-id="${itv.id}" title="Dupliquer" aria-label="Dupliquer">${ICONS.copy}</button>
+          ${canEditItv ? `<button class="icon-btn" data-nav="edit" data-id="${itv.id}" title="Modifier" aria-label="Modifier">${ICONS.pencil}</button>` : ""}
+          <button class="icon-btn" data-nav="delete" data-id="${itv.id}" title="Supprimer" aria-label="Supprimer">${ICONS.trash}</button>
         </div>
       </div>
     </div>
@@ -2925,8 +2925,8 @@ function documentsHTML(itv) {
     <div class="kv">
       <div class="k">${doc.type === "devis" ? "Devis" : doc.type === "facture" ? "Facture" : "Contrat"}</div>
       <div class="v" style="flex:1;">${esc(doc.nom || "-")}${doc.numero_externe ? ` · ${esc(doc.numero_externe)}` : ""}</div>
-      <button class="icon-btn" style="margin-left:auto;background:#eef2f4;color:var(--ce-navy);" data-nav="open-doc" data-id="${doc.id}">${ICONS.file}</button>
-      <button class="icon-btn" style="margin-left:6px;background:#eef2f4;color:var(--ce-danger);" data-nav="del-doc" data-id="${doc.id}">${ICONS.trash}</button>
+      <button class="icon-btn" style="margin-left:auto;background:#eef2f4;color:var(--ce-navy);" data-nav="open-doc" data-id="${doc.id}" aria-label="Ouvrir le document" title="Ouvrir le document">${ICONS.file}</button>
+      <button class="icon-btn" style="margin-left:6px;background:#eef2f4;color:var(--ce-danger);" data-nav="del-doc" data-id="${doc.id}" aria-label="Supprimer le document" title="Supprimer le document">${ICONS.trash}</button>
     </div>`).join("");
 }
 
@@ -2949,7 +2949,7 @@ function askMotif(title = "Motif (facultatif)", required = false) {
     ov.className = "sig-overlay";
     ov.innerHTML = `
       <div class="sig-modal">
-        <div class="sig-head"><h3>${esc(title)}</h3><button class="icon-btn motif-close">${ICONS.close}</button></div>
+        <div class="sig-head"><h3>${esc(title)}</h3><button class="icon-btn motif-close" aria-label="Fermer" title="Fermer">${ICONS.close}</button></div>
         <textarea id="motif-textarea" rows="4" placeholder="${required ? "Motif obligatoire" : "Précisez le motif si besoin (facultatif)"}" style="width:100%;box-sizing:border-box;padding:10px;border:1px solid var(--ce-border);border-radius:var(--ce-radius-sm);font:inherit;resize:vertical;"></textarea>
         <div class="sig-actions" style="margin-top:12px;">
           <button class="btn btn-ghost motif-cancel">Annuler</button>
@@ -3089,7 +3089,7 @@ async function renderContrat(id) {
   }
   const isEdit = !!c.id;
   setApp(`
-    ${topbar({ title: isEdit ? "Modifier le contrat" : "Contrat d'entretien annuel", back: true, actions: isEdit ? `<button class="icon-btn" data-nav="contrat-delete" data-id="${c.id}" title="Supprimer">${ICONS.trash}</button>` : "" })}
+    ${topbar({ title: isEdit ? "Modifier le contrat" : "Contrat d'entretien annuel", back: true, actions: isEdit ? `<button class="icon-btn" data-nav="contrat-delete" data-id="${c.id}" title="Supprimer" aria-label="Supprimer">${ICONS.trash}</button>` : "" })}
     <main>
       <div class="card" style="padding:14px;">
         <div class="field"><label>Client *</label><input id="ct-client" type="text" placeholder="Nom du client" value="${esc(c.nom || "")}" /></div>
@@ -3191,7 +3191,7 @@ async function renderDetailContrat(id) {
   if (!ct) { go("#/contrats"); return; }
   const client = ct.client_id ? await DB.getClient(ct.client_id) : null;
   setApp(`
-    ${topbar({ title: "Contrat d'entretien", subtitle: ct.numero || "", back: true, actions: `<button class="icon-btn" data-nav="contrat-edit" data-id="${ct.id}" title="Modifier">${ICONS.pencil}</button>` })}
+    ${topbar({ title: "Contrat d'entretien", subtitle: ct.numero || "", back: true, actions: `<button class="icon-btn" data-nav="contrat-edit" data-id="${ct.id}" title="Modifier" aria-label="Modifier">${ICONS.pencil}</button>` })}
     <main>
       <div class="detail-header"><div class="meta">${esc(client?.nom || ct.nom || "Client")}</div></div>
       <div class="section-label">Prestations</div>
@@ -3970,6 +3970,7 @@ window.addEventListener("online", updateOfflinePill);
 window.addEventListener("offline", updateOfflinePill);
 
 async function init() {
+  startLabelLinker(); // BP-05 : noms accessibles des champs (voir utils.js)
   await DB.init();
   await ErrorLog.init(); // BP-06 : journal d'erreurs local
   await Sync.initPersisted(); // SYNC-01/02 : restaure file, curseur, conflits

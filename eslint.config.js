@@ -20,6 +20,8 @@ const appGlobals = {
   html: "readonly",
   SafeHtml: "readonly",
   intervenantsFromProfiles: "readonly",
+  startLabelLinker: "readonly",
+  linkLabels: "readonly",
   // Déclarées par les scripts de l'application (sharing entre fichiers) :
   openDB: "writable",
   tx: "writable",
