@@ -126,7 +126,7 @@ async function migrateV1toV2() {
 
     await DB.setMeta("migrated_v2_split", "done");
   } catch (e) {
-    console.warn("migrateV1toV2 ignoré", e);
+    ErrorLog.warn("migrateV1toV2 ignoré", e);
   }
   try {
     await DB.setMeta("migrated", "v2");
@@ -149,7 +149,7 @@ async function migrateV2toV3() {
     }
     await DB.setMeta("migrated_v3_status", "done");
   } catch (e) {
-    console.warn("migrateV2toV3 ignoré", e);
+    ErrorLog.warn("migrateV2toV3 ignoré", e);
   }
 }
 
@@ -172,7 +172,7 @@ async function migrateWorkflow4() {
     }
     await DB.setMeta("migrated_workflow_4", "done");
   } catch (e) {
-    console.warn("migrateWorkflow4 ignoré", e);
+    ErrorLog.warn("migrateWorkflow4 ignoré", e);
   }
 }
 
@@ -191,7 +191,7 @@ async function migrateV3numero() {
     }
     await DB.setMeta("migrated_v3_numero", "done");
   } catch (e) {
-    console.warn("migrateV3numero ignoré", e);
+    ErrorLog.warn("migrateV3numero ignoré", e);
   }
 }
 
@@ -574,6 +574,7 @@ const DB = {
   // (filtre `!intervention_id`).
   async saveClientEquipment(clientId, eq) {
     const now = new Date().toISOString();
+    // eslint-disable-next-line no-unused-vars -- retrait des champs liés à l'intervention d'origine
     const { intervention_id, _deleted, deleted_at, synced_at, ...rest } = eq;
     const row = { ...rest, id: uuid(), client_id: clientId, created_at: now, updated_at: now };
     await this.putRaw("equipements", row);

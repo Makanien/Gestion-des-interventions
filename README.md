@@ -13,27 +13,28 @@ numérotation des documents, base pièces et statistiques. Elle est complétée 
 une couche **gouvernance et sécurité** : validation des comptes par le
 responsable, journal d'audit, données locales protégées, outils RGPD.
 
-## Contenu du dossier
+## Contenu du dépôt
 
 ```
-index.html         page principale
-style.css           styles / charte graphique
-app.js              logique de l'application (écrans, formulaires)
-idb.js              couche de stockage IndexedDB (locale, offline)
+index.html, style.css, manifest.json   coquille, charte graphique, PWA
+utils.js            esc() et tag de gabarit html (échappement par défaut), intervenants
+errorlog.js         journal d'erreurs local (affiché dans Compte & synchro)
+app.js              écrans, formulaires, routage
+idb.js              stockage IndexedDB (local, hors ligne)
 supabase.js         client Supabase (Auth, CRUD, Storage)
-sync.js             synchronisation bidirectionnelle (pull/push)
-signature.js        signature électronique tactile
-pdf.js              génération du PDF de fiche d'intervention
-config.js           URL + clé anon du projet Supabase (à renseigner) + infos de la page Confidentialité
-sw.js               service worker (mise en cache offline)
-manifest.json       configuration PWA (icône, nom, couleurs)
-icons/              icônes de l'application
-vendor/jspdf.umd.min.js   librairie PDF embarquée (offline)
-vendor/supabase-js.min.js SDK Supabase embarqué (offline)
-supabase/           schémas SQL + migrations + guide de déploiement backend
-                    (+ sauvegarde, purge de conservation RGPD)
-scripts/            build-dist.sh : copie de déploiement + en-têtes HTTP (_headers)
-documentation/      sauvegarde, RGPD, procédures de test
+sync.js, sync-persist.js   synchronisation bidirectionnelle, file persistée
+signature.js, pdf.js       signature tactile, génération du PDF
+config.js           URL + clé publique des projets Supabase + infos de la page Confidentialité
+sw.js               service worker (version du cache estampillée à la build)
+icons/, assets/, logo-data.js   icônes et logo
+vendor/             jsPDF et SDK Supabase embarqués (versions et empreintes : vendor/VERSIONS.md)
+supabase/           migrations (source de vérité), schema.sql généré, tests RLS, guide de déploiement,
+                    sauvegarde et purge RGPD
+scripts/            build-dist.sh (dist/ + en-têtes), stamp-sw.mjs, build-schema.mjs, check-vendor.mjs
+tests/              unitaires (Vitest) et E2E (Playwright)
+docs/               PRD.md (cible), ARCHITECTURE.md (synchro, droits, service worker)
+documentation/      sauvegarde, RGPD, procédures de test, maquettes, pièces d'analyse
+CHANGELOG.md, CONTRIBUTING.md, AGENTS.md, Analyse application.md (suivi), LICENSE
 ```
 
 ## ⚠️ Important : une PWA a besoin d'être servie en HTTPS (ou en local)
@@ -48,7 +49,7 @@ permettra pas l'installation ni le mode hors ligne.
 ⚠️ **SEC-06** : commencer par construire le dossier restreint
 `bash scripts/build-dist.sh`, puis ne déployer **que `dist/`**. Déployer le
 dépôt entier exposerait la documentation interne, la maquette, le schéma SQL
-et le PRD.
+et le PRD (`docs/PRD.md`).
 
 1. **Netlify Drop** (le plus rapide, sans compte) : aller sur https://app.netlify.com/drop
    et glisser-déposer **le dossier `dist/`** généré par `scripts/build-dist.sh`.
@@ -72,11 +73,15 @@ plein écran comme une application native, **même sans connexion** après la pr
 ## ⚙️ Configuration Supabase (V2/V3)
 
 1. Renseigner `config.js` avec l'URL du projet et la clé anon/publishable.
-2. Exécuter dans le SQL Editor : `supabase/schema.sql` — fichier maître unique
-   (tables V2 + V3, RLS par rôle, Storage, Realtime), idempotent.
+2. Appliquer le schéma : `supabase/migrations/` est la **source de vérité** (CLI : `supabase db push`) ;
+   `supabase/schema.sql` en est la version **générée** (`npm run schema:build`), collable telle quelle dans
+   le SQL Editor (tables, RLS par rôle, Storage, Realtime), idempotente. Voir `supabase/migrations/README.md`.
 3. Voir `supabase/DEPLOYMENT.md` pour le détail complet (Auth, migration, signatures,
    **checklist des réglages du Dashboard** : inscription publique, Redirect URLs, SMTP, MFA).
-4. Renseigner la page « Confidentialité » dans `config.js` (`PRIVACY_INFO` : exploitant,
+4. ⚠️ **Prérequis de sécurité critique : désactiver l'inscription publique** (Dashboard → Authentication) —
+   c'est la barrière principale ; ensuite chaque nouveau compte arrive `en_attente` (aucun accès) tant que le
+   responsable ne l'a pas validé. Voir la checklist de `supabase/DEPLOYMENT.md`.
+5. Renseigner la page « Confidentialité » dans `config.js` (`PRIVACY_INFO` : exploitant,
    contact, durée de conservation) — les durées sont à valider (`documentation/RGPD_CONSERVATION.md`).
 
 ### Comptes et rôles
@@ -104,14 +109,13 @@ seule la CSP `<meta>` s'applique).
 
 ### Tester en local sur ordinateur (avant déploiement)
 
-Depuis ce dossier, avec Python déjà installé :
-
 ```bash
-python3 -m http.server 3000
+npm ci && npm run build        # construit dist/
+npx http-server dist -p 3000   # ou : python3 -m http.server 3000 --directory dist
 ```
 
-Puis ouvrir `http://localhost:3000` dans le navigateur (le mode PWA/offline fonctionne
-aussi en `localhost`, c'est une exception acceptée par les navigateurs).
+Puis ouvrir `http://localhost:3000` (le mode PWA/hors ligne fonctionne aussi en `localhost`).
+Contrôles qualité : `npm run lint`, `npm test`, `bash supabase/tests/run-local.sh` (voir `CONTRIBUTING.md`).
 
 ## Fonctionnement
 
@@ -168,10 +172,10 @@ aussi en `localhost`, c'est une exception acceptée par les navigateurs).
 
 ## Mise à jour de l'application
 
-Après toute modification des fichiers, incrémenter `CACHE_VERSION` dans `sw.js`
-(ex. `climatelec-v6`) pour que les téléphones déjà installés récupèrent la nouvelle
-version au prochain lancement avec réseau disponible. Un mécanisme `updatefound`
-dans `app.js` recharge la page dès qu'une nouvelle version du service worker est
-installée, **sauf pendant la saisie d'un formulaire** : un bandeau « Actualiser » est
-alors proposé. Si une ancienne version persiste, recharger deux fois ou vider les
-données du site.
+La version du cache du service worker est **estampillée automatiquement à la build** (empreinte du contenu de
+`dist/`) : il n'y a plus rien à incrémenter à la main. Il suffit de reconstruire (`npm run build`) et de
+redéployer `dist/`. Les téléphones déjà installés récupèrent la nouvelle version au prochain lancement avec
+réseau (le service worker demande toujours le réseau d'abord pour `index.html` et `config.js`). Un mécanisme
+`updatefound` dans `app.js` recharge la page dès qu'une nouvelle version est installée, **sauf pendant la saisie
+d'un formulaire** : un bandeau « Actualiser » est alors proposé. Si une ancienne version persiste, recharger deux
+fois ou vider les données du site.

@@ -1,7 +1,7 @@
 # Analyse des retours — classeur « Application 20261009.xlsx »
 
 **Source :** `documentation/Application 20261009.xlsx` (retours client du 09/10/2026).
-**Référence de comparaison :** `PRD_App_Interventions_Climat_Elec.md` v1.26 (07/10/2026), qui intègre déjà le classeur du 18/09/2026 (`Application - 20260918.xlsx`, §3.2.11 à §3.2.15) et l'état d'implémentation V3 (§3.4).
+**Référence de comparaison :** `docs/PRD.md` v1.26 (07/10/2026), qui intègre déjà le classeur du 18/09/2026 (`Application - 20260918.xlsx`, §3.2.11 à §3.2.15) et l'état d'implémentation V3 (§3.4).
 **Périmètre :** feuilles « Nouvelle intervention », « Entretien Air.Eau Sol.E », « Entretien Air.Air », « Entretien Chaudière Bois » — complété par les feuilles transverses quand elles impactent le même périmètre (« Bouton + », « Ouverture application », « Planning », « Nouvel appel », « Général »).
 
 Légende : **NOUVEAU** (absent du PRD) · **RÉSOLU** (anomalie du 18/09 levée) · **A CONFIRMER** (à arbitrer avec le client) · **CONFORME** (identique au PRD).

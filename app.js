@@ -396,7 +396,6 @@ let state = {
 // Le brouillon est sauvegardé dans _meta (clé "ce_wizard_draft") à chaque
 // changement d'étape et à la fermeture de l'onglet, puis restauré au démarrage.
 let draftPersistTimer = null;
-let pendingUpdateWorker = null;
 let updateBannerEl = null;
 
 function persistDraft(immediate = false) {
@@ -474,7 +473,17 @@ function hideUpdateBanner() {
 // ---------------------------------------------------------
 function $(sel, root = document) { return root.querySelector(sel); }
 function $all(sel, root = document) { return [...root.querySelectorAll(sel)]; }
-function esc(s) { return (s ?? "").toString().replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
+// esc() / html`…` : voir utils.js (BP-03).
+// BP-03 : liste des intervenants issue de `profiles` (state.team) — plus de noms
+// codés en dur ; repli historique tant qu'aucun profil n'est connu. La valeur déjà
+// enregistrée sur la fiche reste toujours sélectionnable.
+function intervenantOptions(current, { withEmpty = false } = {}) {
+  const names = intervenantsFromProfiles(state.team);
+  if (current && !names.includes(current)) names.unshift(current);
+  const opts = names.map((t) => html`<option value="${t}" ${current === t ? "selected" : ""}>${t}</option>`);
+  const empty = withEmpty ? html`<option value="" ${current ? "" : "selected"}>Non affecté</option>` : "";
+  return html`${empty}${opts}`.toString();
+}
 function todayISO() { return new Date().toISOString().slice(0, 10); }
 function nowHM() { const d = new Date(); return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; }
 
@@ -773,19 +782,19 @@ async function route() {
 // ---------------------------------------------------------
 function topbar({ title, subtitle, back, onHome, actions }) {
   const accountBtn = state.auth
-    ? `<button class="icon-btn" data-nav="account" title="Compte & synchronisation">${ICONS.checkedUser}</button>`
-    : `<button class="icon-btn" data-nav="login" title="Se connecter">${ICONS.user}</button>`;
-  const extra = actions ? `<div class="topbar-actions">${actions}<button class="icon-btn" data-nav="account" title="Compte & synchronisation">${state.auth ? ICONS.checkedUser : ICONS.user}</button></div>` : accountBtn;
+    ? `<button class="icon-btn" data-nav="account" title="Compte & synchronisation" aria-label="Compte & synchronisation">${ICONS.checkedUser}</button>`
+    : `<button class="icon-btn" data-nav="login" title="Se connecter" aria-label="Se connecter">${ICONS.user}</button>`;
+  const extra = actions ? `<div class="topbar-actions">${actions}<button class="icon-btn" data-nav="account" title="Compte & synchronisation" aria-label="Compte & synchronisation">${state.auth ? ICONS.checkedUser : ICONS.user}</button></div>` : accountBtn;
   return `
   <div class="topbar">
     <div class="topbar-row">
-      ${back ? `<button class="back-btn" data-nav="back">${ICONS.back}</button>` : `<img class="brand-mark" src="icons/android-chrome-192x192.png" alt="Climat Elec" />`}
+      ${back ? `<button class="back-btn" data-nav="back" aria-label="Retour">${ICONS.back}</button>` : `<img class="brand-mark" src="icons/android-chrome-192x192.png" alt="Climat Elec" />`}
       <div>
         <h1>${esc(displayName())}</h1>
         ${subtitle ? `<div class="subtitle">${esc(subtitle)}</div>` : ""}
       </div>
       ${extra}
-      ${onHome === false ? "" : `<button class="icon-btn" data-nav="export" title="Exporter mes données">${ICONS.down}</button>`}
+      ${onHome === false ? "" : `<button class="icon-btn" data-nav="export" title="Exporter mes données" aria-label="Exporter mes données">${ICONS.down}</button>`}
     </div>
     <div class="offline-pill" id="offline-pill"><span class="offline-dot"></span>Mode hors ligne — vos données restent sur cet appareil</div>
     ${state.auth && Sync ? `<div class="offline-pill" id="sync-pill" data-nav="account" role="button" style="background:#0d2b1a;color:#bfe8cf;cursor:pointer;"><span class="offline-dot" style="background:var(--ce-success);"></span><span id="sync-pill-text">Synchronisé</span></div>` : ""}
@@ -842,7 +851,7 @@ async function renderHome() {
   // SEC-05 : garde de dernier recours — renderHome est appelé directement depuis
   // plusieurs endroits (onglets, après connexion…) sans passer par route().
   if (!isMember()) { renderPending(); return; }
-  const [interventions, rendezvous] = await Promise.all([DB.listInterventions(), DB.listRendezvous()]);
+  const interventions = await DB.listInterventions();
   // Sous-titre Tableau de bord (maquette : « Accueil · N dossiers en cours ») —
   // hors dossiers clôturés, dans le périmètre du rôle connecté.
   const enCours = scopeInterventions(interventions).filter((i) => (DB.normalizeStatut(i.statut_dossier) || "a_valider") !== "termine").length;
@@ -854,7 +863,7 @@ async function renderHome() {
     { id: "clients", label: "Clients" },
   ];
   setApp(`
-    ${topbar({ title: "Climat Elec", subtitle, onHome: false, actions: `<button class="icon-btn" data-nav="stats" title="Statistiques">${ICONS.chart}</button>` })}
+    ${topbar({ title: "Climat Elec", subtitle, onHome: false, actions: `<button class="icon-btn" data-nav="stats" title="Statistiques" aria-label="Statistiques">${ICONS.chart}</button>` })}
     <div class="home-tabs">
       ${tabs.map((t) => `<button class="home-tab ${state.tab === t.id ? "active" : ""}" data-tab="${t.id}">${t.label}</button>`).join("")}
     </div>
@@ -944,7 +953,7 @@ async function planningHTML() {
       ${isManager() ? `
       <select class="filter-select" id="pf-tech">
         <option value="">Intervenant : tous</option>
-        ${["Jérémy", "Régis", "Delphine"].map((t) => `<option value="${t}" ${f.intervenant === t ? "selected" : ""}>${t}</option>`).join("")}
+        ${intervenantOptions(f.intervenant)}
       </select>` : ""}
     </div>`;
   const byDate = {};
@@ -1000,7 +1009,7 @@ async function tachesHTML() {
       ${isManager() ? `
       <select class="filter-select" id="tf-tech">
         <option value="">Intervenant : tous</option>
-        ${["Jérémy", "Régis", "Delphine"].map((t) => `<option value="${t}" ${f.intervenant === t ? "selected" : ""}>${t}</option>`).join("")}
+        ${intervenantOptions(f.intervenant)}
       </select>` : ""}
     </div>`;
   return `
@@ -1127,7 +1136,7 @@ async function dashboardHTML() {
       ${isManager() ? `
       <select class="filter-select" id="df-tech">
         <option value="">Intervenant : tous</option>
-        ${["Jérémy", "Régis", "Delphine"].map((t) => `<option value="${t}" ${f.intervenant === t ? "selected" : ""}>${t}</option>`).join("")}
+        ${intervenantOptions(f.intervenant)}
       </select>` : ""}
     </div>`;
 
@@ -1233,7 +1242,7 @@ async function renderClientDetail(id) {
   setApp(`
     <div class="topbar">
       <div class="topbar-row">
-        <button class="back-btn" data-nav="back">${ICONS.back}</button>
+        <button class="back-btn" data-nav="back" aria-label="Retour">${ICONS.back}</button>
         <div><h1>${esc(client.nom || "Client")}</h1><div class="subtitle">Fiche client</div></div>
       </div>
     </div>
@@ -1311,7 +1320,7 @@ function openCreateSheet() {
   overlay.className = "sheet-overlay";
   overlay.innerHTML = `
     <div class="sheet">
-      <div class="sheet-head"><h3>Créer</h3><button class="icon-btn" id="sheet-close">${ICONS.close}</button></div>
+      <div class="sheet-head"><h3>Créer</h3><button class="icon-btn" id="sheet-close" aria-label="Fermer" title="Fermer">${ICONS.close}</button></div>
       ${[
         { k: "appel", icon: "phone", label: "Nouvel appel", sub: "Enregistrer un contact client entrant" },
         { k: "intervention", icon: "wrench", label: "Nouvelle intervention", sub: "Sav, Garantie, Dépannage, Diagnostic, Sur devis" },
@@ -1362,11 +1371,11 @@ function syncAppelDraft() {
   d.motif = cleanText($("#a-motif").value);
   d.type_batiment = $("#a-bat").value;
   d.type_intervention = $("#a-type").value;
-  try { localStorage.setItem("ce_appel_draft", JSON.stringify(d)); } catch (e) {}
+  try { localStorage.setItem("ce_appel_draft", JSON.stringify(d)); } catch (e) { ErrorLog.warn("Brouillon d'appel non sauvegardé", e); }
 }
 function clearAppelDraft() {
   state.appelDraft = null;
-  try { localStorage.removeItem("ce_appel_draft"); } catch (e) {}
+  try { localStorage.removeItem("ce_appel_draft"); } catch (e) { ErrorLog.warn("Brouillon d'appel non purgé", e); }
 }
 
 async function renderAppel(isEdit = false) {
@@ -1386,7 +1395,7 @@ async function renderAppel(isEdit = false) {
       title: isEdit ? "Modifier l'appel" : "Nouvel appel",
       subtitle: isEdit ? "Mettre à jour ou supprimer" : "Contexte d'un appel client",
       back: true,
-      actions: isEdit ? `<button class="icon-btn" data-nav="appel-delete" data-id="${d.id}" title="Supprimer">${ICONS.trash}</button>` : "",
+      actions: isEdit ? `<button class="icon-btn" data-nav="appel-delete" data-id="${d.id}" title="Supprimer" aria-label="Supprimer">${ICONS.trash}</button>` : "",
     })}
     <main>
       <div class="card" style="padding:14px;">
@@ -1559,7 +1568,7 @@ async function renderRdv(id) {
     }
   }
   setApp(`
-    ${topbar({ title: isEdit ? "Modifier le rendez-vous" : "Nouveau rendez-vous", subtitle: "Planning", back: true, actions: isEdit ? `<button class="icon-btn" data-nav="rdv-delete" data-id="${d.id}" title="Supprimer">${ICONS.trash}</button>` : "" })}
+    ${topbar({ title: isEdit ? "Modifier le rendez-vous" : "Nouveau rendez-vous", subtitle: "Planning", back: true, actions: isEdit ? `<button class="icon-btn" data-nav="rdv-delete" data-id="${d.id}" title="Supprimer" aria-label="Supprimer">${ICONS.trash}</button>` : "" })}
     <main>
       <div class="card" style="padding:14px;">
         ${p.nom ? `<div class="note blue">Client : <strong>${esc(p.nom)}</strong></div>` : ""}
@@ -1578,7 +1587,7 @@ async function renderRdv(id) {
           </select>
         </div>
         <div class="field"><label>Intervenant</label>
-          <select id="r-intervenant">${["", "Jérémy", "Régis", "Delphine"].map((t) => `<option ${d.intervenant === t ? "selected" : ""}>${t || "Non affecté"}</option>`).join("")}</select>
+          <select id="r-intervenant">${intervenantOptions(d.intervenant, { withEmpty: true })}</select>
         </div>
         <div class="field"><label>Note / motif</label><textarea id="r-note">${esc(d.note)}</textarea></div>
       </div>
@@ -1759,7 +1768,7 @@ async function renderWizard() {
   setApp(`
     <div class="topbar">
       <div class="topbar-row">
-        <button class="back-btn" data-nav="cancel">${ICONS.close}</button>
+        <button class="back-btn" data-nav="cancel" aria-label="Annuler et fermer">${ICONS.close}</button>
         <div><h1>${esc(title)}</h1><div class="subtitle">${state.draft?.numero ? esc(state.draft.numero) : (Supabase.configured() ? "n° attribué à la synchronisation" : "")}</div></div>
       </div>
       ${stepsBarHTML(state.step, steps.length)}
@@ -2012,7 +2021,6 @@ function equipLineHTML(eq, idx) {
 function stepEquipHTML() {
   const d = state.draft;
   const meta = draftMeta();
-  const max = meta?.maxEq || 5;
   return `
   ${meta ? `<div class="card" style="padding:14px;margin-bottom:12px;"><div class="field" style="margin-bottom:0;"><label>Année d'installation</label><input id="f-annee" type="text" inputmode="numeric" placeholder="Ex : 2021" value="${esc(d.annee_installation)}" /></div></div>` : ""}
   <div id="eq-reuse"></div>
@@ -2432,7 +2440,7 @@ function wireSignStep() {
     $("#client-sig-img").src = state.draft.client_signature_url;
     applySignLockUI();
     if (Supabase.configured() && navigator.onLine && oldUrl && oldUrl.startsWith("http")) {
-      try { await Supabase.removeSignature(oldUrl); } catch (e) { console.warn("Suppression ancienne signature client échouée", e); }
+      try { await Supabase.removeSignature(oldUrl); } catch (e) { ErrorLog.warn("Suppression ancienne signature client échouée", e); }
     }
   });
   $("#btn-tech-sign")?.addEventListener("click", async () => {
@@ -2446,7 +2454,7 @@ function wireSignStep() {
     $("#tech-sig-img").src = state.draft.technicien_signature_url;
     applySignLockUI();
     if (Supabase.configured() && navigator.onLine && oldUrl && oldUrl.startsWith("http")) {
-      try { await Supabase.removeSignature(oldUrl); } catch (e) { console.warn("Suppression ancienne signature technicien échouée", e); }
+      try { await Supabase.removeSignature(oldUrl); } catch (e) { ErrorLog.warn("Suppression ancienne signature technicien échouée", e); }
     }
   });
 }
@@ -2584,7 +2592,7 @@ async function presenceTick() {
     Presence.others = Array.isArray(rows) ? rows : [];
     renderPresenceBanner();
   } catch (e) {
-    console.warn("Présence d'édition indisponible", e); // jamais bloquant
+    ErrorLog.warn("Présence d'édition indisponible", e); // jamais bloquant
   }
 }
 function startPresence(id) {
@@ -2639,7 +2647,6 @@ async function finishWizard() {
   const appelId = d.appel_id || null;
   const rdvId = d.rdv_id || null;
   const isEdit = !!d.id;
-  const steps = wizardSteps();
 
   // Fin d'intervention commune (§3.2.14) : la fiche doit être terminée et
   // signée — technicien obligatoire, client obligatoire si présent — pour
@@ -2669,7 +2676,7 @@ async function finishWizard() {
     try {
       if (d.client_present && d._client_sig_blob) d.client_signature_url = await Supabase.uploadSignature(`sig-client-${uuid()}`, d._client_sig_blob);
       if (d._technicien_sig_blob) d.technicien_signature_url = await Supabase.uploadSignature(`sig-tech-${uuid()}`, d._technicien_sig_blob);
-    } catch (e) { console.warn("Upload signature échoué", e); }
+    } catch (e) { ErrorLog.warn("Upload signature échoué", e); }
   }
 
   // Upload des photos vers Supabase Storage (bucket privé « photos »).
@@ -2681,7 +2688,7 @@ async function finishWizard() {
       if (!photo || !photo.data_url || photo.fichier_url) continue;
       try {
         photo.fichier_url = await Supabase.uploadPhoto(d.id, photo.data_url);
-      } catch (e) { console.warn("Upload photo échoué", e); }
+      } catch (e) { ErrorLog.warn("Upload photo échoué", e); }
     }
   }
 
@@ -2769,12 +2776,12 @@ async function renderDetail(id) {
   setApp(`
     <div class="topbar">
       <div class="topbar-row">
-        <button class="back-btn" data-nav="back">${ICONS.back}</button>
+        <button class="back-btn" data-nav="back" aria-label="Retour">${ICONS.back}</button>
         <div><h1>${esc(client?.nom || "Détail")}</h1><div class="subtitle">${esc(label)}</div></div>
         <div class="topbar-actions">
-          <button class="icon-btn" data-nav="duplicate" data-id="${itv.id}" title="Dupliquer">${ICONS.copy}</button>
-          ${canEditItv ? `<button class="icon-btn" data-nav="edit" data-id="${itv.id}" title="Modifier">${ICONS.pencil}</button>` : ""}
-          <button class="icon-btn" data-nav="delete" data-id="${itv.id}" title="Supprimer">${ICONS.trash}</button>
+          <button class="icon-btn" data-nav="duplicate" data-id="${itv.id}" title="Dupliquer" aria-label="Dupliquer">${ICONS.copy}</button>
+          ${canEditItv ? `<button class="icon-btn" data-nav="edit" data-id="${itv.id}" title="Modifier" aria-label="Modifier">${ICONS.pencil}</button>` : ""}
+          <button class="icon-btn" data-nav="delete" data-id="${itv.id}" title="Supprimer" aria-label="Supprimer">${ICONS.trash}</button>
         </div>
       </div>
     </div>
@@ -2879,7 +2886,7 @@ async function renderDetail(id) {
     btn.disabled = true;
     btn.innerHTML = `${ICONS.file} Génération du PDF…`;
     try { await downloadInterventionPDF(itv, client); toast("PDF prêt"); }
-    catch (err) { console.error(err); toast("Erreur lors de la génération du PDF", true); }
+    catch (err) { ErrorLog.error(err); toast("Erreur lors de la génération du PDF", true); }
     finally { btn.disabled = false; btn.innerHTML = `${ICONS.share} Générer et partager le PDF`; }
   });
 
@@ -2918,8 +2925,8 @@ function documentsHTML(itv) {
     <div class="kv">
       <div class="k">${doc.type === "devis" ? "Devis" : doc.type === "facture" ? "Facture" : "Contrat"}</div>
       <div class="v" style="flex:1;">${esc(doc.nom || "-")}${doc.numero_externe ? ` · ${esc(doc.numero_externe)}` : ""}</div>
-      <button class="icon-btn" style="margin-left:auto;background:#eef2f4;color:var(--ce-navy);" data-nav="open-doc" data-id="${doc.id}">${ICONS.file}</button>
-      <button class="icon-btn" style="margin-left:6px;background:#eef2f4;color:var(--ce-danger);" data-nav="del-doc" data-id="${doc.id}">${ICONS.trash}</button>
+      <button class="icon-btn" style="margin-left:auto;background:#eef2f4;color:var(--ce-navy);" data-nav="open-doc" data-id="${doc.id}" aria-label="Ouvrir le document" title="Ouvrir le document">${ICONS.file}</button>
+      <button class="icon-btn" style="margin-left:6px;background:#eef2f4;color:var(--ce-danger);" data-nav="del-doc" data-id="${doc.id}" aria-label="Supprimer le document" title="Supprimer le document">${ICONS.trash}</button>
     </div>`).join("");
 }
 
@@ -2942,7 +2949,7 @@ function askMotif(title = "Motif (facultatif)", required = false) {
     ov.className = "sig-overlay";
     ov.innerHTML = `
       <div class="sig-modal">
-        <div class="sig-head"><h3>${esc(title)}</h3><button class="icon-btn motif-close">${ICONS.close}</button></div>
+        <div class="sig-head"><h3>${esc(title)}</h3><button class="icon-btn motif-close" aria-label="Fermer" title="Fermer">${ICONS.close}</button></div>
         <textarea id="motif-textarea" rows="4" placeholder="${required ? "Motif obligatoire" : "Précisez le motif si besoin (facultatif)"}" style="width:100%;box-sizing:border-box;padding:10px;border:1px solid var(--ce-border);border-radius:var(--ce-radius-sm);font:inherit;resize:vertical;"></textarea>
         <div class="sig-actions" style="margin-top:12px;">
           <button class="btn btn-ghost motif-cancel">Annuler</button>
@@ -2976,7 +2983,7 @@ async function importDocument(interventionId, type, inputEl) {
   if (Supabase.configured() && state.auth && navigator.onLine) {
     try {
       doc.fichier_url = await Supabase.uploadDocument(interventionId, dataUrl);
-    } catch (e) { console.warn("Upload document échoué", e); }
+    } catch (e) { ErrorLog.warn("Upload document échoué", e); }
   }
   await DB.addDocument(interventionId, doc);
   toast(type === "devis" ? "Devis importé" : "Document importé");
@@ -3082,7 +3089,7 @@ async function renderContrat(id) {
   }
   const isEdit = !!c.id;
   setApp(`
-    ${topbar({ title: isEdit ? "Modifier le contrat" : "Contrat d'entretien annuel", back: true, actions: isEdit ? `<button class="icon-btn" data-nav="contrat-delete" data-id="${c.id}" title="Supprimer">${ICONS.trash}</button>` : "" })}
+    ${topbar({ title: isEdit ? "Modifier le contrat" : "Contrat d'entretien annuel", back: true, actions: isEdit ? `<button class="icon-btn" data-nav="contrat-delete" data-id="${c.id}" title="Supprimer" aria-label="Supprimer">${ICONS.trash}</button>` : "" })}
     <main>
       <div class="card" style="padding:14px;">
         <div class="field"><label>Client *</label><input id="ct-client" type="text" placeholder="Nom du client" value="${esc(c.nom || "")}" /></div>
@@ -3112,7 +3119,7 @@ async function renderContrat(id) {
     state.contratDraft.client_signature_url = await blobToDataURL(blob);
     const p = $("#ct-client-preview"); p.style.display = "block"; $("#ct-client-img").src = state.contratDraft.client_signature_url;
     if (Supabase.configured() && navigator.onLine && oldUrl && oldUrl.startsWith("http")) {
-      try { await Supabase.removeSignature(oldUrl); } catch (e) { console.warn("Suppression ancienne signature client échouée", e); }
+      try { await Supabase.removeSignature(oldUrl); } catch (e) { ErrorLog.warn("Suppression ancienne signature client échouée", e); }
     }
   });
   $("#btn-ct-tech-sign").addEventListener("click", async () => {
@@ -3123,7 +3130,7 @@ async function renderContrat(id) {
     state.contratDraft.technicien_signature_url = await blobToDataURL(blob);
     const p = $("#ct-tech-preview"); p.style.display = "block"; $("#ct-tech-img").src = state.contratDraft.technicien_signature_url;
     if (Supabase.configured() && navigator.onLine && oldUrl && oldUrl.startsWith("http")) {
-      try { await Supabase.removeSignature(oldUrl); } catch (e) { console.warn("Suppression ancienne signature technicien échouée", e); }
+      try { await Supabase.removeSignature(oldUrl); } catch (e) { ErrorLog.warn("Suppression ancienne signature technicien échouée", e); }
     }
   });
   $("#btn-save-contrat").addEventListener("click", async () => {
@@ -3139,7 +3146,7 @@ async function renderContrat(id) {
       try {
         if (state.contratDraft._client_sig_blob) state.contratDraft.client_signature_url = await Supabase.uploadSignature(`ct-client-${uuid()}`, state.contratDraft._client_sig_blob);
         if (state.contratDraft._technicien_sig_blob) state.contratDraft.technicien_signature_url = await Supabase.uploadSignature(`ct-tech-${uuid()}`, state.contratDraft._technicien_sig_blob);
-      } catch (e) { console.warn("Upload signature échoué", e); }
+      } catch (e) { ErrorLog.warn("Upload signature échoué", e); }
     }
     // NUM-01 : référence attribuée côté serveur à la première synchronisation
     // (trigger `set_numero_contrat`) — plus de compteur local source de
@@ -3153,7 +3160,7 @@ async function renderContrat(id) {
   $("#btn-pdf-contrat")?.addEventListener("click", async () => {
     const client = state.contratDraft.client_id ? await DB.getClient(state.contratDraft.client_id) : null;
     try { await downloadContratPDF(state.contratDraft, client); toast("PDF du contrat généré"); }
-    catch (err) { console.error(err); toast("Erreur lors de la génération du PDF", true); }
+    catch (err) { ErrorLog.error(err); toast("Erreur lors de la génération du PDF", true); }
   });
 }
 
@@ -3184,7 +3191,7 @@ async function renderDetailContrat(id) {
   if (!ct) { go("#/contrats"); return; }
   const client = ct.client_id ? await DB.getClient(ct.client_id) : null;
   setApp(`
-    ${topbar({ title: "Contrat d'entretien", subtitle: ct.numero || "", back: true, actions: `<button class="icon-btn" data-nav="contrat-edit" data-id="${ct.id}" title="Modifier">${ICONS.pencil}</button>` })}
+    ${topbar({ title: "Contrat d'entretien", subtitle: ct.numero || "", back: true, actions: `<button class="icon-btn" data-nav="contrat-edit" data-id="${ct.id}" title="Modifier" aria-label="Modifier">${ICONS.pencil}</button>` })}
     <main>
       <div class="detail-header"><div class="meta">${esc(client?.nom || ct.nom || "Client")}</div></div>
       <div class="section-label">Prestations</div>
@@ -3209,7 +3216,7 @@ async function renderDetailContrat(id) {
   `);
   $("#btn-pdf-contrat").addEventListener("click", async () => {
     try { await downloadContratPDF(ct, client); toast("PDF du contrat généré"); }
-    catch (err) { console.error(err); toast("Erreur lors de la génération du PDF", true); }
+    catch (err) { ErrorLog.error(err); toast("Erreur lors de la génération du PDF", true); }
   });
 }
 
@@ -3310,6 +3317,12 @@ document.addEventListener("click", async (e) => {
   else if (action === "conflict-keep-remote") resolveConflictAction(nav.dataset.store, nav.dataset.id, false);
   else if (action === "sync-retry-failed") retryFailedAction(nav.dataset.store, nav.dataset.id);         // SYNC-03
   else if (action === "sync-discard-failed") discardFailedAction(nav.dataset.store, nav.dataset.id);    // SYNC-03
+  else if (action === "errorlog-copy") {                                                                     // BP-06
+    const txt = ErrorLog.toText();
+    try { await navigator.clipboard.writeText(txt); toast("Journal copié"); }
+    catch (e) { toast("Copie impossible — sélectionnez le texte à la main", true); }
+  }
+  else if (action === "errorlog-clear") { await ErrorLog.clear(); await renderAccount(); }                   // BP-06
   else if (action === "appel-edit") go(`#/appel/${nav.dataset.id}`);
   else if (action === "appel-delete") {
     if (confirm("Supprimer cet appel ?")) { await DB.deleteAppel(nav.dataset.id); toast("Appel supprimé"); go("#/"); }
@@ -3387,7 +3400,7 @@ async function importData() {
     if (window.location.hash === "#/account") await renderAccount();
     else await renderHome();
   } catch (err) {
-    console.error(err);
+    ErrorLog.error(err);
     toast("Import impossible — fichier invalide", true);
   }
 }
@@ -3434,7 +3447,7 @@ function renderAuth() {
     localStorage.setItem("ce_auth_email", email);
     const btn = $("#btn-magic"); btn.disabled = true;
     try { await Supabase.signInWithMagicLink(email); toast("Lien envoyé — ouvrez le lien sur ce téléphone"); }
-    catch (err) { console.error(err); toast("Erreur : " + (err.message || "envoi impossible"), true); }
+    catch (err) { ErrorLog.error(err); toast("Erreur : " + (err.message || "envoi impossible"), true); }
     finally { btn.disabled = false; }
   });
   $("#btn-password").addEventListener("click", async () => {
@@ -3444,7 +3457,7 @@ function renderAuth() {
     localStorage.setItem("ce_auth_email", email);
     const btn = $("#btn-password"); btn.disabled = true;
     try { await Supabase.signInWithPassword(email, password); toast("Connecté"); go("#/"); }
-    catch (err) { console.error(err); toast("Identifiants invalides", true); }
+    catch (err) { ErrorLog.error(err); toast("Identifiants invalides", true); }
     finally { btn.disabled = false; }
   });
 }
@@ -3503,7 +3516,7 @@ async function enforceLocalOwner(user) {
   if (localUnsyncedCount() > 0) {
     // Des modifications d'un AUTRE compte attendent d'être envoyées : on ne les
     // efface pas, on ne les montre pas non plus.
-    try { await Supabase.signOut(); } catch (e) { console.warn(e); }
+    try { await Supabase.signOut(); } catch (e) { ErrorLog.warn(e); }
     Sync.stopRealtime();
     state.auth = null;
     alert("Connexion refusée : cet appareil contient des modifications non synchronisées d'un autre compte.\n\nReconnectez-vous d'abord avec ce compte pour les envoyer au serveur, puis déconnectez-vous.");
@@ -3516,7 +3529,7 @@ async function enforceLocalOwner(user) {
     await purgeLocalData();
     await DB.setMeta("ce_local_owner", user.id);
   } catch (e) {
-    console.warn("Purge locale impossible", e);
+    ErrorLog.warn("Purge locale impossible", e);
     try { await Supabase.signOut(); } catch (e2) { /* ignoré */ }
     state.auth = null;
     alert("Impossible de préparer cet appareil pour un autre compte (effacement des données locales échoué). Connexion refusée.");
@@ -3532,7 +3545,7 @@ async function signOutUser() {
   // Avant d'effacer : tenter d'envoyer ce qui attend (si le réseau le permet).
   if (purge && navigator.onLine && Supabase.configured() && localUnsyncedCount() > 0) {
     toast("Synchronisation avant déconnexion…");
-    try { await Sync.runSync(); } catch (e) { console.warn(e); }
+    try { await Sync.runSync(); } catch (e) { ErrorLog.warn(e); }
   }
   const unsynced = localUnsyncedCount();
   let msg = purge
@@ -3545,7 +3558,7 @@ async function signOutUser() {
   }
   if (!confirm(msg)) return;
 
-  try { if (Supabase.configured()) await Supabase.signOut(); } catch (e) { console.warn(e); }
+  try { if (Supabase.configured()) await Supabase.signOut(); } catch (e) { ErrorLog.warn(e); }
   // SYNC-04 : ferme les canaux Realtime et permet un ré-abonnement propre
   // à la reconnexion (sinon les événements du compte précédent continuent
   // d'être reçus, et un second abonnement se superpose au premier).
@@ -3556,7 +3569,7 @@ async function signOutUser() {
     try {
       await purgeLocalData();
     } catch (e) {
-      console.warn("Purge locale impossible", e);
+      ErrorLog.warn("Purge locale impossible", e);
       alert("L'effacement des données de cet appareil a échoué. Vos données y sont toujours : videz les données du site depuis les réglages du navigateur si l'appareil est perdu ou partagé.");
       go("#/login");
       return;
@@ -3627,6 +3640,7 @@ async function renderAccount() {
   // copie locale reste intacte jusqu'à la résolution.
   const failures = (window.Sync && Sync.state.failures) || [];
   const failureRows = await Promise.all(failures.map(async (f) => ({ ...f, label: await conflictLabel(f) })));
+  const errorLogRows = ErrorLog.list(); // BP-06
 
   setApp(`
     ${topbar({ title: "Compte & synchro", back: true })}
@@ -3679,6 +3693,18 @@ async function renderAccount() {
           : `<div class="sync-status warn"><span class="dot"></span>${supConfigured ? "Connectez-vous pour activer la synchronisation." : "Supabase non configuré (voir config.js)."}</div>`}
       </div>
 
+      <div class="section-label">Journal d'erreurs (support)</div>
+      <div class="card" style="padding:14px;">
+        ${errorLogRows.length
+          ? `<div class="block-text" style="font-size:12px;margin:0 0 8px;">Les ${errorLogRows.length} dernières erreurs de cet appareil (aucune donnée client, rien n'est envoyé automatiquement).</div>
+             ${errorLogRows.slice(0, 15).map((e) => `<div class="block-text" style="font-size:12px;margin:0 0 6px;word-break:break-word;"><strong>${esc(new Date(e.at).toLocaleString("fr-FR"))}</strong> — ${esc(e.message)}${e.cause ? ` : ${esc(e.cause)}` : ""}${e.code ? ` (${esc(e.code)})` : ""}${e.status ? ` HTTP ${esc(e.status)}` : ""}</div>`).join("")}
+             <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;">
+               <button class="btn btn-ghost" data-nav="errorlog-copy">Copier le journal</button>
+               <button class="btn btn-ghost" data-nav="errorlog-clear">Vider</button>
+             </div>`
+          : `<div class="block-text" style="margin:0;">Aucune erreur enregistrée.</div>`}
+      </div>
+
       <div class="section-label">Données locales</div>
       <div class="card"><div class="block-text">Sauvegardez manuellement l'intégralité de vos données (clients, interventions, équipements, pièces, appels, rendez-vous, mesures, photos, documents, contrats) au format JSON, ou restaurez-les depuis un fichier de sauvegarde.</div></div>
       <button class="btn btn-ghost" data-nav="export" style="margin-top:12px;">${ICONS.down} Exporter toutes les données</button>
@@ -3701,7 +3727,7 @@ async function renderAccount() {
   $("#btn-save-name")?.addEventListener("click", async () => {
     const name = $("#acct-name").value.trim();
     try { await Supabase.updateProfile(name); if (state.auth?.profile) state.auth.profile.full_name = name; toast("Nom enregistré"); }
-    catch (err) { console.error(err); toast("Erreur d'enregistrement", true); }
+    catch (err) { ErrorLog.error(err); toast("Erreur d'enregistrement", true); }
   });
   $("#import-file")?.addEventListener("change", () => importData());
   $("#purge-toggle")?.addEventListener("change", (e) => {
@@ -3746,7 +3772,7 @@ document.addEventListener("change", async (e) => {
   if (!confirm(`Attribuer le rôle « ${ROLE_LABELS[next]} » à ${name} ?`)) { sel.value = prev; return; }
   sel.disabled = true;
   try { await Supabase.setUserRole(target, next); toast("Rôle mis à jour"); }
-  catch (err) { console.error(err); toast("Changement refusé : " + (err.message || "erreur"), true); }
+  catch (err) { ErrorLog.error(err); toast("Changement refusé : " + (err.message || "erreur"), true); }
   await renderTeamRoles();
 });
 
@@ -3792,7 +3818,7 @@ async function runSyncNow() {
     if (window.location.hash === "#/account") await renderAccount();
     else await renderHome();
   } catch (err) {
-    console.error(err);
+    ErrorLog.error(err);
     toast("Erreur de synchronisation — nouvel essai automatique", true);
     scheduleSyncRetry();
   }
@@ -3804,7 +3830,7 @@ async function resolveConflictAction(store, id, keepLocal) {
     await Sync.resolveConflict(store, id, keepLocal);
     toast(keepLocal ? "Votre version a été renvoyée" : "Version serveur appliquée");
   } catch (e) {
-    console.error(e);
+    ErrorLog.error(e);
     toast("Résolution impossible — réessayez", true);
   }
   await renderAccount();
@@ -3818,7 +3844,7 @@ async function retryFailedAction(store, id) {
     await Sync.retryFailed(store, id);
     toast("Synchronisation de l'élément effectuée");
   } catch (e) {
-    console.error("Nouvel essai de synchronisation échoué", e);
+    ErrorLog.error("Nouvel essai de synchronisation échoué", e);
     toast("Élément toujours en erreur — voir le motif", true);
     scheduleSyncRetry();
   }
@@ -3846,7 +3872,7 @@ async function forceResendAll() {
     await Sync.runSync();
     toast("Données renvoyées");
   } catch (e) {
-    console.warn(e);
+    ErrorLog.warn(e);
     toast("Renvoi partiel — nouvel essai automatique", true);
     scheduleSyncRetry();
   }
@@ -3867,7 +3893,7 @@ function scheduleSyncRetry(delay = 5000) {
       if (window.location.hash === "#/account") await renderAccount();
       else await renderHome();
     } catch (err) {
-      console.warn("Nouvel essai de synchronisation échoué", err);
+      ErrorLog.warn("Nouvel essai de synchronisation échoué", err);
       scheduleSyncRetry(Math.min(delay * 2, 30000));
     }
   }, delay);
@@ -3944,7 +3970,9 @@ window.addEventListener("online", updateOfflinePill);
 window.addEventListener("offline", updateOfflinePill);
 
 async function init() {
+  startLabelLinker(); // BP-05 : noms accessibles des champs (voir utils.js)
   await DB.init();
+  await ErrorLog.init(); // BP-06 : journal d'erreurs local
   await Sync.initPersisted(); // SYNC-01/02 : restaure file, curseur, conflits
 
   // BP-01 : restauration du brouillon de wizard s'il persiste en local
@@ -3957,11 +3985,11 @@ async function init() {
       state.step = parsed.step || 1;
       if (state.draft) state.wizardDraftPending = true;
     }
-  } catch (e) { /* brouillon illisible : on repart à zéro */ }
+  } catch (e) { ErrorLog.warn("Brouillon du wizard illisible — on repart à zéro", e); }
 
   // BP-01 : demander la persistance du stockage IndexedDB (évite l'éviction iOS/Android)
   if (navigator.storage && navigator.storage.persist) {
-    try { await navigator.storage.persist(); } catch (e) { console.warn("storage.persist() refusé", e); }
+    try { await navigator.storage.persist(); } catch (e) { ErrorLog.warn("storage.persist() refusé", e); }
   }
 
   initSupabase();
@@ -3984,7 +4012,7 @@ async function init() {
           // de pushAllLocal à chaque lancement / INITIAL_SESSION.
           if (event === "SIGNED_IN" || event === "INITIAL_SESSION") await Sync.initialPushIfNeeded();
           await Sync.runSync().catch((e) => {
-            console.warn("Sync échec (nouvel essai automatique)", e);
+            ErrorLog.warn("Sync échec (nouvel essai automatique)", e);
             toast("Synchronisation en attente de réseau", true);
             scheduleSyncRetry();
           });
@@ -4012,7 +4040,6 @@ async function init() {
         if (!newWorker) return;
         newWorker.addEventListener("statechange", () => {
           if (newWorker.state !== "installed" || !navigator.serviceWorker.controller) return;
-          pendingUpdateWorker = newWorker;
           state.updateAvailable = true;
           const hash = window.location.hash || "#/";
           const inForm = !!state.draft || hash.startsWith("#/new") || hash.startsWith("#/entretien") || hash.startsWith("#/appel") || hash.startsWith("#/contrat");
@@ -4026,7 +4053,7 @@ async function init() {
       checkForUpdates();
       window.addEventListener("focus", checkForUpdates);
       document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") checkForUpdates(); });
-    }).catch((err) => console.warn("SW registration failed", err));
+    }).catch((err) => ErrorLog.warn("SW registration failed", err));
   }
   await route();
 }

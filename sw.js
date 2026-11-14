@@ -1,8 +1,13 @@
 /* =========================================================
    Climat Elec — Service Worker
-   Stratégie : cache-first sur l'app shell pour un fonctionnement
-   100% hors ligne après la première visite (avec réseau).
-   Incrémenter CACHE_VERSION à chaque déploiement de nouvelle version.
+   Stratégie (BP-04) :
+   - app shell (ASSETS) précaché à l'installation, servi cache-first, 100 % hors ligne ;
+   - navigation, index.html et config.js : RÉSEAU d'abord (3 s max), cache en repli —
+     une nouvelle version est donc vue dès qu'il y a du réseau ;
+   - liste blanche : seules les URL de ASSETS sont mises en cache (jamais d'API ni de
+     contenu tiers) ; tout le reste passe directement par le navigateur ;
+   - CACHE_VERSION est ESTAMPILLÉ À LA BUILD (scripts/stamp-sw.mjs : empreinte du contenu
+     de dist/) — plus d'incrément manuel, plus d'oubli. Hors build = « climatelec-dev ».
    ========================================================= */
 // v31 : branche fix/sync-04-num-01 (v30 est utilisé par la branche
 // fix/securite-analyse, non encore fusionnée — saut volontaire pour éviter
@@ -18,12 +23,16 @@
 // données locales + purge à la déconnexion (SEC-04), Équipe & rôles (SEC-07), historique du
 // dossier (IMP-01), page Confidentialité (SEC-13), CSP resserrée (SEC-12).
 // v39 : retour À facturer → À valider (motif obligatoire).
-const CACHE_VERSION = "climatelec-v39";
+// v40 : étape 4 — utils.js (esc/html), errorlog.js (BP-06), intervenants issus de profiles, zoom autorisé (BP-05).
+// Historique avant l'estampillage automatique : dernière version manuelle = v40.
+const CACHE_VERSION = "climatelec-dev"; // remplacé par scripts/stamp-sw.mjs (build)
 const ASSETS = [
   "./",
   "./index.html",
   "./style.css",
   "./config.js",
+  "./utils.js",
+  "./errorlog.js",
   "./idb.js",
   "./supabase.js",
   "./sync.js",
@@ -46,37 +55,63 @@ const ASSETS = [
   "./icons/apple-touch-icon.png",
 ];
 
+const NETWORK_FIRST = new Set(["/", "/index.html", "/config.js"]);
+const NETWORK_TIMEOUT_MS = 3000;
+const PRECACHED = new Set(ASSETS.map((a) => new URL(a, self.location).pathname));
+
 self.addEventListener("install", (event) => {
-  event.waitUntil(
-    caches.open(CACHE_VERSION).then((cache) => cache.addAll(ASSETS)).then(() => self.skipWaiting())
-  );
+  event.waitUntil(caches.open(CACHE_VERSION).then((cache) => cache.addAll(ASSETS)).then(() => self.skipWaiting()));
 });
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE_VERSION).map((k) => caches.delete(k)))
-    ).then(() => self.clients.claim())
+    caches
+      .keys()
+      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE_VERSION).map((k) => caches.delete(k))))
+      .then(() => self.clients.claim()),
   );
 });
 
-self.addEventListener("fetch", (event) => {
-  if (event.request.method !== "GET") return;
+function networkFirst(request, fallbackKey) {
+  return new Promise((resolve) => {
+    let settled = false;
+    const useCache = () =>
+      caches.match(fallbackKey || request, { ignoreSearch: true }).then((hit) => {
+        if (hit) return resolve(hit);
+        return null;
+      });
+    const timer = setTimeout(() => {
+      if (!settled) useCache();
+    }, NETWORK_TIMEOUT_MS);
+    fetch(request)
+      .then((response) => {
+        clearTimeout(timer);
+        if (response && response.status === 200 && response.type === "basic") {
+          const clone = response.clone();
+          caches.open(CACHE_VERSION).then((cache) => cache.put(fallbackKey || request, clone));
+        }
+        settled = true;
+        resolve(response);
+      })
+      .catch(() => {
+        clearTimeout(timer);
+        settled = true;
+        useCache().then(() => resolve(Response.error()));
+      });
+  });
+}
 
-  event.respondWith(
-    caches.match(event.request).then((cached) => {
-      if (cached) return cached;
-      return fetch(event.request)
-        .then((response) => {
-          if (response && response.status === 200 && response.type === "basic") {
-            const clone = response.clone();
-            caches.open(CACHE_VERSION).then((cache) => cache.put(event.request, clone));
-          }
-          return response;
-        })
-        .catch(() => {
-          if (event.request.mode === "navigate") return caches.match("./index.html");
-        });
-    })
-  );
+self.addEventListener("fetch", (event) => {
+  const { request } = event;
+  if (request.method !== "GET") return;
+  const url = new URL(request.url);
+  if (url.origin !== self.location.origin) return; // Supabase, CDN… : jamais interceptés
+
+  const isNavigation = request.mode === "navigate";
+  if (isNavigation || NETWORK_FIRST.has(url.pathname)) {
+    event.respondWith(networkFirst(request, isNavigation ? "./index.html" : request));
+    return;
+  }
+  if (!PRECACHED.has(url.pathname)) return; // liste blanche : on ne met rien d'autre en cache
+  event.respondWith(caches.match(request).then((cached) => cached || fetch(request)));
 });

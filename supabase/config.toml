@@ -1,0 +1,18 @@
+# Configuration Supabase CLI — utilisée par `supabase start` / `supabase db reset` / `supabase test db`
+# (base locale JETABLE, jamais la production). Voir supabase/migrations/README.md.
+project_id = "climat-elec-interventions"
+
+[api]
+enabled = true
+
+[db]
+port = 54322
+major_version = 15
+
+[db.seed]
+enabled = true
+sql_paths = ["./seed.sql"]
+
+[auth]
+enabled = true
+site_url = "http://127.0.0.1:8080"

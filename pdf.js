@@ -398,7 +398,7 @@ async function generateInterventionPDF(itv, client) {
     try {
       const img = await loadImage(url);
       if (img) { doc.addImage(img, imageFormat(url), x, y, w, h); return true; }
-    } catch (e) { console.warn("Signature non chargée", e); }
+    } catch (e) { ErrorLog.warn("Signature non chargée", e); }
     return false;
   };
 
@@ -572,7 +572,7 @@ async function generateContratPDF(contrat, client) {
     try {
       const img = await loadImage(url);
       if (img) { doc.addImage(img, "PNG", x, y + 20, w, h); return true; }
-    } catch (e) { console.warn("Signature non chargée", e); }
+    } catch (e) { ErrorLog.warn("Signature non chargée", e); }
     return false;
   };
 

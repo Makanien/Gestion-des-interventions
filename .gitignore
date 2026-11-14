@@ -14,3 +14,9 @@ supabase-backup-*/
 
 # Listes d'objets Storage produites par supabase/purge_retention.mjs (SEC-13)
 purge-storage-*.json
+
+# Outillage de dev (BP-02)
+node_modules/
+coverage/
+test-results/
+playwright-report/

@@ -1,0 +1,22 @@
+name: Supabase db reset (CLI)
+
+# Rejoue les migrations sur une base Supabase LOCALE jetable (Docker), avec le vrai
+# environnement auth/storage — complète le job `db` de ci.yml (qui utilise un shim).
+on:
+  pull_request:
+    paths: ["supabase/**"]
+
+permissions:
+  contents: read
+
+jobs:
+  reset:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - run: supabase start -x studio,imgproxy,edge-runtime,logflare,vector
+      - run: supabase db reset
+      - run: supabase test db

@@ -1,0 +1,28 @@
+# Code historique : formaté progressivement (BP-03) — l'ajouter ici évite un diff géant.
+app.js
+idb.js
+sync.js
+sync-persist.js
+supabase.js
+pdf.js
+signature.js
+sw.js
+config.js
+style.css
+index.html
+logo-data.js
+vendor/
+dist/
+node_modules/
+Archives/
+documentation/
+"photo orpheline"/
+assets/
+icons/
+*.md
+supabase/schema.sql
+supabase/migrations/
+supabase/*.mjs
+supabase/*.sql
+supabase/tests/*.sql
+package-lock.json

@@ -1,4 +1,14 @@
 -- =========================================================
+-- FICHIER GÉNÉRÉ — NE PAS ÉDITER À LA MAIN.
+-- Source de vérité : supabase/migrations/*.sql (voir supabase/migrations/README.md).
+-- Régénérer : npm run schema:build   |   Vérifier : npm run schema:check
+-- Contenu : 1 migration(s) concaténée(s), toutes idempotentes.
+-- =========================================================
+
+-- ---------------------------------------------------------
+-- MIGRATION 20261101000000_baseline.sql
+-- ---------------------------------------------------------
+-- =========================================================
 -- Climat Elec — Schéma Supabase (V2 + V3) — FICHIER MAÎTRE UNIQUE
 --
 -- À exécuter dans l'éditeur SQL du projet Supabase
@@ -448,7 +458,7 @@ create table if not exists public.photos (
   id              uuid primary key default gen_random_uuid(),
   intervention_id uuid references public.interventions(id) on delete cascade,
   data_url        text not null default '',   -- image (dataURL) offline-first
-  fichier_url     text not null default '',   -- URL Storage publique si uploadée
+  fichier_url     text not null default '',   -- CHEMIN d'objet dans le bucket Storage PRIVÉ `photos` (et non une URL) — COH-03
   legende         text not null default '',
   created_at      timestamptz not null default now(),
   updated_at      timestamptz not null default now(),
@@ -483,7 +493,7 @@ create table if not exists public.documents (
   type            text not null default '', -- 'devis' | 'contrat_entretien' — 'facture' obsolète (workflow 4 statuts), lignes existantes conservées
   nom             text not null default '',
   data_url        text not null default '',   -- PDF en base64 (offline-first)
-  fichier_url     text not null default '',   -- URL Storage si uploadé
+  fichier_url     text not null default '',   -- CHEMIN d'objet dans le bucket Storage privé `documents` (et non une URL) — COH-03
   numero_externe  text not null default '',
   created_at      timestamptz not null default now(),
   updated_at      timestamptz not null default now(),
