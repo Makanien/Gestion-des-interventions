@@ -15,6 +15,7 @@ npm run test:e2e             # nécessite la build ; installe Chromium : npx pla
 ## Règles
 
 1. **Jamais de commit direct sur `main` ni `dev`** : une branche par lot, une PR relue, la CI verte.
+2. **Nouveau fichier de code** : script classique dans `js/` ; l'ajouter à `index.html` (avant `app.js`, ordre = ordre de chargement) **et** à `ASSETS`. Ne pas exécuter au chargement du code qui dépend d'un fichier chargé plus tard.
 2. **Service worker** : la version du cache est **estampillée à la build** (ne rien incrémenter à la main). Si vous **ajoutez ou renommez un fichier servi**, mettez à jour `ASSETS` (`sw.js`),
    `scripts/build-dist.sh` et, pour un script, `index.html` — la build échoue sinon.
 3. **SQL** : `supabase/migrations/` est la source de vérité. Nouvelle évolution = nouveau fichier horodaté, **idempotent**, puis `npm run schema:build` (commiter aussi `schema.sql`).

@@ -4,7 +4,17 @@ Journal des livraisons, du plus récent au plus ancien. Le PRD ([`docs/PRD.md`](
 l'architecture est dans [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). Ce fichier est mis à jour **dans chaque PR**
 (règle de contribution : voir [`CONTRIBUTING.md`](CONTRIBUTING.md)).
 
-## [Non publié] — étape 4 « Qualité durable » (14/11/2026)
+## [Non publié] — BP-03 : découpage d'`app.js` (14/11/2026)
+
+### Modifié
+- `app.js` (4 060 lignes) est réparti en **16 modules `js/*.js`** + un `app.js` réduit au point d'entrée (99 lignes). Découpage **purement mécanique**, sans changement de comportement : la concaténation des modules redonne exactement l'ancien fichier (vérifié), et 8 écrans sont rendus à l'identique (comparés à l'ancien `app.js`).
+- ESLint lit désormais les déclarations de haut niveau de **tous** les scripts (plus de liste de globales à maintenir à la main).
+- `index.html`, `sw.js` (`ASSETS`) et `scripts/build-dist.sh` référencent les nouveaux fichiers.
+
+### Ajouté
+- `tests/unit/boot.test.js` : démarrage complet de l'application dans jsdom (ordre de chargement, 8 écrans sans erreur).
+
+## [Non publié, fusionné] — étape 4 « Qualité durable » (14/11/2026)
 
 ### Ajouté
 - **Tests** (BP-02) : 77 tests unitaires Vitest (numérotation de repli, statuts, `cleanRow`/`mergeRemote`, classification des erreurs de synchro, **scénario A/B de SYNC-01** avec deux appareils et un faux serveur partagé), 31 tests **RLS/workflow pgTAP** (un compte par rôle), tests E2E Playwright « fumée » (démarrage, service worker, rechargement hors ligne).

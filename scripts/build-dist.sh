@@ -18,7 +18,7 @@ ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 DIST="$ROOT/dist"
 
 rm -rf "$DIST"
-mkdir -p "$DIST/assets" "$DIST/icons" "$DIST/vendor"
+mkdir -p "$DIST/assets" "$DIST/icons" "$DIST/vendor" "$DIST/js"
 
 for f in \
   index.html sw.js style.css manifest.json logo-data.js config.js \
@@ -30,6 +30,7 @@ done
 cp "$ROOT"/assets/logo-climat-elec.png "$DIST/assets/"  # assets/logo.png n'est référencé nulle part : non livré
 cp "$ROOT"/icons/* "$DIST/icons/"
 cp "$ROOT"/vendor/*.js "$DIST/vendor/"
+cp "$ROOT"/js/*.js "$DIST/js/"   # BP-03 : modules extraits d'app.js (ordre de chargement = index.html)
 
 # ---------------------------------------------------------
 # SEC-12 — En-têtes HTTP (Netlify : fichier `_headers`).
