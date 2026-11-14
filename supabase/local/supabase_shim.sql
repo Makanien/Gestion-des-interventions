@@ -1,5 +1,6 @@
 -- =========================================================
--- Shim minimal de l'environnement Supabase, pour rejouer le schéma sur un
+-- Shim minimal de l'environnement Supabase (volontairement HORS de supabase/tests/ :
+-- `supabase test db` exécute tout ce qui s'y trouve, et le vrai Supabase fournit déjà ces objets), pour rejouer le schéma sur un
 -- PostgreSQL « nu » (CI jetable, poste de dev sans Docker). NE SERT PAS en
 -- production ni sur un projet Supabase : là, ces objets existent déjà.
 --

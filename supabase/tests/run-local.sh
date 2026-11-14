@@ -6,7 +6,7 @@ set -euo pipefail
 cd "$(dirname "$0")/../.."
 DB="${CE_TEST_DB:-ce_test}"
 psql -v ON_ERROR_STOP=1 -q -d postgres -c "drop database if exists ${DB}" -c "create database ${DB}"
-psql -v ON_ERROR_STOP=1 -q -d "$DB" -f supabase/tests/00_supabase_shim.sql
+psql -v ON_ERROR_STOP=1 -q -d "$DB" -f supabase/local/supabase_shim.sql
 # Rejeu x2 : le schéma doit être idempotent (DB-02).
 for pass in 1 2; do
   for f in supabase/migrations/*.sql; do psql -v ON_ERROR_STOP=1 -q -d "$DB" -f "$f" >/dev/null; done

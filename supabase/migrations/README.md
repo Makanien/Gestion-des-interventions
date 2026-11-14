@@ -20,4 +20,4 @@ rejoue pas inutilement sur dev/prod : `supabase migration repair --status applie
 ## Tester en local
 
 - Avec Docker : `supabase start && supabase db reset && supabase test db`.
-- Sans Docker : voir `supabase/tests/run-local.sh` (PostgreSQL nu + shim de l'environnement Supabase).
+- Sans Docker : voir `supabase/tests/run-local.sh` (PostgreSQL nu + shim `supabase/local/supabase_shim.sql`, qui n'est PAS dans `supabase/tests/` car `supabase test db` y exécute tous les fichiers).
