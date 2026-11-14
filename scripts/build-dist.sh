@@ -27,7 +27,7 @@ do
   cp "$ROOT/$f" "$DIST/$f"
 done
 
-cp "$ROOT"/assets/*.png "$DIST/assets/"
+cp "$ROOT"/assets/logo-climat-elec.png "$DIST/assets/"  # assets/logo.png n'est référencé nulle part : non livré
 cp "$ROOT"/icons/* "$DIST/icons/"
 cp "$ROOT"/vendor/*.js "$DIST/vendor/"
 
@@ -68,6 +68,9 @@ cat > "$DIST/_headers" <<EOF
 /sw.js
   Cache-Control: no-cache
 EOF
+
+# BP-04 — version du cache = empreinte du contenu (plus d'incrément manuel) + cohérence ASSETS.
+node "$ROOT/scripts/stamp-sw.mjs" "$DIST"
 
 echo "dist/ prêt : $(find "$DIST" -type f | wc -l) fichier(s)."
 echo "⚠️  SEC-06 — ne déployer que le contenu de dist/, jamais le dépôt entier."

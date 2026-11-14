@@ -13,13 +13,19 @@
     "test:watch": "vitest",
     "build": "bash scripts/build-dist.sh",
     "schema:build": "node scripts/build-schema.mjs",
-    "schema:check": "node scripts/build-schema.mjs --check"
+    "schema:check": "node scripts/build-schema.mjs --check",
+    "test:e2e": "playwright test",
+    "vendor:check": "node scripts/check-vendor.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",
+    "@playwright/test": "^1.49.1",
+    "@supabase/supabase-js": "2.112.3",
     "eslint": "^9.17.0",
     "fake-indexeddb": "^6.0.0",
     "globals": "^15.14.0",
+    "http-server": "^14.1.1",
+    "jspdf": "4.2.1",
     "prettier": "^3.4.2",
     "vitest": "^2.1.8"
   }

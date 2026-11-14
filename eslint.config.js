@@ -65,12 +65,12 @@ module.exports = [
     rules: { "no-unused-vars": ["warn", { args: "none", caughtErrors: "none" }] },
   },
   {
-    files: ["scripts/**/*.mjs", "supabase/**/*.mjs", "vitest.config.mjs"],
+    files: ["scripts/**/*.mjs", "supabase/**/*.mjs", "vitest.config.mjs", "playwright.config.mjs"],
     languageOptions: { ecmaVersion: 2022, sourceType: "module", globals: { ...globals.node } },
   },
   // Tests Vitest : syntaxe ESM (import) ; ils chargent les scripts classiques via tests/helpers/load-app.js.
   {
     files: ["tests/unit/**/*.js", "tests/e2e/**/*.js"],
-    languageOptions: { ecmaVersion: 2022, sourceType: "module", globals: { ...globals.node } },
+    languageOptions: { ecmaVersion: 2022, sourceType: "module", globals: { ...globals.node, ...globals.browser, caches: "readonly" } },
   },
 ];
