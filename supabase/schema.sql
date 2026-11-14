@@ -1,4 +1,14 @@
 -- =========================================================
+-- FICHIER GÉNÉRÉ — NE PAS ÉDITER À LA MAIN.
+-- Source de vérité : supabase/migrations/*.sql (voir supabase/migrations/README.md).
+-- Régénérer : npm run schema:build   |   Vérifier : npm run schema:check
+-- Contenu : 1 migration(s) concaténée(s), toutes idempotentes.
+-- =========================================================
+
+-- ---------------------------------------------------------
+-- MIGRATION 20261101000000_baseline.sql
+-- ---------------------------------------------------------
+-- =========================================================
 -- Climat Elec — Schéma Supabase (V2 + V3) — FICHIER MAÎTRE UNIQUE
 --
 -- À exécuter dans l'éditeur SQL du projet Supabase

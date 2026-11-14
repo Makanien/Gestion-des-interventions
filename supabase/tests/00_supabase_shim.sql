@@ -55,3 +55,10 @@ begin
     create publication supabase_realtime;
   end if;
 end $$;
+
+-- Supabase accorde par défaut tous les droits aux rôles API sur le schéma public ;
+-- c'est la RLS (et non les GRANT) qui restreint l'accès. On reproduit ce défaut.
+grant usage on schema public to anon, authenticated, service_role;
+alter default privileges in schema public grant all on tables to anon, authenticated, service_role;
+alter default privileges in schema public grant all on sequences to anon, authenticated, service_role;
+alter default privileges in schema public grant execute on functions to anon, authenticated, service_role;
