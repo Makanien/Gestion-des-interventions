@@ -37,7 +37,11 @@ jobs:
           sudo apt-get install -y -qq postgresql-16 postgresql-16-pgtap libtap-parser-sourcehandler-pgtap-perl
           sudo service postgresql start
       - name: Rejouer les migrations deux fois puis exécuter les tests pgTAP
-        run: sudo -u postgres env PGHOST=/var/run/postgresql "$PWD/supabase/tests/run-local.sh"
+        # /home/runner n'est pas traversable par l'utilisateur système `postgres` : on exécute
+        # depuis une copie lisible par tous, et via `bash` (pas de dépendance au bit exécutable).
+        run: |
+          rm -rf /tmp/repo && cp -r "$PWD" /tmp/repo && chmod -R a+rX /tmp/repo
+          sudo -u postgres env PGHOST=/var/run/postgresql bash /tmp/repo/supabase/tests/run-local.sh
 
   e2e:
     name: E2E (Playwright)
