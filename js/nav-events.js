@@ -15,6 +15,7 @@ document.addEventListener("click", async (e) => {
 
   if (action === "detail") go(`#/detail/${nav.dataset.id}`);
   else if (action === "client-open") go(`#/client/${nav.dataset.id}`);
+  else if (action === "client-edit") go(`#/client-edit/${nav.dataset.id}`);
   else if (action === "edit") {
     if (state.draft && state.draft.id !== nav.dataset.id) state.draft = null;
     goReplace(`#/edit/${nav.dataset.id}`);

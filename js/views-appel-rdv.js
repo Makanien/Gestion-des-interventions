@@ -11,6 +11,7 @@ function openCreateSheet() {
       <div class="sheet-head"><h3>Créer</h3><button class="icon-btn" id="sheet-close" aria-label="Fermer" title="Fermer">${ICONS.close}</button></div>
       ${[
         { k: "appel", icon: "phone", label: "Nouvel appel", sub: "Enregistrer un contact client entrant" },
+        { k: "rdv", icon: "calendar", label: "Nouveau rendez-vous", sub: "Planifier directement, sans passer par un appel" },
         { k: "intervention", icon: "wrench", label: "Nouvelle intervention", sub: "Sav, Garantie, Dépannage, Diagnostic, Sur devis" },
         { k: "entretien_air_eau", icon: "droplet", label: "Entretien Air/Eau - Sol/Eau", sub: "PAC géothermie / aérothermie" },
         { k: "entretien_air_air", icon: "wind", label: "Entretien Air/Air", sub: "Mono Split, Multi Split ou Gainable" },
@@ -34,6 +35,7 @@ function openCreateSheet() {
     const k = b.dataset.create;
     closeSheet();
     if (k === "appel") { clearAppelDraft(); go("#/appel"); }
+    else if (k === "rdv") { state.rdvDraft = null; state.rdvPrefill = null; go("#/rdv"); }
     else if (k === "intervention") { state.draft = emptyDraft("intervention"); state.draftType = "intervention"; go("#/new/1"); }
     else { const t = k.replace("entretien_", ""); state.draft = emptyDraft(t); state.draftType = t; go(`#/entretien/${t}/1`); }
   }));
@@ -255,11 +257,40 @@ async function renderRdv(id) {
       if (itv && !itv._deleted) ficheLiee = itv;
     }
   }
+  // Client du rendez-vous : connu (appel d'origine, édition) → simple rappel ; sinon (création directe,
+  // ou ancien RDV sans client) → champ de saisie avec suggestion des clients existants.
+  const knownClientId = isEdit ? d.client_id : p.client_id || d.client_id || null;
+  const knownClient = knownClientId ? await DB.getClient(knownClientId) : null;
+  const knownName = (knownClient && knownClient.nom) || p.nom || "";
+  const clientChoices = knownName ? [] : await DB.listClients();
+  // Coordonnées du client à la CRÉATION : vérifiables/corrigeables pour un client existant, à renseigner pour un nouveau.
+  // (Pas à la modification d'un rendez-vous, ni quand seul un nom d'appel est connu sans fiche client.)
+  const showCoords = !isEdit && (!knownName || !!knownClient);
   setApp(`
     ${topbar({ title: isEdit ? "Modifier le rendez-vous" : "Nouveau rendez-vous", subtitle: "Planning", back: true, actions: isEdit ? `<button class="icon-btn" data-nav="rdv-delete" data-id="${d.id}" title="Supprimer" aria-label="Supprimer">${ICONS.trash}</button>` : "" })}
     <main>
       <div class="card" style="padding:14px;">
-        ${p.nom ? `<div class="note blue">Client : <strong>${esc(p.nom)}</strong></div>` : ""}
+        ${knownName
+          ? `<div class="note blue">Client : <strong>${esc(knownName)}</strong></div>`
+          : `<div class="field">
+               <label>Client *</label>
+               <input id="r-client" type="text" list="r-clients-list" autocomplete="off" placeholder="Choisir un client ou saisir un nouveau nom" value="${esc(d.client_nom_saisi || "")}" />
+               <datalist id="r-clients-list">${clientChoices.map((c) => `<option value="${esc(c.nom)}"></option>`).join("")}</datalist>
+               <div class="hint">Un nom inconnu crée un nouveau client (à compléter ensuite depuis sa fiche).</div>
+             </div>`}
+        ${showCoords
+          ? `<div class="section-label" style="margin:4px 0 8px;">Coordonnées du client</div>
+             <div id="r-coords-hint" class="hint" style="margin:0 0 8px;">${knownClient ? "Vérifiez les coordonnées du client : toute correction est enregistrée sur sa fiche." : ""}</div>
+             <div class="field"><label>Adresse</label><input id="r-adresse" type="text" value="${esc(knownClient?.adresse)}" /></div>
+             <div class="row2">
+               <div class="field"><label>Code postal</label><input id="r-cp" type="text" inputmode="numeric" value="${esc(knownClient?.code_postal)}" /></div>
+               <div class="field"><label>Ville</label><input id="r-ville" type="text" value="${esc(knownClient?.ville)}" /></div>
+             </div>
+             <div class="row2">
+               <div class="field"><label>Téléphone</label><input id="r-tel" type="tel" value="${esc(knownClient?.tel)}" /></div>
+               <div class="field"><label>Mail</label><input id="r-mail" type="email" value="${esc(knownClient?.mail)}" /></div>
+             </div>`
+          : ""}
         ${lienAppel ? `<div class="note">Issu de l'appel client du ${fmtStampShort(lienAppel.created_at)}.</div>` : ""}
         ${ficheLiee ? `<div class="note blue">Fiche d'intervention déjà créée pour ce rendez-vous.</div>` : ""}
         <div class="field"><label>Date *</label><input id="r-date" type="date" value="${esc(d.date)}" /></div>
@@ -287,6 +318,33 @@ async function renderRdv(id) {
     </main>
     <div class="toast" id="toast"></div>
   `);
+  const COORDS = [["adresse", "#r-adresse"], ["code_postal", "#r-cp"], ["ville", "#r-ville"], ["tel", "#r-tel"], ["mail", "#r-mail"]];
+  const normNomRdv = (v) => (v || "").trim().replace(/\s+/g, " ").toLowerCase();
+  const matchClient = (typed) => clientChoices.find((c) => normNomRdv(c.nom) === normNomRdv(typed));
+  if (showCoords && !knownName) {
+    // Le nom saisi (ou choisi dans la liste) désigne un client existant → ses coordonnées se remplissent pour vérification ;
+    // un nom inconnu → champs à renseigner. On ne détruit jamais ce que l'utilisateur a modifié lui-même.
+    let filledFrom = null;
+    $("#r-client").addEventListener("input", () => {
+      const typed = $("#r-client").value;
+      const m = matchClient(typed);
+      const hint = $("#r-coords-hint");
+      if (m) {
+        if (filledFrom !== m.id) {
+          COORDS.forEach(([k, sel]) => { $(sel).value = m[k] || ""; });
+          filledFrom = m.id;
+        }
+        hint.textContent = "Client existant : vérifiez ses coordonnées — toute correction est enregistrée sur sa fiche.";
+      } else {
+        if (filledFrom) {
+          const prev = clientChoices.find((c) => c.id === filledFrom);
+          COORDS.forEach(([k, sel]) => { if ($(sel).value === (prev?.[k] || "")) $(sel).value = ""; });
+          filledFrom = null;
+        }
+        hint.textContent = typed.trim() ? "Nouveau client : renseignez ses coordonnées (facultatif, modifiable ensuite depuis sa fiche)." : "";
+      }
+    });
+  }
   $("#btn-save-rdv").addEventListener("click", async () => {
     const d = state.rdvDraft;
     d.date = $("#r-date").value || todayISO();
@@ -296,6 +354,33 @@ async function renderRdv(id) {
     d.intervenant = $("#r-intervenant").value;
     d.technicien_id = resolveTechId(d.intervenant);
     d.note = cleanText($("#r-note").value);
+    // Coordonnées saisies (création) : contrôle du mail avant toute écriture.
+    const coords = {};
+    if (showCoords) {
+      COORDS.forEach(([k, sel]) => { coords[k] = ($(sel).value || "").trim(); });
+      if (!validMail(coords.mail)) { toast("Adresse mail invalide", true); $("#r-mail").focus(); return; }
+    }
+    // Client saisi (création directe) : on retrouve le client existant (même nom, sans tenir compte de la casse)
+    // ou on en crée un — jamais de doublon.
+    let clientCree = false;
+    let coordsMaj = false;
+    let clientRdv = knownClient;
+    if (!knownName) {
+      const typed = ($("#r-client")?.value || "").trim().replace(/\s+/g, " ");
+      if (!typed) { toast("Indiquez le client", true); $("#r-client")?.focus(); return; }
+      const existing = matchClient(typed);
+      clientRdv = existing || (await DB.findOrCreateClientByName({ nom: typed, ...coords }));
+      clientCree = !existing;
+      d.client_id = clientRdv.id;
+    }
+    // Client existant : on ne réécrit sa fiche que si une coordonnée a réellement changé.
+    if (showCoords && clientRdv && !clientCree) {
+      const raw = await DB.getRaw("clients", clientRdv.id);
+      if (raw && COORDS.some(([k]) => (coords[k] || "") !== (raw[k] || ""))) {
+        await DB.saveClient({ ...raw, ...coords });
+        coordsMaj = true;
+      }
+    }
     if (!isEdit) {
       if (state.rdvPrefill?.client_id) d.client_id = state.rdvPrefill.client_id;
       if (state.rdvPrefill?.appel_id) d.appel_id = state.rdvPrefill.appel_id;
@@ -303,7 +388,7 @@ async function renderRdv(id) {
     await DB.saveRendezvous(d);
     if (d.appel_id) await linkAppelToRdv(d.appel_id, d.id);
     state.rdvDraft = null; state.rdvPrefill = null;
-    toast(isEdit ? "Rendez-vous modifié" : "Rendez-vous enregistré");
+    flashToast(clientCree ? "Rendez-vous enregistré — nouveau client créé" : coordsMaj ? "Rendez-vous enregistré — coordonnées du client mises à jour" : isEdit ? "Rendez-vous modifié" : "Rendez-vous enregistré");
     state.tab = "planning";
     go("#/");
   });

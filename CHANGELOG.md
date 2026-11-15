@@ -4,6 +4,19 @@ Journal des livraisons, du plus récent au plus ancien. Le PRD ([`docs/PRD.md`](
 l'architecture est dans [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md). Ce fichier est mis à jour **dans chaque PR**
 (règle de contribution : voir [`CONTRIBUTING.md`](CONTRIBUTING.md)).
 
+## [Non publié] — modifier un client, rendez-vous direct (15/11/2026)
+
+### Ajouté
+- **Modifier un client** : bouton « Modifier le client » (crayon) sur la fiche client → écran `#/client-edit/<id>` (nom, adresse, code postal, ville, téléphone, mail, type de bâtiment). Le nom est obligatoire, le mail est vérifié, et un nom déjà porté par un autre client est refusé (les recherches « par nom » fusionneraient sinon deux clients). Un type de bâtiment hors liste (ancienne valeur) est conservé. Le client est synchronisé comme les autres données, avec contrôle de conflit (SYNC-01). Les fiches et PDF lisent le client par son identifiant : la correction s'applique partout.
+- **Nouveau rendez-vous direct** : entrée « Nouveau rendez-vous » dans le menu « + » (plus besoin de passer par un appel). Champ **Client** avec suggestion des clients existants ; un nom reconnu (casse ignorée) rattache le RDV au client existant, un nom inconnu crée un client minimal (à compléter ensuite via *Modifier le client*). Depuis un appel, le client reste celui de l'appel.
+- **Coordonnées du client dans le rendez-vous** (création) : adresse, code postal, ville, téléphone, mail. Pour un client **existant** (choisi dans la liste, ou issu de l'appel), elles se remplissent pour **vérification** et toute correction est enregistrée sur sa fiche (la fiche n'est réécrite que si une coordonnée a réellement changé) ; pour un **nouveau** client, elles sont à renseigner et servent à créer sa fiche. Le mail est vérifié avant toute écriture. Passer d'un client existant à un nouveau nom vide les champs repris automatiquement, jamais ceux modifiés à la main. Non proposé à la modification d'un rendez-vous existant.
+- `flashToast()` : un message de confirmation affiché juste avant un changement d'écran apparaît désormais sur l'écran d'arrivée (il était effacé par le rendu suivant). Utilisé par ces deux écrans.
+- 11 tests jsdom (`tests/unit/client-rdv.test.js`) qui exécutent l'application réelle.
+
+### Modifié
+- Le bandeau « Actualiser » (mise à jour de l'application) est aussi proposé, au lieu d'un rechargement immédiat, pendant l'édition d'un client ou d'un rendez-vous.
+- Édition d'un rendez-vous : le client est rappelé en tête du formulaire.
+
 ## [Non publié] — BP-03 : découpage d'`app.js` (14/11/2026)
 
 ### Modifié

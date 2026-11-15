@@ -65,6 +65,8 @@ async function route() {
     await renderHome();
   } else if (parts[0] === "client" && parts[1]) {
     await renderClientDetail(parts[1]);
+  } else if (parts[0] === "client-edit" && parts[1]) {
+    await renderClientEdit(parts[1]);
   } else if (parts[0] === "stats") {
     await renderStats();
   } else if (parts[0] === "account") {
@@ -119,6 +121,12 @@ function displayName() {
 function setApp(html) {
   $("#app").innerHTML = html;
   updateOfflinePill();
+  // Message différé (voir flashToast) : affiché sur l'écran qui VIENT d'être rendu.
+  if (state.flash && $("#toast")) {
+    const msg = state.flash;
+    state.flash = null;
+    toast(msg);
+  }
 }
 function updateOfflinePill() {
   const pill = $("#offline-pill");

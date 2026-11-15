@@ -19,6 +19,11 @@ function intervenantOptions(current, { withEmpty = false } = {}) {
 function todayISO() { return new Date().toISOString().slice(0, 10); }
 function nowHM() { const d = new Date(); return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; }
 
+// Un toast affiché juste avant un changement d'écran est effacé par le rendu suivant : flashToast() le garde
+// en attente et l'affiche sur l'écran d'arrivée (voir setApp).
+function flashToast(msg) {
+  state.flash = msg;
+}
 function toast(msg, isError) {
   let el = $("#toast");
   el.innerHTML = `${isError ? "" : ICONS.check}<span>${esc(msg)}</span>`;

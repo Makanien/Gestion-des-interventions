@@ -400,6 +400,7 @@ async function renderClientDetail(id) {
       <div class="topbar-row">
         <button class="back-btn" data-nav="back" aria-label="Retour">${ICONS.back}</button>
         <div><h1>${esc(client.nom || "Client")}</h1><div class="subtitle">Fiche client</div></div>
+        <div class="topbar-actions"><button class="icon-btn" data-nav="client-edit" data-id="${esc(client.id)}" title="Modifier le client" aria-label="Modifier le client">${ICONS.pencil}</button></div>
       </div>
     </div>
     <main>
@@ -427,6 +428,76 @@ async function renderClientDetail(id) {
     </main>
     <div class="toast" id="toast"></div>
   `);
+}
+
+// Modifier un client (coordonnées). Les fiches et PDF lisent le client par son identifiant : la correction
+// s'applique donc partout. Le client est synchronisé comme toute autre donnée (contrôle de conflit inclus).
+const TYPES_BATIMENT = ["", "Professionnel", "- de 2 ans", "+ de 2 ans", "+ de 15 ans"];
+function normNom(s) { return (s || "").trim().replace(/\s+/g, " ").toLowerCase(); }
+function validMail(m) { return !m || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(m); }
+
+async function renderClientEdit(id) {
+  const client = await DB.getRaw("clients", id);
+  if (!client || client._deleted) { go("#/clients"); return; }
+  // Un type de bâtiment hors liste (ancienne valeur) reste sélectionnable : on ne le perd pas en enregistrant.
+  const types = client.type_batiment && !TYPES_BATIMENT.includes(client.type_batiment) ? [client.type_batiment, ...TYPES_BATIMENT] : TYPES_BATIMENT;
+  setApp(`
+    <div class="topbar">
+      <div class="topbar-row">
+        <button class="back-btn" data-nav="back" aria-label="Annuler et revenir à la fiche">${ICONS.back}</button>
+        <div><h1>Modifier le client</h1><div class="subtitle">${esc(client.nom || "")}</div></div>
+      </div>
+    </div>
+    <main>
+      <div class="card" style="padding:14px;">
+        <div class="field"><label>Nom du client *</label><input id="ce-nom" type="text" autocomplete="off" value="${esc(client.nom)}" /></div>
+        <div class="field"><label>Adresse</label><input id="ce-adresse" type="text" value="${esc(client.adresse)}" /></div>
+        <div class="row2">
+          <div class="field"><label>Code postal</label><input id="ce-cp" type="text" inputmode="numeric" value="${esc(client.code_postal)}" /></div>
+          <div class="field"><label>Ville</label><input id="ce-ville" type="text" value="${esc(client.ville)}" /></div>
+        </div>
+        <div class="row2">
+          <div class="field"><label>Téléphone</label><input id="ce-tel" type="tel" value="${esc(client.tel)}" /></div>
+          <div class="field"><label>Mail</label><input id="ce-mail" type="email" value="${esc(client.mail)}" /></div>
+        </div>
+        <div class="field"><label>Type de bâtiment</label>
+          <select id="ce-bat">${types.map((t) => `<option value="${esc(t)}" ${client.type_batiment === t || (!client.type_batiment && t === "") ? "selected" : ""}>${esc(t || "Non précisé")}</option>`).join("")}</select>
+        </div>
+      </div>
+      <button class="btn btn-accent" id="btn-save-client" style="margin-top:14px;">${ICONS.check} Enregistrer les modifications</button>
+      <button class="btn btn-ghost" data-nav="back" style="margin-top:9px;">Annuler</button>
+    </main>
+    <div class="toast" id="toast"></div>
+  `);
+  $("#btn-save-client").addEventListener("click", async () => {
+    const nom = $("#ce-nom").value.trim().replace(/\s+/g, " ");
+    const mail = $("#ce-mail").value.trim();
+    if (!nom) { toast("Le nom du client est obligatoire", true); $("#ce-nom").focus(); return; }
+    if (!validMail(mail)) { toast("Adresse mail invalide", true); $("#ce-mail").focus(); return; }
+    // Deux clients de même nom rendraient les recherches ambiguës (et « retrouver par nom » les fusionnerait).
+    const others = await DB.listClients();
+    if (others.some((c) => c.id !== id && normNom(c.nom) === normNom(nom))) {
+      toast("Un autre client porte déjà ce nom", true);
+      $("#ce-nom").focus();
+      return;
+    }
+    const next = {
+      ...client,
+      nom,
+      adresse: $("#ce-adresse").value.trim(),
+      code_postal: $("#ce-cp").value.trim(),
+      ville: $("#ce-ville").value.trim(),
+      tel: $("#ce-tel").value.trim(),
+      mail,
+      type_batiment: $("#ce-bat").value,
+    };
+    const changed = ["nom", "adresse", "code_postal", "ville", "tel", "mail", "type_batiment"].some((k) => (next[k] || "") !== (client[k] || ""));
+    if (changed) {
+      await DB.saveClient(next);
+      flashToast("Client modifié");
+    }
+    go(`#/client/${id}`);
+  });
 }
 
 // Fusionne l'historique client et les équipements des fiches en dédupliquant
