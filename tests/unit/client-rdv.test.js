@@ -198,3 +198,137 @@ describe("créer directement un rendez-vous", () => {
     expect(app.$(".note.blue").textContent).toContain("Durand");
   });
 });
+
+describe("rendez-vous : coordonnées du client", () => {
+  const FULL = { nom: "Dupont", adresse: "1 rue A", code_postal: "49500", ville: "Segré", tel: "0102030405", mail: "a@b.fr" };
+  const input = (app, sel, value) => {
+    app.type(sel, value);
+    app.$(sel).dispatchEvent(new app.w.Event("input", { bubbles: true }));
+  };
+  const nbRdv = (app) => app.run("DB.listRendezvous().then((l) => l.length)");
+  const rdvSaved = (app) => until(async () => (await nbRdv(app)) === 1, "rendez-vous enregistré");
+
+  it("un client EXISTANT : ses coordonnées se remplissent pour vérification", async () => {
+    const app = await boot();
+    await app.run(`DB.saveClient(${JSON.stringify(FULL)})`);
+    await app.go("#/rdv", () => app.$("#r-client"));
+    expect(app.$("#r-adresse").value).toBe(""); // rien tant qu'aucun client n'est désigné
+    input(app, "#r-client", "dupont");
+    expect(app.$("#r-adresse").value).toBe("1 rue A");
+    expect(app.$("#r-cp").value).toBe("49500");
+    expect(app.$("#r-ville").value).toBe("Segré");
+    expect(app.$("#r-tel").value).toBe("0102030405");
+    expect(app.$("#r-mail").value).toBe("a@b.fr");
+    expect(app.$("#r-coords-hint").textContent).toMatch(/Client existant/);
+  });
+
+  it("une correction faite dans le rendez-vous est enregistrée sur le client (sans doublon)", async () => {
+    const app = await boot();
+    const c = await app.run(`DB.saveClient(${JSON.stringify(FULL)})`);
+    await app.go("#/rdv", () => app.$("#r-client"));
+    input(app, "#r-client", "Dupont");
+    app.type("#r-tel", "0699999999");
+    app.type("#r-ville", "Chazé-sur-Argos");
+    app.$("#btn-save-rdv").click();
+    await rdvSaved(app);
+    const saved = await app.run(`DB.getRaw("clients", ${JSON.stringify(c.id)})`);
+    expect(saved).toMatchObject({
+      id: c.id,
+      nom: "Dupont",
+      tel: "0699999999",
+      ville: "Chazé-sur-Argos",
+      adresse: "1 rue A",
+      mail: "a@b.fr",
+    });
+    expect(await app.run("DB.listClients().then((l) => l.length)")).toBe(1);
+    const [rdv] = await app.run("DB.listRendezvous()");
+    expect(rdv.client_id).toBe(c.id);
+    await until(() => /coordonnées du client mises à jour/.test(app.toastText()), "message");
+  });
+
+  it("coordonnées inchangées : la fiche du client n'est pas réécrite", async () => {
+    const app = await boot();
+    const c = await app.run(`DB.saveClient(${JSON.stringify(FULL)})`);
+    const before = await app.run(`DB.getRaw("clients", ${JSON.stringify(c.id)})`);
+    await app.go("#/rdv", () => app.$("#r-client"));
+    input(app, "#r-client", "Dupont");
+    app.$("#btn-save-rdv").click();
+    await rdvSaved(app);
+    expect(await app.run(`DB.getRaw("clients", ${JSON.stringify(c.id)})`)).toEqual(before);
+  });
+
+  it("un NOUVEAU client est créé avec les coordonnées saisies", async () => {
+    const app = await boot();
+    await app.go("#/rdv", () => app.$("#r-client"));
+    input(app, "#r-client", "Nouveau Prospect");
+    expect(app.$("#r-coords-hint").textContent).toMatch(/Nouveau client/);
+    app.type("#r-adresse", "5 place B");
+    app.type("#r-cp", "35000");
+    app.type("#r-ville", "Rennes");
+    app.type("#r-tel", "0611223344");
+    app.type("#r-mail", "prospect@example.fr");
+    app.$("#btn-save-rdv").click();
+    await rdvSaved(app);
+    const [c] = await app.run("DB.listClients()");
+    expect(c).toMatchObject({
+      nom: "Nouveau Prospect",
+      adresse: "5 place B",
+      code_postal: "35000",
+      ville: "Rennes",
+      tel: "0611223344",
+      mail: "prospect@example.fr",
+    });
+    const [rdv] = await app.run("DB.listRendezvous()");
+    expect(rdv.client_id).toBe(c.id);
+  });
+
+  it("passer d'un client existant à un nouveau nom vide les champs repris, pas ceux modifiés à la main", async () => {
+    const app = await boot();
+    await app.run(`DB.saveClient(${JSON.stringify(FULL)})`);
+    await app.go("#/rdv", () => app.$("#r-client"));
+    input(app, "#r-client", "Dupont");
+    app.type("#r-tel", "0600000000"); // modifié à la main
+    input(app, "#r-client", "Dupont Père et Fils"); // nom différent → plus de correspondance
+    expect(app.$("#r-adresse").value).toBe("");
+    expect(app.$("#r-ville").value).toBe("");
+    expect(app.$("#r-mail").value).toBe("");
+    expect(app.$("#r-tel").value).toBe("0600000000"); // conservé
+  });
+
+  it("un mail invalide bloque l'enregistrement, sans rien écrire", async () => {
+    const app = await boot();
+    const c = await app.run(`DB.saveClient(${JSON.stringify(FULL)})`);
+    const before = await app.run(`DB.getRaw("clients", ${JSON.stringify(c.id)})`);
+    await app.go("#/rdv", () => app.$("#r-client"));
+    input(app, "#r-client", "Dupont");
+    app.type("#r-mail", "pas-un-mail");
+    app.$("#btn-save-rdv").click();
+    await until(() => /Adresse mail invalide/.test(app.toastText()), "mail invalide");
+    expect(await nbRdv(app)).toBe(0);
+    expect(await app.run(`DB.getRaw("clients", ${JSON.stringify(c.id)})`)).toEqual(before);
+  });
+
+  it("depuis un appel : les coordonnées du client de l'appel sont affichées et corrigeables", async () => {
+    const app = await boot();
+    const c = await app.run(`DB.saveClient(${JSON.stringify(FULL)})`);
+    app.run(`state.rdvPrefill = { client_id: ${JSON.stringify(c.id)}, nom: "Dupont", note: "Fuite" }`);
+    await app.go("#/rdv", () => app.$("#r-date"));
+    expect(app.$("#r-client")).toBeNull();
+    expect(app.$("#r-adresse").value).toBe("1 rue A");
+    expect(app.$("#r-mail").value).toBe("a@b.fr");
+    app.type("#r-cp", "49000");
+    app.$("#btn-save-rdv").click();
+    await rdvSaved(app);
+    expect((await app.run(`DB.getRaw("clients", ${JSON.stringify(c.id)})`)).code_postal).toBe("49000");
+  });
+
+  it("à la modification d'un rendez-vous, le bloc de coordonnées n'est pas proposé", async () => {
+    const app = await boot();
+    const c = await app.run(`DB.saveClient(${JSON.stringify(FULL)})`);
+    const rdv = await app.run(
+      `DB.saveRendezvous({ client_id: ${JSON.stringify(c.id)}, date: "2026-12-02", type: "depannage", intervenant: "" })`,
+    );
+    await app.go(`#/rdv/${rdv.id}`, () => app.$("#r-date"));
+    expect(app.$("#r-adresse")).toBeNull();
+  });
+});
