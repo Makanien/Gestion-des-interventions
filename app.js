@@ -81,7 +81,7 @@ async function init() {
           if (newWorker.state !== "installed" || !navigator.serviceWorker.controller) return;
           state.updateAvailable = true;
           const hash = window.location.hash || "#/";
-          const inForm = !!state.draft || hash.startsWith("#/new") || hash.startsWith("#/entretien") || hash.startsWith("#/appel") || hash.startsWith("#/contrat");
+          const inForm = !!state.draft || hash.startsWith("#/new") || hash.startsWith("#/entretien") || hash.startsWith("#/appel") || hash.startsWith("#/contrat") || hash.startsWith("#/client-edit") || hash.startsWith("#/rdv");
           // BP-01 : ne jamais recharger pendant une saisie (wizard / formulaire) —
           // on propose un bandeau "Actualiser" à la place.
           if (inForm) showUpdateBanner();

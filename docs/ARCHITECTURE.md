@@ -24,7 +24,7 @@ une portée globale, servis tels quels depuis `dist/`.
 | `config.js` | URL et clé publique des projets Supabase (dev / prod), infos « Confidentialité » |
 
 **Modules `js/`** (chargés dans cet ordre, avant `app.js`) : `icons` · `statuts` (workflow) · `modeles-entretien` · `state` (état + brouillon de wizard) · `helpers` · `shell` (routeur, éléments communs) ·
-`views-home` (accueil, planning, clients) · `views-appel-rdv` · `views-wizard` (saisie) · `presence` · `views-detail` (détail, workflow, documents) · `views-stats` · `views-contrat` · `nav-events` (délégation
+`views-home` (accueil, planning, clients, modification d'un client) · `views-appel-rdv` · `views-wizard` (saisie) · `presence` · `views-detail` (détail, workflow, documents) · `views-stats` · `views-contrat` · `nav-events` (délégation
 des clics) · `auth` (connexion, données locales) · `views-compte` (compte & synchro, équipe, confidentialité). Ce sont des **scripts classiques à portée globale partagée** (pas de modules ES) : une fonction
 d'un fichier est appelable depuis un autre, **à l'exécution** ; un fichier ne doit pas exécuter au chargement du code qui dépend d'un fichier chargé plus tard. Ajouter un module = l'ajouter à `index.html`
 (avant `app.js`) **et** à `ASSETS` (`sw.js`) ; `scripts/build-dist.sh` copie `js/*.js`. ESLint lit les déclarations de tous les fichiers : un nom qu'aucun script ne déclare est une erreur. Le test

@@ -11,6 +11,7 @@ function openCreateSheet() {
       <div class="sheet-head"><h3>Créer</h3><button class="icon-btn" id="sheet-close" aria-label="Fermer" title="Fermer">${ICONS.close}</button></div>
       ${[
         { k: "appel", icon: "phone", label: "Nouvel appel", sub: "Enregistrer un contact client entrant" },
+        { k: "rdv", icon: "calendar", label: "Nouveau rendez-vous", sub: "Planifier directement, sans passer par un appel" },
         { k: "intervention", icon: "wrench", label: "Nouvelle intervention", sub: "Sav, Garantie, Dépannage, Diagnostic, Sur devis" },
         { k: "entretien_air_eau", icon: "droplet", label: "Entretien Air/Eau - Sol/Eau", sub: "PAC géothermie / aérothermie" },
         { k: "entretien_air_air", icon: "wind", label: "Entretien Air/Air", sub: "Mono Split, Multi Split ou Gainable" },
@@ -34,6 +35,7 @@ function openCreateSheet() {
     const k = b.dataset.create;
     closeSheet();
     if (k === "appel") { clearAppelDraft(); go("#/appel"); }
+    else if (k === "rdv") { state.rdvDraft = null; state.rdvPrefill = null; go("#/rdv"); }
     else if (k === "intervention") { state.draft = emptyDraft("intervention"); state.draftType = "intervention"; go("#/new/1"); }
     else { const t = k.replace("entretien_", ""); state.draft = emptyDraft(t); state.draftType = t; go(`#/entretien/${t}/1`); }
   }));
@@ -255,11 +257,24 @@ async function renderRdv(id) {
       if (itv && !itv._deleted) ficheLiee = itv;
     }
   }
+  // Client du rendez-vous : connu (appel d'origine, édition) → simple rappel ; sinon (création directe,
+  // ou ancien RDV sans client) → champ de saisie avec suggestion des clients existants.
+  const knownClientId = isEdit ? d.client_id : p.client_id || d.client_id || null;
+  const knownClient = knownClientId ? await DB.getClient(knownClientId) : null;
+  const knownName = (knownClient && knownClient.nom) || p.nom || "";
+  const clientChoices = knownName ? [] : await DB.listClients();
   setApp(`
     ${topbar({ title: isEdit ? "Modifier le rendez-vous" : "Nouveau rendez-vous", subtitle: "Planning", back: true, actions: isEdit ? `<button class="icon-btn" data-nav="rdv-delete" data-id="${d.id}" title="Supprimer" aria-label="Supprimer">${ICONS.trash}</button>` : "" })}
     <main>
       <div class="card" style="padding:14px;">
-        ${p.nom ? `<div class="note blue">Client : <strong>${esc(p.nom)}</strong></div>` : ""}
+        ${knownName
+          ? `<div class="note blue">Client : <strong>${esc(knownName)}</strong></div>`
+          : `<div class="field">
+               <label>Client *</label>
+               <input id="r-client" type="text" list="r-clients-list" autocomplete="off" placeholder="Choisir un client ou saisir un nouveau nom" value="${esc(d.client_nom_saisi || "")}" />
+               <datalist id="r-clients-list">${clientChoices.map((c) => `<option value="${esc(c.nom)}"></option>`).join("")}</datalist>
+               <div class="hint">Un nom inconnu crée un nouveau client (à compléter ensuite depuis sa fiche).</div>
+             </div>`}
         ${lienAppel ? `<div class="note">Issu de l'appel client du ${fmtStampShort(lienAppel.created_at)}.</div>` : ""}
         ${ficheLiee ? `<div class="note blue">Fiche d'intervention déjà créée pour ce rendez-vous.</div>` : ""}
         <div class="field"><label>Date *</label><input id="r-date" type="date" value="${esc(d.date)}" /></div>
@@ -296,6 +311,17 @@ async function renderRdv(id) {
     d.intervenant = $("#r-intervenant").value;
     d.technicien_id = resolveTechId(d.intervenant);
     d.note = cleanText($("#r-note").value);
+    // Client saisi (création directe) : on retrouve le client existant (même nom, sans tenir compte de la casse)
+    // ou on en crée un minimal — jamais de doublon.
+    let clientCree = false;
+    if (!knownName) {
+      const typed = ($("#r-client")?.value || "").trim().replace(/\s+/g, " ");
+      if (!typed) { toast("Indiquez le client", true); $("#r-client")?.focus(); return; }
+      const existing = clientChoices.find((c) => (c.nom || "").trim().toLowerCase() === typed.toLowerCase());
+      const client = existing || (await DB.findOrCreateClientByName({ nom: typed }));
+      clientCree = !existing;
+      d.client_id = client.id;
+    }
     if (!isEdit) {
       if (state.rdvPrefill?.client_id) d.client_id = state.rdvPrefill.client_id;
       if (state.rdvPrefill?.appel_id) d.appel_id = state.rdvPrefill.appel_id;
@@ -303,7 +329,7 @@ async function renderRdv(id) {
     await DB.saveRendezvous(d);
     if (d.appel_id) await linkAppelToRdv(d.appel_id, d.id);
     state.rdvDraft = null; state.rdvPrefill = null;
-    toast(isEdit ? "Rendez-vous modifié" : "Rendez-vous enregistré");
+    flashToast(clientCree ? "Rendez-vous enregistré — nouveau client créé" : isEdit ? "Rendez-vous modifié" : "Rendez-vous enregistré");
     state.tab = "planning";
     go("#/");
   });
