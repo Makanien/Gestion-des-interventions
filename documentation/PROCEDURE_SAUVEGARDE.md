@@ -27,14 +27,13 @@
 
 ### 3.1 Préparer les variables
 
-Dans un terminal — remplacez `<clé service_role>` par la valeur du Dashboard
-(mot de passe DB de `schema.sql` ou `seed.local.sql` : *pas nécessaire ici*).
+Dans le terminal, **copier-coller** les lignes suivantes (sans le `bash`) :
 
 ```bash
 export SUPABASE_URL="https://gegsynegpfacgwgwxivs.supabase.co"
-export SUPABASE_SERVICE_ROLE_KEY="<clé service_role>"
+read -rs SUPABASE_SERVICE_ROLE_KEY && export SUPABASE_SERVICE_ROLE_KEY
 export BACKUP_DIR="$HOME/sauvegardes/supabase-prod-$(date +%Y-%m-%d-%H%M)"
-mkdir -p "$HOME/sauvegardes"
+export SUPABASE_DB_URL="postgresql://postgres.gegsynegpfacgwgwxivs:MOTDEPASSE@aws-1-eu-west-1.pooler.supabase.com:5432/postgres"
 ```
 
 > ⚠️ `BACKUP_DIR` doit être **nouveau** : le script refuse d'écraser un dossier existant.
