@@ -82,7 +82,7 @@ purger les plus anciennes à chaque exécution.
 
 | Date | Dossier / Support | État | Signé par |
 |---|---|---|---|
-| | | | |
+| 2026-11-22 | BmaxAlex /home/alex/backups-supabase/prod-2026-11-22 | (13 tables, 4 comptes, 251/53/1 objets) | Alex |
 | | | | |
 
 ## 5. Limites connues du script (assumées)
