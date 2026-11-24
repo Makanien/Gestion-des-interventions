@@ -94,6 +94,7 @@ document.addEventListener("click", async (e) => {
   else if (action === "stats") go("#/stats");
   else if (action === "sync-now") runSyncNow();
   else if (action === "force-resend") forceResendAll();
+else if (action === "reset-pull") resetPullAll();
   else if (action === "conflict-keep-local") resolveConflictAction(nav.dataset.store, nav.dataset.id, true);
   else if (action === "conflict-keep-remote") resolveConflictAction(nav.dataset.store, nav.dataset.id, false);
   else if (action === "sync-retry-failed") retryFailedAction(nav.dataset.store, nav.dataset.id);         // SYNC-03

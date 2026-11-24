@@ -70,8 +70,9 @@ async function renderAccount() {
                  <button class="btn btn-primary" data-nav="sync-retry-failed" data-store="${esc(f.store)}" data-id="${esc(f.id)}">Réessayer</button>
                  <button class="btn btn-ghost" data-nav="sync-discard-failed" data-store="${esc(f.store)}" data-id="${esc(f.id)}">Ne plus synchroniser cet élément</button>
                </div>`).join("")}` : ""}
-              <button class="btn btn-primary" data-nav="sync-now" style="margin-top:12px;">${ICONS.sync} Synchroniser maintenant</button>
-             <button class="btn btn-ghost" data-nav="force-resend" style="margin-top:12px;">Tout renvoyer vers le serveur (récupération)</button>`
+               <button class="btn btn-primary" data-nav="sync-now" style="margin-top:12px;">${ICONS.sync} Synchroniser maintenant</button>
+              <button class="btn btn-ghost" data-nav="force-resend" style="margin-top:12px;">Tout renvoyer vers le serveur (récupération)</button>
+              <button class="btn btn-ghost" data-nav="reset-pull" style="margin-top:12px;">Re-télécharger toutes les données (récupération)</button>`
           : `<div class="sync-status warn"><span class="dot"></span>${supConfigured ? "Connectez-vous pour activer la synchronisation." : "Supabase non configuré (voir config.js)."}</div>`}
       </div>
 
@@ -261,6 +262,25 @@ async function forceResendAll() {
   await renderAccount();
 }
 
+// SYNC recovery : re-télécharge l'intégralité des données depuis le serveur
+// (réinitialise le curseur de pull). Utile si une synchro partielle a laissé
+// des fiches manquantes sur cet appareil.
+async function resetPullAll() {
+  if (!navigator.onLine) { toast("Hors ligne — re-téléchargement impossible", true); return; }
+  if (!confirm("Re-télécharger TOUTES les données depuis le serveur ?\n\nLes données locales existantes seront complétées par celles du serveur (sans écraser vos modifications en attente).")) return;
+  toast("Téléchargement en cours…");
+  try {
+    if (Sync.resetPullCursor) await Sync.resetPullCursor();
+    await Sync.runSync();
+    toast("Données re-téléchargées");
+  } catch (e) {
+    ErrorLog.error(e);
+    toast("Re-téléchargement partiel — nouvel essai automatique", true);
+    scheduleSyncRetry();
+  }
+  if (window.location.hash === "#/account") await renderAccount();
+  else await renderHome();
+}
 let _retryTimer = null;
 function scheduleSyncRetry(delay = 5000) {
   if (_retryTimer) return;

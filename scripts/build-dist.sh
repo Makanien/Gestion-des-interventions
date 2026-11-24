@@ -49,7 +49,7 @@ PROD_URL="$(node -e '
   process.stdout.write(window.SUPABASE_ENVS.production.url || "");
 ' "$ROOT/config.js")"
 case "$PROD_URL" in
-  https://*.supabase.co) ;;
+  https://*) ;;
   *) echo "ERREUR : URL de production introuvable dans config.js ($PROD_URL)." >&2; exit 1 ;;
 esac
 PROD_HOST="${PROD_URL#https://}"

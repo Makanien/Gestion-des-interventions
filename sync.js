@@ -773,6 +773,14 @@ async function runSync() {
   }
 }
 
+// Réinitialise le curseur de pull : le prochain Sync.runSync() re-télécharge
+// l'intégralité des données depuis le serveur (récupération après une synchro
+// partielle / un curseur avancé trop loin).
+async function resetPullCursor() {
+  SyncState.lastPulledAt = null;
+  try { await SyncStore?.saveCursor(null); } catch (e) { ErrorLog.warn("resetPullCursor échoué", e); }
+}
+
 // Première synchronisation : met en file toutes les données locales
 // (y compris celles créées avant la connexion) pour les pousser vers
 // Supabase.
@@ -893,4 +901,4 @@ async function stopRealtime() {
   );
 }
 
-window.Sync = { runSync, pullChanges, pushChanges, enqueueSync, initRealtime, stopRealtime, scheduleSync, initPersisted, initialPushIfNeeded, pushAllLocal, resolveConflict, retryFailed, discardFailed, uploadPendingSignatures, uploadPendingBinaries, notifyRemoteDataChanged, state: SyncState };
+window.Sync = { runSync, pullChanges, pushChanges, enqueueSync, initRealtime, stopRealtime, scheduleSync, initPersisted, initialPushIfNeeded, pushAllLocal, resolveConflict, retryFailed, discardFailed, uploadPendingSignatures, uploadPendingBinaries, notifyRemoteDataChanged, resetPullCursor, state: SyncState };

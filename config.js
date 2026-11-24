@@ -10,8 +10,8 @@
    ========================================================= */
 window.SUPABASE_ENVS = {
   production: {
-    url: "https://gegsynegpfacgwgwxivs.supabase.co",
-    anonKey: "sb_publishable_0xxc_225aBiabtdd2tp5Zg_4J9hZH1T",
+    url: "https://supabase.contabo.debarea.fr",
+    anonKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlIiwiaWF0IjoxNzk1NDYzMzMyLCJleHAiOjE5NTMxNDMzMzJ9.GaS64aJ02rO0CuM_J1PdV_HQcBdWMLWw475WSXboYlU",
   },
   development: {
     // Projet Supabase de test : créez un second projet sur
