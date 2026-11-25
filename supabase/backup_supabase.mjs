@@ -44,7 +44,7 @@ const SUPA_URL = (env.SUPABASE_URL || "").trim().replace(/\/+$/, "");
 const KEY = (env.SUPABASE_SERVICE_ROLE_KEY || "").trim();
 const DB_URL = (env.SUPABASE_DB_URL || "").trim();
 const PAGE = 1000;
-const CONCURRENCY = 4;
+const CONCURRENCY = 1;
 
 // Tables que l'application utilise (d'après la documentation du projet).
 // Si l'une manque côté serveur, c'est une ERREUR : la sauvegarde serait incomplète.
@@ -115,20 +115,20 @@ if (existsSync(BACKUP_DIR)) usage(`${BACKUP_DIR} existe déjà — une sauvegard
 // ---------- HTTP ----------
 const authHeaders = () => ({ apikey: KEY, ...(isJwt ? { Authorization: `Bearer ${KEY}` } : {}) });
 
-async function http(path, opts = {}, tries = 4) {
+async function http(path, opts = {}, tries = 6) {
   let last;
   for (let i = 1; i <= tries; i++) {
     try {
       const res = await fetch(`${SUPA_URL}${path}`, { ...opts, headers: { ...authHeaders(), ...(opts.headers || {}) } });
       if ((res.status === 429 || res.status >= 500) && i < tries) {
         last = new Error(`HTTP ${res.status}`);
-        await sleep(500 * 2 ** i);
+        await sleep(1000 * 2 ** i);
         continue;
       }
       return res;
     } catch (e) {
       last = e;
-      if (i < tries) await sleep(500 * 2 ** i);
+      if (i < tries) await sleep(1000 * 2 ** i);
     }
   }
   throw last;
@@ -246,6 +246,7 @@ async function collectObjects(bucket, prefix = "", acc = []) {
 }
 
 async function downloadObject(bucket, path) {
+  await sleep(250); // anti-429 : espacement des téléchargements
   const url = `/storage/v1/object/${enc(bucket)}/${path.split("/").map(enc).join("/")}`;
   const res = await http(url);
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
