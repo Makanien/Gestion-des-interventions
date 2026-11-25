@@ -255,8 +255,41 @@ async function downloadObject(bucket, path) {
 
 // ---------- 4. pg_dump (optionnel) ----------
 function pgDump(dir) {
+  const container = (env.SUPABASE_DB_CONTAINER || "").trim();
+  // Mode self-hosted : pg_dump tourne DANS le conteneur (le port 5432 n'est
+  // pas exposé à l'hôte), la sortie est capturée en stdout côté hôte.
+  if (container) {
+    let password = (env.SUPABASE_DB_PASSWORD || "").trim();
+    if (!password) {
+      try {
+        const line = readFileSync(join(homedir(), "supabase", ".env"), "utf8").split(/\r?\n/).find((l) => l.startsWith("POSTGRES_PASSWORD="));
+        if (line) password = line.slice("POSTGRES_PASSWORD=".length).trim();
+      } catch { /* ignore */ }
+    }
+    const dbUser = env.SUPABASE_DB_USER || "postgres";
+    const dbName = env.SUPABASE_DB_NAME || "postgres";
+    const ver = spawnSync("docker", ["exec", container, "pg_dump", "--version"], { encoding: "utf8" });
+    if (ver.error || ver.status !== 0) {
+      fail(`pg_dump (conteneur ${container}) indisponible : ${(ver.stderr || ver.error?.message || "").trim().slice(0, 200)}`);
+      return { statut: "erreur" };
+    }
+    const run = (name, args, strict) => {
+      const r = spawnSync("docker", ["exec", "-e", `PGPASSWORD=${password}`, container, "pg_dump", "-U", dbUser, "-d", dbName, ...args], { encoding: "buffer", maxBuffer: 1024 * 1024 * 512 });
+      if (r.status !== 0) {
+        (strict ? fail : warn)(`pg_dump ${name} : ${(r.stderr || "").toString().trim().slice(0, 300)}`);
+        return false;
+      }
+      writeFileSync(join(dir, name), r.stdout);
+      return true;
+    };
+    const a = run("database-public.dump", ["-Fc", "--schema=public", "--no-owner", "--no-privileges"], true);
+    const b = run("schema-public.sql", ["--schema-only", "--schema=public", "--no-owner", "--no-privileges"], true);
+    const c = run("schema-supabase-gere.sql", ["--schema-only", "--schema=auth", "--schema=storage", "--no-owner", "--no-privileges"], false);
+    return { statut: a && b ? "ok" : "erreur", database_public: a, schema_public: b, schema_auth_storage: c, version: ver.stdout.trim(), mode: "docker" };
+  }
+  // Mode cloud / distant : SUPABASE_DB_URL
   let u;
-  try { u = new URL(DB_URL); } catch { fail("SUPABASE_DB_URL invalide."); return { statut: "erreur" }; }
+  try { u = new URL(DB_URL); } catch { fail("SUPABASE_DB_URL invalide (ou définir SUPABASE_DB_CONTAINER pour le self-hosted)."); return { statut: "erreur" }; }
   const ver = spawnSync("pg_dump", ["--version"], { encoding: "utf8" });
   if (ver.error || ver.status !== 0) {
     fail("pg_dump est introuvable alors que SUPABASE_DB_URL est défini (installer le client PostgreSQL, version >= celle du serveur).");
