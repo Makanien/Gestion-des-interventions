@@ -290,19 +290,20 @@ function pgDump(dir) {
   // Mode cloud / distant : SUPABASE_DB_URL
   let u;
   try { u = new URL(DB_URL); } catch { fail("SUPABASE_DB_URL invalide (ou définir SUPABASE_DB_CONTAINER pour le self-hosted)."); return { statut: "erreur" }; }
-  const ver = spawnSync("pg_dump", ["--version"], { encoding: "utf8" });
+  const ver = spawnSync("docker", ["run", "--rm", "postgres:17.9-alpine", "pg_dump", "--version"], { encoding: "utf8" });
   if (ver.error || ver.status !== 0) {
-    fail("pg_dump est introuvable alors que SUPABASE_DB_URL est défini (installer le client PostgreSQL, version >= celle du serveur).");
+    fail("pg_dump (docker) indisponible : " + (ver.stderr || ver.error?.message || "").trim().slice(0, 200));
     return { statut: "erreur" };
   }
-  const penv = { ...process.env, PGPASSWORD: decodeURIComponent(u.password), PGSSLMODE: env.PGSSLMODE || "require" };
+  const pw = decodeURIComponent(u.password);
   const base = ["-h", u.hostname, "-p", u.port || "5432", "-U", decodeURIComponent(u.username), "-d", u.pathname.slice(1) || "postgres"];
   const run = (name, args, strict) => {
-    const r = spawnSync("pg_dump", [...base, ...args, "-f", join(dir, name)], { env: penv, encoding: "utf8" });
+    const r = spawnSync("docker", ["run", "--rm", "-e", `PGPASSWORD=${pw}`, "postgres:17.9-alpine", "pg_dump", ...base, ...args], { encoding: "buffer", maxBuffer: 1024 * 1024 * 512, env: { ...process.env, PGSSLMODE: env.PGSSLMODE || "require" } });
     if (r.status !== 0) {
-      (strict ? fail : warn)(`pg_dump ${name} : ${(r.stderr || "").trim().slice(0, 300)}`);
+      (strict ? fail : warn)(`pg_dump ${name} : ${(r.stderr || "").toString().trim().slice(0, 300)}`);
       return false;
     }
+    writeFileSync(join(dir, name), r.stdout);
     return true;
   };
   const a = run("database-public.dump", ["-Fc", "--schema=public", "--no-owner", "--no-privileges"], true);
